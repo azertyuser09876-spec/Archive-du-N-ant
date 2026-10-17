@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Archive du Néant">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <title>L’Archive du Néant</title>
+  <meta name="description" content="Un jeu d’extraction et de collection : explorez des mondes condamnés, capturez leurs créatures et bâtissez votre Archive avant leur destruction.">
+  <meta name="theme-color" content="#f7f8f7">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f7f8f7'/%3E%3Crect x='14' y='14' width='36' height='36' fill='none' stroke='%231c2230' stroke-width='3' transform='rotate(12 32 32)'/%3E%3Cpath d='M32 20l7 12-7 12-7-12z' fill='%232346c8'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game" aria-label="L’Archive du Néant"></canvas>
+  <div id="hud"></div>
+  <div id="hurt" aria-hidden="true"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="ui"></div>
+  <noscript><p class="noscript">L’Archive du Néant a besoin de JavaScript pour fonctionner.</p></noscript>
+
+  <!-- Socle -->
+  <script src="js/core/ns.js"></script>
+  <script src="js/core/rng.js"></script>
+  <script src="js/core/prefs.js"></script>
+  <script src="js/core/input.js"></script>
+  <script src="js/core/audio.js"></script>
+  <script src="js/core/music.js"></script>
+  <script src="js/core/save.js"></script>
+  <!-- Données -->
+  <script src="js/data/resources.js"></script>
+  <script src="js/data/biomes.js"></script>
+  <script src="js/data/creatures.js"></script>
+  <script src="js/data/traits.js"></script>
+  <script src="js/data/civs.js"></script>
+  <script src="js/data/gear.js"></script>
+  <script src="js/data/world.js"></script>
+  <script src="js/data/cosmos.js"></script>
+  <script src="js/data/fauna.js"></script>
+  <script src="js/data/works.js"></script>
+  <!-- Génération -->
+  <script src="js/gen/worldgen.js"></script>
+  <script src="js/gen/zonegen.js"></script>
+  <!-- Rendu -->
+  <script src="js/render/camera.js"></script>
+  <script src="js/render/fx.js"></script>
+  <script src="js/render/icons.js"></script>
+  <script src="js/render/creatureArt.js"></script>
+  <script src="js/render/cosmicArt.js"></script>
+  <script src="js/render/faunaArt.js"></script>
+  <script src="js/render/structArt.js"></script>
+  <script src="js/render/terrainArt.js"></script>
+  <script src="js/render/civArt.js"></script>
+  <!-- Jeu -->
+  <script src="js/game/profile.js"></script>
+  <script src="js/game/shapes.js"></script>
+  <script src="js/game/arrange.js"></script>
+  <script src="js/render/mosaic.js"></script>
+  <script src="js/game/entities.js"></script>
+  <script src="js/game/combat.js"></script>
+  <script src="js/game/ai.js"></script>
+  <script src="js/game/boss.js"></script>
+  <script src="js/game/capture.js"></script>
+  <script src="js/game/player.js"></script>
+  <script src="js/game/collapse.js"></script>
+  <script src="js/game/expedition.js"></script>
+  <script src="js/game/cinematic.js"></script>
+  <script src="js/game/production.js"></script>
+  <script src="js/game/bonds.js"></script>
+  <script src="js/game/mounts.js"></script>
+  <script src="js/game/abilities.js"></script>
+  <script src="js/game/keys.js"></script>
+  <script src="js/game/rescue.js"></script>
+  <script src="js/game/civs.js"></script>
+  <script src="js/game/settlements.js"></script>
+  <script src="js/game/cosmic.js"></script>
+  <script src="js/game/cosmos.js"></script>
+  <script src="js/game/search.js"></script>
+  <script src="js/game/tutorial.js"></script>
+  <script src="js/game/tools.js"></script>
+  <script src="js/game/structures.js"></script>
+  <script src="js/game/events.js"></script>
+  <script src="js/game/resume.js"></script>
+  <script src="js/game/archive.js"></script>
+  <!-- Interface -->
+  <script src="js/ui/hud.js"></script>
+  <script src="js/ui/panels.js"></script>
+  <script src="js/ui/worldmap.js"></script>
+  <script src="js/ui/gamepad.js"></script>
+  <script src="js/ui/touch.js"></script>
+  <script src="js/ui/console.js"></script>
+  <script src="js/ui/dialogue.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

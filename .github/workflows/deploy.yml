@@ -1,0 +1,36 @@
+# Publie le jeu sur GitHub Pages à chaque envoi sur la branche main.
+# Aucune compilation : le dépôt est servi tel quel.
+name: Publier sur GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v6
+      - name: Configurer Pages
+        uses: actions/configure-pages@v5
+      - name: Préparer le site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+      - name: Publier
+        id: deployment
+        uses: actions/deploy-pages@v4

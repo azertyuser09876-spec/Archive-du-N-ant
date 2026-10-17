@@ -1,0 +1,19 @@
+{
+  "name": "L’Archive du Néant",
+  "short_name": "Archive du Néant",
+  "description": "Un jeu d’extraction et de collection : explorez des mondes condamnés, capturez leurs créatures et bâtissez votre Archive.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#f7f8f7",
+  "theme_color": "#f7f8f7",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

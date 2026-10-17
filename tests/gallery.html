@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Galerie des assets</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    html, body { overflow: auto; height: auto; }
+    body { padding: 24px; }
+    h1 { font-family: var(--serif); font-weight: 400; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+    figure { margin: 0; border: 1px solid var(--line); background: #fff; padding: 8px; }
+    figure canvas { display: block; width: 100%; }
+    figcaption { font-size: 12.5px; margin-top: 6px; }
+    figcaption small { display: block; color: var(--ink-2); }
+  </style>
+</head>
+<body>
+  <h1>Galerie : biomes et créatures</h1>
+  <p class="muted">Page de contrôle visuel. Chaque élément est dessiné par le code du jeu, sans image externe.</p>
+  <h2>Biomes</h2>
+  <div class="grid" id="biomes"></div>
+  <h2>Créatures</h2>
+  <div class="grid" id="creatures"></div>
+  <h2>Structures (bâtiments de l’Archive, puis structures des mondes : envahies, rebâties)</h2>
+  <div class="grid" id="structures"></div>
+  <script src="../js/core/ns.js"></script>
+  <script src="../js/core/rng.js"></script>
+  <script src="../js/data/resources.js"></script>
+  <script src="../js/data/biomes.js"></script>
+  <script src="../js/data/creatures.js"></script>
+  <script src="../js/data/traits.js"></script>
+  <script src="../js/data/civs.js"></script>
+  <script src="../js/data/gear.js"></script>
+  <script src="../js/data/world.js"></script>
+  <script src="../js/data/cosmos.js"></script>
+  <script src="../js/data/fauna.js"></script>
+  <script src="../js/data/works.js"></script>
+  <script src="../js/gen/worldgen.js"></script>
+  <script src="../js/gen/zonegen.js"></script>
+  <script src="../js/render/icons.js"></script>
+  <script src="../js/render/creatureArt.js"></script>
+  <script src="../js/render/cosmicArt.js"></script>
+  <script src="../js/render/faunaArt.js"></script>
+  <script src="../js/render/structArt.js"></script>
+  <script src="../js/render/terrainArt.js"></script>
+  <script src="../js/game/profile.js"></script>
+  <script src="../js/game/shapes.js"></script>
+  <script>
+    (function () {
+      const D = AN.Data, h = AN.h;
+      const biomes = document.getElementById('biomes');
+      D.BIOMES.forEach((b, i) => {
+        // monde factice d'une seule zone pour rendre un échantillon de terrain
+        const world = { seed: 1000 + i, zones: [{ biome: b.id, mix: null, name: b.name, guardian: 'reine_mycelienne' }], heart: { biome: b.id, guardian: 'sylvarque' }, tiles: 40, density: 1, threat: 3, rule: 'aucune', anomaly: 'aucune', anomalyZone: 0 };
+        const zone = AN.ZoneGen.generate(world, 0);
+        const big = AN.Terrain.renderZone(zone, 7 + i);
+        const cv = h('canvas', { width: 460, height: 300 });
+        cv.getContext('2d').drawImage(big, big.width / 2 - 460, big.height / 2 - 300, 920, 600, 0, 0, 460, 300);
+        biomes.appendChild(h('figure', null, cv, h('figcaption', null, b.name, h('small', null, b.tags.join(', ') + ' · ' + (b.hazard ? b.hazard.name : 'sans danger')))));
+      });
+      const creatures = document.getElementById('creatures');
+      D.CREATURES.forEach((c) => {
+        const cv = h('canvas', { width: 460, height: 300 });
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = D.BIOME[c.biomes[0] || 'jardins_ambre'].ground[1];
+        ctx.fillRect(0, 0, 460, 300);
+        const scale = Math.min(1, 95 / c.r);
+        ctx.setTransform(scale, 0, 0, scale, 230, 150);
+        const e = { def: c, x: 0, y: 0, r: c.r * (c.tier === 0 ? 3 : c.tier === 1 ? 2 : 1), face: -0.3, anim: 1.2, seed: 3, pal: AN.Art.palette(c, 'commun', 0), vx: 0, vy: 0, flash: 0 };
+        ctx.setTransform(1, 0, 0, 1, 230, 150);
+        const k = Math.min(3, 80 / c.r);
+        ctx.scale(k, k);
+        e.r = c.r;
+        AN.Art.draw(ctx, e, 1.7);
+        creatures.appendChild(h('figure', null, cv, h('figcaption', null, c.name, h('small', null, D.TIERS[c.tier].name + ' · ' + c.art.shape + ' · ' + (c.biomes.length ? c.biomes.map((x) => D.BIOME[x].name).join(', ') : 'Le Seuil (tutoriel)')))));
+      });
+      const structs = document.getElementById('structures');
+      D.STRUCTURE_IDS.forEach((id) => {
+        const def = D.STRUCTURES[id];
+        const cv = h('canvas', { width: 460, height: 200 });
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#f7f8f7'; ctx.fillRect(0, 0, 460, 200);
+        if (def.kind === 'found') {
+          const b = D.BIOME[def.biomes[0]];
+          ctx.fillStyle = b.ground[1]; ctx.fillRect(0, 0, 230, 200);
+          AN.StructArt.draw(ctx, id, 115, 105, 62, 1.3, { ruined: true, biome: b.id, seed: 2 });
+          AN.StructArt.draw(ctx, id, 345, 105, 62, 1.3, {});
+        } else {
+          AN.StructArt.draw(ctx, id, 115, 105, 62, 1.3, { level: 1 });
+          AN.StructArt.draw(ctx, id, 345, 105, 62, 1.3, { level: def.levels.length });
+        }
+        structs.appendChild(h('figure', null, cv, h('figcaption', null, def.name, h('small', null, (def.kind === 'build' ? 'Bâtiment' : 'Structure des mondes · ' + def.biomes.map((x) => D.BIOME[x].name).join(', ')) + ' · ' + def.art))));
+      });
+    })();
+  </script>
+</body>
+</html>
