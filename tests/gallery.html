@@ -36,13 +36,23 @@
   <script src="../js/data/world.js"></script>
   <script src="../js/data/cosmos.js"></script>
   <script src="../js/data/fauna.js"></script>
+  <script src="../js/data/beyond.js"></script>
+  <script src="../js/data/cieux.js"></script>
+  <script src="../js/data/terres.js"></script>
+  <script src="../js/data/puissance.js"></script>
+  <script src="../js/data/nations.js"></script>
+  <script src="../js/data/noms.js"></script>
   <script src="../js/data/works.js"></script>
+  <script src="../js/data/base.js"></script>
   <script src="../js/gen/worldgen.js"></script>
   <script src="../js/gen/zonegen.js"></script>
+  <script src="../js/gen/names.js"></script>
   <script src="../js/render/icons.js"></script>
   <script src="../js/render/creatureArt.js"></script>
   <script src="../js/render/cosmicArt.js"></script>
   <script src="../js/render/faunaArt.js"></script>
+  <script src="../js/render/beyondArt.js"></script>
+  <script src="../js/render/bestiaireArt.js"></script>
   <script src="../js/render/structArt.js"></script>
   <script src="../js/render/terrainArt.js"></script>
   <script src="../js/game/profile.js"></script>
@@ -92,6 +102,16 @@
           AN.StructArt.draw(ctx, id, 345, 105, 62, 1.3, { level: def.levels.length });
         }
         structs.appendChild(h('figure', null, cv, h('figcaption', null, def.name, h('small', null, (def.kind === 'build' ? 'Bâtiment' : 'Structure des mondes · ' + def.biomes.map((x) => D.BIOME[x].name).join(', ')) + ' · ' + def.art))));
+      });
+      // modules de défense de l'hexagone (1.9)
+      D.DEFENSE_IDS.forEach((id) => {
+        const def = D.DEFENSES[id];
+        const cv = h('canvas', { width: 460, height: 200 });
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#f7f8f7'; ctx.fillRect(0, 0, 460, 200);
+        AN.StructArt.drawDefense(ctx, id, 115, 105, 62, 1.3, { level: 1 });
+        AN.StructArt.drawDefense(ctx, id, 345, 105, 62, 2.1, { level: def.levels.length });
+        structs.appendChild(h('figure', null, cv, h('figcaption', null, def.name, h('small', null, 'Module de défense de l’hexagone'))));
       });
     })();
   </script>

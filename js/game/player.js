@@ -32,7 +32,8 @@
     const roles = (role) => X.allies.filter((a) => !a.downed && a.def.roles.includes(role)).length;
     const S = {
       maxHp: 100 + pw.hp,
-      speed: 205 * (1 + pw.speed) * (1 + (armor && armor.speed ? armor.speed : 0)) * (X.world.rule === 'gravite' ? 1.15 : 1),
+      // les bienfaits de vitesse s'additionnent, jusqu'à +60 % (1.12)
+      speed: 205 * (1 + Math.min(0.6, pw.speed)) * (1 + (armor && armor.speed ? armor.speed : 0)) * (X.world.rule === 'gravite' ? 1.15 : 1),
       armor: Math.min(0.75, (armor ? armor.armor : 0) + pw.armor),
       hazardRes: Math.min(0.9, (armor && armor.hazardRes ? armor.hazardRes : 0) + pw.hazardRes),
       dashCd: 0.9 * (1 - (armor && armor.dashCd ? armor.dashCd : 0)),
@@ -63,7 +64,7 @@
 
   PC.damage = function (X, dmg, src, opts = {}) {
     const p = X.player;
-    if (!p.alive || (p.iframes > 0 && !opts.ignoreIframes) || X.ending) return 0;
+    if (!p.alive || (p.iframes > 0 && !opts.ignoreIframes) || X.ending || p.hidden) return 0;
     if (AN.debug && X.god) return 0;
     if (X.mount && AN.Mount.absorb(X, dmg, src, opts)) return 0;
     const sh = X.abil && X.abil.buffs;
@@ -137,7 +138,7 @@
     if (p.slowT > 0) slow = Math.max(slow, p.slowAmt);
 
     // déplacement et esquive
-    const ax = I.axis();
+    const ax = AN.Beyond.inputAxis(X, p, I.axis()); // le Pli : la marche s'inverse par endroits (1.10)
     AN.Cosmic.playerMode(X, p);
     const leaping = AN.Cosmic.leapUpdate(X, p, dt);
     const leapHandled = leaping || AN.Cosmic.leapControl(X, p, dt, ax);
@@ -151,9 +152,9 @@
       if (p.dashT <= 0) p.dashT = 0;
     } else {
       const base = X.mount ? AN.Mount.speed(X.mount) : S.speed;
-      const sp = base * (1 - slow) * (X.beam && X.beam.target ? 0.75 : 1);
+      const sp = base * (1 - slow) * (X.beam && X.beam.target ? 0.75 : 1) * AN.Beyond.speedMul(X, p);
       p.dvx = ax.x * sp; p.dvy = ax.y * sp;
-      const galaxy = X.echelon && X.echelon.move === 'leap';
+      const galaxy = AN.Beyond.leaps(X);
       if (((galaxy && !leapHandled && I.up('Space')) || (!galaxy && I.hit('Space'))) && p.dashCd <= 0) {
         const dx = ax.x || Math.cos(p.aim), dy = ax.y || Math.sin(p.aim);
         const l = Math.hypot(dx, dy) || 1;
@@ -268,7 +269,7 @@
 
   PC.draw = function (ctx, X, t) {
     const p = X.player;
-    if (!p.alive) return;
+    if (!p.alive || p.hidden || p.liftK > 0) return; // posé ou emporté avec l'hexagone (1.9)
     if (X.mount) AN.Mount.drawRider(ctx, X, t);
     else AN.Art.drawPlayer(ctx, p, t, { weapon: true, weaponColor: X.S.ranged.color });
     const b = X.abil && X.abil.buffs;

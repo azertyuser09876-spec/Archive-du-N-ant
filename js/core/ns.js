@@ -4,7 +4,7 @@
 (function () {
   'use strict';
   const AN = (window.AN = window.AN || {});
-  AN.VERSION = '1.8.1';
+  AN.VERSION = '1.13.0';
   AN.Data = AN.Data || {};
 
   const U = (AN.Util = {});
@@ -23,12 +23,22 @@
   U.easeIn = (t) => t * t * t;
   U.easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   U.smooth = (t) => t * t * (3 - 2 * t);
-  U.fmt = (n) => Math.round(n).toLocaleString('fr-FR');
+  // un seul formateur (1.8.2) : même texte que toLocaleString('fr-FR'), sans le recréer à chaque appel
+  let numFmt = null;
+  U.fmt = (n) => { try { if (!numFmt) numFmt = new Intl.NumberFormat('fr-FR'); return numFmt.format(Math.round(n)); } catch (e) { return Math.round(n).toLocaleString('fr-FR'); } };
   U.pct = (n) => Math.round(n * 100) + ' %';
   let uidCounter = Math.floor(Math.random() * 1e6);
   U.uid = (p = 'u') => p + (++uidCounter).toString(36) + Math.floor(Math.random() * 46656).toString(36);
   U.plural = (n, one, many) => (Math.abs(n) >= 2 ? many : one);
   U.sumValues = (obj) => Object.values(obj || {}).reduce((a, b) => a + b, 0);
+  /**
+   * Typographie française à l'affichage (1.9) : espace insécable avant « : », « % » et « » »,
+   * espace fine insécable avant « ; », « ? » et « ! », espace insécable après « « ».
+   * Les textes du jeu gardent des espaces ordinaires dans le code ; l'interface les corrige.
+   */
+  /** Première lettre en majuscule (1.11). */
+  U.cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  U.typo = (s) => (/ [:;?!%»]|« /.test(s) ? s.replace(/([^\s\u00a0\u202f]) ([:%»])/g, '$1\u00a0$2').replace(/([^\s\u00a0\u202f]) ([;?!])/g, '$1\u202f$2').replace(/« /g, '«\u00a0') : s);
 
   /* ---------- couleurs ---------- */
   const rgbCache = new Map();
@@ -42,8 +52,10 @@
     rgbCache.set(hex, c);
     return c;
   };
-  U.toHex = (r, g, b) =>
-    '#' + [r, g, b].map((v) => U.clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+  // table des 256 valeurs (1.8.2) : même résultat, sans tableaux ni chaînes intermédiaires
+  const HEX2 = Array.from({ length: 256 }, (_, v) => v.toString(16).padStart(2, '0'));
+  const hx = (v) => { v = Math.round(v); return v !== v ? 'NaN' : HEX2[v < 0 ? 0 : v > 255 ? 255 : v]; };
+  U.toHex = (r, g, b) => '#' + hx(r) + hx(g) + hx(b);
   U.rgba = (hex, a) => {
     const c = U.rgb(hex);
     return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
@@ -109,7 +121,7 @@
       if (c == null || c === false) return;
       if (Array.isArray(c)) c.forEach(add);
       else if (c instanceof Node) el.appendChild(c);
-      else el.appendChild(document.createTextNode(String(c)));
+      else el.appendChild(document.createTextNode(U.typo(String(c))));
     };
     kids.forEach(add);
     return el;

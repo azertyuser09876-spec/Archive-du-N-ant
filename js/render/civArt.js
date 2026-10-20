@@ -19,6 +19,10 @@
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
   }
+  function line(ctx, x1, y1, x2, y2, color, lw) {
+    ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
   function poly(ctx, pts, fill, stroke, lw) {
     ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath();
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
@@ -145,6 +149,7 @@
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath(); ctx.ellipse(s * 0.08, s * 0.16, s * (kind === 'ark' ? 0.75 : 0.52), s * 0.36, 0, 0, TAU); ctx.fill();
     if (kind === 'ark') { drawArk(ctx, s, style, P, t, lw); ctx.restore(); return; }
+    if (kind === 'market' || kind === 'hall' || kind === 'palace') { drawPublic(ctx, s, style, P, kind, variant, t, seed || 0, lw); ctx.restore(); return; }
     const v = variant || 0;
     switch (style) {
       case 'shrine': {
@@ -228,6 +233,70 @@
     }
     ctx.restore();
   };
+
+  /**
+   * Bâtiments publics d'une ville (1.12) : le comptoir (un étal sous un auvent aux couleurs
+   * du peuple), la caserne (une longue salle, des bannières) et le palais de la capitale
+   * (une enceinte, quatre tours, et au centre une maison du peuple, en grand).
+   */
+  function drawPublic(ctx, s, style, P, kind, variant, t, seed, lw) {
+    const b = P.body;
+    const ink = AN.INK;
+    const banner = (x, y, k) => {
+      line(ctx, x, y, x, y - s * 0.3, '#5a4a3a', lw);
+      const wave = Math.sin(t * 3 + seed + k) * s * 0.02;
+      poly(ctx, [[x, y - s * 0.3], [x + s * 0.12 + wave, y - s * 0.27], [x + s * 0.1, y - s * 0.2], [x + s * 0.12 + wave, y - s * 0.14], [x, y - s * 0.16]], b.trim, ink, lw * 0.5);
+      circ(ctx, x + s * 0.05, y - s * 0.22, s * 0.02, b.mark);
+    };
+    if (kind === 'market') {
+      // étal et marchandises
+      ctx.fillStyle = '#8a6a48'; ctx.fillRect(-s * 0.42, -s * 0.05, s * 0.84, s * 0.26);
+      ctx.strokeStyle = ink; ctx.lineWidth = lw; ctx.strokeRect(-s * 0.42, -s * 0.05, s * 0.84, s * 0.26);
+      const goods = ['#e8582a', '#4fb6e8', '#e6c23a', '#4fa864', '#cfc6e8', b.mark];
+      for (let k = 0; k < 6; k++) circ(ctx, -s * 0.34 + k * s * 0.135, s * 0.07, s * 0.045, goods[(k + (variant || 0)) % goods.length], ink, lw * 0.4);
+      // auvent rayé, bord festonné
+      const w = s * 0.5, top = -s * 0.32, bot = -s * 0.06;
+      for (let k = 0; k < 6; k++) {
+        ctx.fillStyle = k % 2 ? '#f4f2ec' : b.trim;
+        ctx.fillRect(-w + k * (w / 3), top, w / 3 + 0.5, bot - top);
+      }
+      ctx.strokeStyle = ink; ctx.lineWidth = lw; ctx.strokeRect(-w, top, w * 2, bot - top);
+      for (let k = 0; k < 6; k++) { ctx.fillStyle = k % 2 ? '#f4f2ec' : b.trim; ctx.beginPath(); ctx.arc(-w + (k + 0.5) * (w / 3), bot, w / 6, 0, Math.PI); ctx.fill(); ctx.stroke(); }
+      // caisses
+      for (const [x, y] of [[-s * 0.48, s * 0.28], [s * 0.4, s * 0.3]]) { ctx.fillStyle = '#a8865e'; ctx.fillRect(x, y, s * 0.1, s * 0.09); ctx.strokeRect(x, y, s * 0.1, s * 0.09); }
+      return;
+    }
+    if (kind === 'hall') {
+      ctx.fillStyle = U.shade(b.cloth, -0.15); ctx.fillRect(-s * 0.45, -s * 0.28, s * 0.9, s * 0.56);
+      ctx.strokeStyle = ink; ctx.lineWidth = lw; ctx.strokeRect(-s * 0.45, -s * 0.28, s * 0.9, s * 0.56);
+      ctx.fillStyle = U.shade(b.cloth, 0.12);
+      poly(ctx, [[-s * 0.45, -s * 0.28], [s * 0.45, -s * 0.28], [s * 0.38, -s * 0.02], [-s * 0.38, -s * 0.02]], U.shade(b.cloth, 0.12), ink, lw * 0.6);
+      line(ctx, -s * 0.38, -s * 0.02, s * 0.38, -s * 0.02, ink, lw * 0.6);
+      // porte, râtelier
+      ctx.fillStyle = '#2a201a'; ctx.fillRect(-s * 0.07, s * 0.1, s * 0.14, s * 0.18);
+      for (let k = 0; k < 4; k++) line(ctx, s * 0.18 + k * s * 0.05, s * 0.06, s * 0.2 + k * s * 0.05, s * 0.26, '#c8c0b0', lw * 0.6);
+      // bouclier du peuple
+      circ(ctx, -s * 0.24, s * 0.14, s * 0.07, b.trim, ink, lw * 0.6); circ(ctx, -s * 0.24, s * 0.14, s * 0.025, b.mark);
+      banner(-s * 0.4, -s * 0.28, 0); banner(s * 0.32, -s * 0.28, 1);
+      return;
+    }
+    // palais : enceinte, tours d'angle, et la maison du peuple au centre, en grand
+    const R = s * 0.48;
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * TAU + Math.PI / 8; ctx.lineTo(Math.cos(a) * R, Math.sin(a) * R * 0.8); }
+    ctx.closePath(); ctx.fillStyle = '#cfc8b8'; ctx.fill(); ctx.strokeStyle = ink; ctx.lineWidth = lw * 1.4; ctx.stroke();
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * TAU + Math.PI / 8; ctx.lineTo(Math.cos(a) * R * 0.82, Math.sin(a) * R * 0.66); }
+    ctx.closePath(); ctx.fillStyle = '#e6e0d2'; ctx.fill();
+    ctx.save(); ctx.scale(0.62, 0.62); CA.drawBuilding(ctx, 0, 0, s, style, P, 'house', variant, t, seed); ctx.restore();
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * TAU + Math.PI / 4;
+      const x = Math.cos(a) * R * 0.92, y = Math.sin(a) * R * 0.74;
+      circ(ctx, x, y, s * 0.07, '#bdb5a2', ink, lw);
+      circ(ctx, x, y, s * 0.03, b.mark);
+    }
+    banner(-s * 0.05, -R * 0.78, 2); banner(s * 0.12, -R * 0.78, 3);
+  }
 
   function drawArk(ctx, s, style, P, t, lw) {
     const b = P.body;

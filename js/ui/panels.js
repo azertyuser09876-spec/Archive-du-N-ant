@@ -433,7 +433,7 @@
     const monde = E.id === 'monde';
     const zoneWeight = (zi) => (zi >= X.world.zones.length ? (monde ? D.TERRITORY_WEIGHT.cratere : D.TERRITORY_WEIGHT.coeur) : (monde ? D.TERRITORY_WEIGHT.continent : D.TERRITORY_WEIGHT.territoire));
     const zoneLabel = (zi) => (zi >= X.world.zones.length ? (monde ? 'Cratère : ' : 'Cœur : ') : (monde ? 'Continent conquis : ' : 'Territoire conquis : '));
-    const maxAstres = E.astre ? AN.Profile.upgradeValue(X.profile, 'ancrage').astres : 0;
+    const maxAstres = E.astre ? AN.Profile.upgradeValue(X.profile, 'ancrage').astres + (AN.Profile.upgradeValue(X.profile, 'ancrage').astres > 0 ? AN.Profile.powers(X.profile).astres || 0 : 0) : 0;
     let el = null;
     const redo = () => (el ? UI.keepPlace(el, render) : render());
     const render = () => {
@@ -467,7 +467,7 @@
             return h('li', { class: sel.has(zi) || (!on && astreSel.size >= maxAstres) ? 'disabled' : '' },
               h('label', { class: 'check grow' }, h('input', { type: 'checkbox', checked: on, disabled: sel.has(zi) || (!on && astreSel.size >= maxAstres), onchange: (e) => { e.target.checked ? astreSel.add(zi) : astreSel.delete(zi); redo(); } }),
                 h('span', { class: 'swatch round', style: { background: D.BIOME[spec.biome].ground[1] } }),
-                h('span', null, A.name + ' : ' + spec.name, h('small', null, A.desc + ' Il rejoindra le ciel de l’Archive.'))),
+                h('span', null, (A.noun || A.name) + ' ' + AN.Names.de(AN.Names.proper(X.world.code)) + ' : ' + spec.name, h('small', null, U.cap(A.name) + '. ' + A.desc + ' Il rejoindra le ciel de l’Archive.'))),
               h('b', null, 'Ancrage'));
           })) : h('p', { class: 'muted' }, 'Conquérez une zone pour pouvoir l’emporter tout entière, comme un astre.')));
       }
@@ -495,7 +495,9 @@
       const down = X.allies.filter((a) => a.downed && !a.temp);
       if (down.length) body.appendChild(h('p', { class: 'note' }, down.map((a) => a.nickname || a.def.name).join(', ') + ' ' + (down.length > 1 ? 'sont' : 'est') + ' à terre : l’Artefact les ramènera blessés.'));
       const st = AN.Profile.upgradeValue(X.profile, 'stabilisateur');
-      body.appendChild(h('p', { class: 'note' }, 'Une fois lancé, le transfert dure environ ' + Math.round(st.dur * 0.62 * AN.Collapse.transferMul(X)) + ' secondes de présence dans le portail. Le monde s’effondre autour de vous, puis il est détruit. Vous ne pourrez jamais y revenir.'));
+      const fromBase = !!plate.base;
+      body.appendChild(h('p', { class: 'note' }, 'Une fois lancé, le transfert dure environ ' + Math.round(st.dur * 0.62 * AN.Collapse.transferMul(X) * (fromBase ? 1 - D.BASE.transfer : 1)) + ' secondes de présence ' + (fromBase ? 'sur l’hexagone' : 'dans le portail') + '. Le monde s’effondre autour de vous, puis il est détruit. Vous ne pourrez jamais y revenir.'));
+      if (fromBase) body.appendChild(h('p', { class: 'note' }, 'L’hexagone repart avec le butin, vous à bord, ses gardes et ses défenses. Les créatures marcheront sur lui : s’il tombe avant la fin, l’Artefact rentre seul avec la soute, sans les territoires.'));
       const go = btn('Lancer le transfert', () => {
         UI.close();
         AN.Collapse.start(X, plate, { territories: [...sel], astres: [...astreSel], villagers: !!(rallied && opt.villagers), village: !!(rallied && opt.villagers && opt.village) });
@@ -504,7 +506,22 @@
       body.appendChild(h('div', { class: 'actions' }, btn('Pas encore', () => UI.close(), 'ghost'), go));
     };
     render();
-    el = h('div', { class: 'panel transfer' }, h('header', null, h('h2', null, 'Extraction'), h('p', { class: 'muted' }, X.world.code + ', ' + X.world.region)), body);
+    el = h('div', { class: 'panel transfer' }, h('header', null, h('h2', null, plate.base ? 'Extraction depuis l’hexagone' : 'Extraction'), h('p', { class: 'muted' }, X.world.code + ', ' + X.world.region)), body);
+    UI.open(el);
+  };
+
+  /* ---------- retour d'un lieu ancré (1.10) ---------- */
+  UI.placeReturn = function (X, plate) {
+    const P = AN.Profile;
+    const bag = U.sumValues(X.bag);
+    const body = h('div', null,
+      h('p', null, (X.world.placeName || X.world.region) + ' est ancré à l’Archive : il ne sera pas détruit, et vous pourrez y revenir quand vous voudrez. Les gisements repoussent et les créatures reviennent avec le temps.'),
+      h('ul', { class: 'rows' },
+        h('li', null, h('span', { class: 'grow' }, 'Sac'), h('b', null, bag + ' ressource' + (bag > 1 ? 's' : ''))),
+        h('li', null, h('span', { class: 'grow' }, 'Soute'), h('b', null, X.cargo.length ? X.cargo.map((c) => P.cargoLabel(c)).join(', ') : 'vide'))),
+      h('p', { class: 'muted small' }, plate.base ? 'L’hexagone repart aussitôt, vous à bord.' : 'L’Artefact vous ramène depuis la plaque, sans transfert.'));
+    const el = h('div', { class: 'panel small transfer' }, h('header', null, h('h2', null, 'Rentrer à l’Archive'), h('p', { class: 'muted' }, X.world.code + ', ' + (X.world.placeName || X.world.region))), body,
+      h('div', { class: 'actions' }, btn('Pas encore', () => UI.close(), 'ghost'), btn('Rentrer', () => { UI.close(); AN.Places.leave(X, plate); }, 'primary', { autofocus: true })));
     UI.open(el);
   };
 
@@ -512,18 +529,20 @@
   UI.report = function (r) {
     const P = AN.Profile;
     const prof = AN.Game.profile;
-    const ok = r.outcome === 'extrait';
-    const title = ok ? 'Transfert réussi' : r.outcome === 'urgence' ? 'Extraction d’urgence' : 'Échec de l’expédition';
+    const ok = r.outcome === 'extrait' || r.outcome === 'retour' || r.outcome === 'ancre';
+    const title = r.nation ? (r.nation.mode === 'allie' ? 'Alliance : ' : 'Soumission : ') + r.nation.name : r.place && r.outcome === 'retour' ? 'Retour de ' + r.place.name : r.base && r.base.submerged && r.base.withPlayer ? 'Hexagone submergé' : ok ? 'Transfert réussi' : r.outcome === 'urgence' ? 'Extraction d’urgence' : 'Échec de l’expédition';
     const band = h('canvas', { class: 'report-band', width: 640, height: 64 });
     if (UI.drawSwatch) UI.drawSwatch(band, r.world);
     const resEntries = Object.entries(r.resources || {}).filter(([, n]) => n > 0).sort((a, b) => D.resValue(b[0]) * b[1] - D.resValue(a[0]) * a[1]);
     const value = resEntries.reduce((s, [k, n]) => s + D.resValue(k) * n, 0);
     const gains = [];
+    if (r.nation) gains.push(h('div', { class: 'gain-block' }, h('h4', null, r.nation.mode === 'allie' ? 'Un monde allié' : 'Un monde soumis'),
+      h('p', null, r.nation.name + ' : leur monde n’a pas été détruit. Il devient un lieu ancré, avec ses villes, ses comptoirs et ses mercenaires, et il envoie un tribut toutes les ' + D.NATION.tribute.period + ' minutes (page Peuples).')));
     if (r.territories.length) gains.push(h('div', { class: 'gain-block' }, h('h4', null, 'Territoires ', h('small', { class: 'muted' }, 'ils ont choisi leur place dans l’Archive')),
       h('ul', { class: 'gain-list' }, r.territories.map((t) => h('li', null, AN.Mosaic ? AN.Mosaic.shape(t, 44) : null,
         h('span', null, h('b', null, t.zoneName), h('small', null, D.BIOME[t.biome].name + ', ' + (D.QUALITY_NAMES[t.quality] || 'territoire').toLowerCase() + ', ' + AN.Shapes.cellsOf(t).length + ' case' + (AN.Shapes.cellsOf(t).length > 1 ? 's' : ''))))))));
     if (r.astres && r.astres.length) gains.push(h('div', { class: 'gain-block' }, h('h4', null, 'Astres retenus par l’Ancrage'),
-      h('ul', { class: 'gain-list' }, r.astres.map((a) => h('li', null, h('span', { class: 'astre-dot', style: { background: D.BIOME[a.biome].ground[1] } }), h('span', null, h('b', null, a.name), h('small', null, D.ASTRES[a.biome].desc)))))));
+      h('ul', { class: 'gain-list' }, r.astres.map((a) => h('li', null, h('span', { class: 'astre-dot', style: { background: D.BIOME[a.biome].ground[1] } }), h('span', null, h('b', null, AN.Names.astre(a)), h('small', null, U.cap(AN.Names.astreKind(a)) + '. ' + D.ASTRES[a.biome].desc)))))));
     const beings = (r.creatures || []).concat(r.hatched || []);
     if (beings.length) gains.push(h('div', { class: 'gain-block' }, h('h4', null, 'Créatures archivées'),
       h('div', { class: 'portraits' }, beings.map((c) => h('figure', null, AN.Icons.creature(c, 56), h('figcaption', null, P.displayName(c), (r.hatched || []).includes(c) ? h('small', { class: 'muted' }, 'éclos') : null))))));
@@ -542,7 +561,10 @@
       band,
       h('header', { class: 'report-head' },
         h('div', null, h('h2', null, title), h('p', { class: 'muted' }, r.world.code + ', ' + r.world.region + ', menace ' + r.world.threat + ' sur 7')),
-        h('div', { class: 'stamp' }, r.sursis ? 'En sursis' : 'Détruit')),
+        h('div', { class: 'stamp' + (r.place || r.nation ? ' kept' : '') }, r.nation ? (r.nation.mode === 'allie' ? 'Allié' : 'Soumis') : r.place ? 'Ancré' : r.sursis ? 'En sursis' : 'Détruit')),
+      r.base && r.base.submerged ? h('p', { class: 'note' }, r.base.withPlayer
+        ? 'L’hexagone a cédé pendant que vous étiez à bord : l’Artefact vous a ramené avec la soute, sans les territoires.'
+        : 'L’hexagone a cédé : l’Artefact est rentré seul avec ses défenses' + (r.base.secured ? ' et la soute (' + r.base.secured + ' élément' + (r.base.secured > 1 ? 's' : '') + ')' : '') + '.') : null,
       r.rescueMsgs && r.rescueMsgs.length ? h('div', { class: 'note' }, r.rescueMsgs.map((m) => h('p', null, m))) : null,
       h('div', { class: 'report-grid' },
         h('div', { class: 'report-gains' },
@@ -643,9 +665,19 @@
         if (entry.injured) { AN.HUD.toast('Cette créature est blessée et doit se reposer.'); return; }
         if (P.companionsUsed(prof) + P.linkCost(entry.species) > P.companionSlots(prof)) { AN.HUD.toast('Plus assez de liens (' + P.companionsUsed(prof) + ' / ' + P.companionSlots(prof) + '). Améliorez les Liens de l’Artefact ou retirez un compagnon.', 5); return; }
         prof.companions.push(entry.uid);
+        if (AN.Base.isGuard(prof, entry.uid)) AN.Base.toggleGuard(prof, entry.uid);
       }
       reopen();
     }, isComp ? 'ghost' : 'primary');
+    // garder l'hexagone (1.9)
+    const isGuard = AN.Base.isGuard(prof, entry.uid);
+    const guardBtn = !entry.lost && D.CREATURE[entry.species].tier < 5 ? btn(isGuard ? 'Retirer de la garde' : 'Garder l’hexagone', () => {
+      const m = AN.Base.toggleGuard(prof, entry.uid);
+      if (m) { AN.Audio.play('ui_err'); AN.HUD.toast(m, 4); return; }
+      AN.Audio.play(isGuard ? 'ui' : 'bond');
+      if (AN.Archive.state()) AN.Archive.rebuildCreatures();
+      reopen();
+    }, 'ghost', { title: 'Elle reste sur l’hexagone pendant les expéditions et le défend (' + AN.Base.guardCost(entry) + ' point' + (AN.Base.guardCost(entry) > 1 ? 's' : '') + ' de garde).' }) : null;
     if (!canComp && !isComp) compBtn.disabled = true;
     const callBtn = tr.call && !entry.lost ? btn(prof.call === entry.uid ? 'Appel préparé' : 'Préparer comme appel (G)', () => { prof.call = prof.call === entry.uid ? null : entry.uid; reopen(); }, prof.call === entry.uid ? 'ghost' : 'small') : null;
 
@@ -672,6 +704,7 @@
           if (AN.Archive.state()) AN.Archive.rebuildCreatures();
         }, 'Relâcher'), 'danger ghost'),
         callBtn,
+        guardBtn,
         AN.Archive.state() && !entry.lost && D.CREATURE[entry.species].tier < 5 ? btn(AN.Archive.state().follow === entry.uid ? 'Ne plus me suivre' : 'Me suivre dans l’Archive', () => { AN.Archive.setFollower(AN.Archive.state().follow === entry.uid ? null : entry.uid); reopen(); }, 'ghost') : null,
         P.canBeCompanion(entry) ? compBtn : null));
     UI.open(el, { onClose: save });

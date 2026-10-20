@@ -120,6 +120,7 @@
     if (!(minutes > 0)) return ev;
     const tmap = new Map(p.territories.map((t) => [t.uid, t]));
     const legacyLoy = ((p.legacy && p.legacy.loyalty) || 0) + (AN.Settlements ? AN.Settlements.powers(p).loyalty / 0.05 : 0) + (AN.Structures ? AN.Structures.powers(p).loyalty : 0);
+    const feedMul = 1 / Math.max(0.3, 1 - (AN.Structures ? AN.Structures.powers(p).feed : 0)); // serre (1.9) : la faim revient moins vite
     const homes = new Map();
     const live = p.collection.filter((c) => !c.lost);
     live.forEach((c) => {
@@ -136,7 +137,7 @@
       const neighbours = homes.get(c.home || 'center') || [];
       // faim
       if (tr.diet) {
-        c.fed = Math.max(0, (c.fed == null ? 1 : c.fed) - minutes / tr.diet.period);
+        c.fed = Math.max(0, (c.fed == null ? 1 : c.fed) - minutes / (tr.diet.period * feedMul));
         let guard = 8;
         while (c.fed < 0.5 && guard-- > 0) {
           if (p.settings.autoFeed !== false && AN.Profile.stock(p, tr.diet.res) >= tr.diet.n) {
@@ -209,6 +210,7 @@
       });
     });
     ev.civ = AN.Settlements ? AN.Settlements.tick(p, minutes) : [];
+    ev.tributes = AN.Nations ? AN.Nations.tick(p, minutes) : []; // nations ancrées (1.12)
     return ev;
   };
 

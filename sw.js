@@ -4,7 +4,7 @@
    cache, et mise à jour discrète en arrière-plan (la nouvelle version du jeu
    est servie à la visite suivante). Ne fonctionne qu'en ligne (https),
    pas en ouvrant index.html directement depuis le disque. */
-const CACHE = 'archive-du-neant-1.8.1';
+const CACHE = 'archive-du-neant-1.13.0';
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {

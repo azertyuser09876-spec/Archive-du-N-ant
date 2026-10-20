@@ -40,6 +40,22 @@
     }
   };
 
+  /** Des créatures restent dans un monde qui n'est pas détruit (gardes de l'hexagone, 1.9) : il entre en sursis. */
+  R.strand = function (X, prof, list, result) {
+    const P = AN.Profile;
+    const w = X.world;
+    if (!list.length) return;
+    const zi = X.base ? X.base.zi : X.zi;
+    list.forEach((c) => { c.lost = { code: w.code, seed: w.seed, threat: w.threat, tier: w.scale || 'region', zi, until: prof.expeditions + 1 + R.DELAY }; });
+    if (!(prof.sursis || []).some((s) => s.seed === w.seed)) {
+      prof.sursis = prof.sursis || [];
+      prof.sursis.push({ seed: w.seed, code: w.code, region: w.region, threat: w.threat, tier: w.scale || 'region', until: prof.expeditions + 1 + R.DELAY, created: Date.now(), rep: AN.Civ ? AN.Civ.reputation(prof) : 'inconnu' });
+    }
+    result.lost = (result.lost || []).concat(list.map((c) => P.displayName(c)));
+    result.sursis = true;
+    prof.companions = prof.companions.filter((u) => !list.some((c) => c.uid === u));
+  };
+
   /** Destinations de sauvetage, ajoutées à la liste de l'Artefact. */
   R.destinations = function (prof) {
     const out = [];

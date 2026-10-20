@@ -196,6 +196,7 @@ ol.ranks li.locked { border-style: dashed; color: var(--ink-3); }
 .panel.report { width: min(680px, 100%); }
 .panel.report > header { align-items: flex-start; }
 .stamp { color: var(--stamp); border: 2.5px solid var(--stamp); padding: 4px 12px; font-weight: 800; font-size: 18px; transform: rotate(-8deg); letter-spacing: 0.04em; margin-top: 6px; opacity: 0.88; }
+.stamp.kept { color: var(--cyan); border-color: var(--cyan); }
 .portraits { display: flex; flex-wrap: wrap; gap: 12px; }
 .portraits figure { margin: 0; text-align: center; width: 84px; }
 .portraits figcaption { font-size: 12px; }
@@ -229,6 +230,19 @@ dl.keys dd { margin: 0; color: var(--ink-2); }
 .hud-map { top: 14px; right: 14px; padding: 6px; }
 .hud-map canvas { display: block; width: 190px; height: 190px; background: #10131c; }
 .map-label { font-size: 11px; color: var(--ink-2); }
+/* 1.10 : la carte de l'échelon, sous la minicarte */
+.hud-map canvas.where { height: 100px; margin-top: 6px; }
+/* 1.12 : nations */
+.tag.nation { background: #f3ead8; color: #6a4a20; border-color: #c8a870; }
+.bar.favor i { background: #2a7a5a; }
+.bar.favor.low i { background: var(--stamp, #c8322c); }
+.nation-row .btn { white-space: nowrap; }
+.hud-map .map-label { margin-top: 4px; max-width: 190px; }
+body.touch-on .hud-map { pointer-events: auto; cursor: pointer; }
+body.touch-on .hud-map canvas.where, body.touch-on .hud-map .map-label { display: none; }
+body.touch-on .hud-map.where-on canvas { display: none; }
+body.touch-on .hud-map.where-on canvas.where { display: block; width: 130px; height: 68px; margin-top: 0; }
+body.touch-on .hud-map.where-on .map-label { display: block; max-width: 130px; font-size: 10px; }
 .hud-vitals { left: 14px; bottom: 30px; width: 250px; }
 .hud-vitals .lbl, .hud-loot .lbl { font-size: 11.5px; color: var(--ink-2); }
 .hp { position: relative; height: 14px; border: 1.5px solid var(--ink); background: var(--card); margin: 3px 0 6px; overflow: hidden; }
@@ -304,6 +318,8 @@ dl.keys dd { margin: 0; color: var(--ink-2); }
   .prep { grid-template-columns: 1fr; }
   .card-body { grid-template-columns: 1fr; }
   .hud-map canvas { width: 130px; height: 130px; }
+  .hud-map canvas.where { width: 130px; height: 68px; }
+  .hud-map .map-label { max-width: 130px; }
   .hud-vitals, .hud-loot { width: 200px; }
 }
 
@@ -321,6 +337,9 @@ dl.keys dd { margin: 0; color: var(--ink-2); }
 .aname { font-size: 11.5px; color: var(--ink-2); margin-top: 4px; white-space: nowrap; }
 .mount-row { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin: 0 0 6px; }
 .mount-row .bar { height: 6px; }
+.base-row .bar > i { background: var(--ink); }
+.base-row.hit .lbl { color: var(--stamp); }
+.base-row.hit .bar > i { background: var(--stamp); }
 
 .bars { display: grid; grid-template-columns: 74px 1fr auto; gap: 4px 10px; align-items: center; margin: 8px 0; font-size: 12.5px; }
 .bars .bar { height: 8px; }
@@ -425,6 +444,7 @@ body.tuto-on #toasts { top: 168px; }
 
 /* ---------- Outils, structures, événements (1.4) ---------- */
 .where-event { margin-top: 6px; font-size: 12px; font-weight: 700; padding: 3px 8px; border-left: 4px solid var(--cyan); background: rgba(35, 70, 200, 0.06); }
+.where-event.mission { border-left-color: #c08a2a; background: rgba(192, 138, 42, 0.08); max-width: 250px; white-space: normal; }
 .struct-icon { display: block; flex: none; }
 .build-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
 .build-card { border: 1px solid var(--ink); background: var(--card); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
@@ -529,8 +549,14 @@ html.reduce-fx *, html.reduce-fx *::before, html.reduce-fx *::after { animation-
 /* l'affichage tête haute se resserre pour laisser la place aux pouces */
 body.touch-on .hud-help { display: none; }
 body.touch-on .hud-vitals { top: 104px; bottom: auto; left: 10px; width: 190px; padding: 6px 10px; }
-body.touch-on .hud-loot { top: 186px; bottom: auto; left: 10px; right: auto; width: 190px; padding: 6px 10px; }
+body.touch-on .hud-loot { top: 202px; bottom: auto; left: 10px; right: auto; width: 190px; padding: 6px 10px; }
 body.touch-on .hud-loot .stake { display: none; }
+/* lignes d'événement et de mission (1.13) : une ligne chacune, et le reste descend d'autant */
+body.touch-on .where-event { font-size: 11px; max-width: 186px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; padding: 2px 6px; }
+body.touch-on:has(.hud-where .where-event:not([hidden])) .hud-vitals { top: 132px; }
+body.touch-on:has(.hud-where .where-event:not([hidden])) .hud-loot { top: 230px; }
+body.touch-on:has(.hud-where .where-event:not([hidden]) ~ .where-event:not([hidden])) .hud-vitals { top: 154px; }
+body.touch-on:has(.hud-where .where-event:not([hidden]) ~ .where-event:not([hidden])) .hud-loot { top: 252px; }
 body.touch-on .hud-abil { left: auto; right: 10px; bottom: auto; top: 156px; }
 body.touch-on .hud-map canvas { width: 130px; height: 130px; }
 body.touch-on .hud-cons { bottom: 14px; }
@@ -548,9 +574,15 @@ body.touch-on .tuto-card h3 { font-size: 16px; }
   .hud-where { min-width: 0; padding: 6px 10px; }
   .where-code { font-size: 16px; }
   body.touch-on .hud-vitals { top: 82px; }
-  body.touch-on .hud-loot { top: 160px; }
+  body.touch-on .hud-loot { top: 176px; }
   body.touch-on .hud-map canvas { width: 96px; height: 96px; }
+  body.touch-on .hud-map.where-on canvas.where { width: 96px; height: 50px; }
+  body.touch-on .hud-map.where-on .map-label { max-width: 96px; }
   body.touch-on .hud-abil { top: 128px; }
+  body.touch-on:has(.hud-where .where-event:not([hidden])) .hud-vitals { top: 112px; }
+  body.touch-on:has(.hud-where .where-event:not([hidden])) .hud-loot { top: 206px; }
+  body.touch-on:has(.hud-where .where-event:not([hidden]) ~ .where-event:not([hidden])) .hud-vitals { top: 134px; }
+  body.touch-on:has(.hud-where .where-event:not([hidden]) ~ .where-event:not([hidden])) .hud-loot { top: 228px; }
   .tg-top { right: calc(124px + 10px); }
   #toasts { top: 10px; width: min(460px, 56vw); }
   .toast { font-size: 12.5px; padding: 6px 10px; }
@@ -842,3 +874,17 @@ html.reduce-fx .panel { animation: none; }
   .slot-seal { width: 40px; height: 40px; }
   .slot-seal .mosaic { width: 40px !important; height: 40px !important; }
 }
+
+/* ---------- Choix d'un territoire pour une structure (1.9) ---------- */
+.terr-pick { max-height: min(60vh, 520px); overflow: auto; }
+.terr-pick li { padding: 0; }
+.terr-pick .row-btn { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; padding: 7px 8px; text-align: left; font: inherit; color: inherit; cursor: pointer; border-radius: 6px; }
+.terr-pick .row-btn:hover:not(:disabled), .terr-pick .row-btn:focus-visible { background: rgba(42, 159, 214, 0.1); }
+.terr-pick .row-btn:disabled { cursor: default; }
+.terr-pick li.disabled { opacity: 0.5; }
+.terr-pick small { display: block; color: var(--ink-2); }
+.terr-pick em { font-style: normal; font-size: 12px; white-space: nowrap; }
+
+/* ---------- Lieux ancrés (1.10) ---------- */
+.echelon.places { border-style: dashed; }
+.place-note { margin: 4px 0 12px; }

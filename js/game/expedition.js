@@ -102,6 +102,9 @@
     AN.PlayerCtl.computeStats(X);
     X.player.hp = X.player.maxHp;
     AN.Abilities.setup(X);
+    AN.Base.setup(X); // l'hexagone de l'Artefact, ses gardes et ses défenses (1.9)
+    AN.Nations.setup(X, !!snap); // un monde tenu par un peuple (1.12) ; les mercenaires engagés depuis l'Archive
+    if (world.place) AN.Places.prepare(X); // lieu ancré (1.10) : les gardiens pas encore revenus
 
     if (snap) AN.Resume.prepare(X, snap);
     Exp.enterZone(X, snap ? snap.zi : 0, null);
@@ -134,7 +137,7 @@
     const w = X.world;
     zone.groups.forEach((g, gi) => {
       const def = D.CREATURE[g.species];
-      if (!def) return;
+      if (!def || AN.Places.groupCleared(zone, gi)) return;
       const rng = AN.RNG.from(w.seed, 'g' + zone.index + '_' + gi);
       for (let k = 0; k < g.count; k++) {
         let x = g.x + rng.float(-40, 40), y = g.y + rng.float(-40, 40);
@@ -156,6 +159,8 @@
     }
     AN.Rescue.spawnCaptives(X, zone);
     AN.Civ.spawnVillage(X, zone);
+    AN.Nations.spawnCity(X, zone);
+    AN.Beyond.spawnEchoes(X, zone); // le Pli (1.10) : des échos de soi-même
   }
 
   Exp.zoneSpec = (X, zi) => (zi >= X.world.zones.length ? X.world.heart : X.world.zones[zi]);
@@ -176,6 +181,8 @@
       X.zones[zi] = zone;
       // reprise d'une expédition sauvegardée : ce qui avait changé dans cette zone
       if (X.restore && X.restore[zi]) AN.Resume.applyZone(X, zone, X.restore[zi]);
+      AN.Places.applyZone(X, zone); // lieu ancré : ce qui n'a pas encore repoussé
+      AN.Base.onZoneGenerated(X, zone); // le sol est dégagé sous l'hexagone, avant le dessin de la zone
     }
     X.zone = zone;
     X.zi = zi;
@@ -192,6 +199,7 @@
     } else spawnZone(X, zone);
 
     const seed = AN.hash(X.world.seed + ':canvas:' + zi);
+    zone.backdrop = AN.Skies.hasBackdrop(X); // orbite, système : le fond se voit à travers le sol (1.10)
     X.canvas = AN.Terrain.renderZone(zone, seed);
     X.thumb = AN.Terrain.thumb(zone, 3);
     X.fogCanvas = AN.Terrain.canvas(zone.w * 3, zone.h * 3);
@@ -217,6 +225,7 @@
       AN.Physics.collide(zone, a);
     });
     if (X.mount) { X.mount.x = p.x; X.mount.y = p.y; }
+    AN.Base.onEnterZone(X, zi, fromZi);
     X.flow = AN.Physics.flowField(zone, Math.floor(p.x / Z.T), Math.floor(p.y / Z.T));
     X.cam.x = p.x; X.cam.y = p.y; X.cam.zoom = Exp.baseZoom();
     X.weather = [];
@@ -232,6 +241,7 @@
     if (fromZi != null) AN.HUD.toast((zone.isHeart ? X.echelon.heart : X.echelon.unit + ' ' + (zi + 1) + ' sur ' + X.world.zones.length) + ' : ' + spec.name, 3.5);
     if (X.search) setTimeout(() => { if (AN.X === X && X.zi === zi) AN.Search.onEnterZone(X); }, fromZi == null ? 7800 : 1400);
     AN.Events.onEnterZone(X);
+    AN.Nations.onEnterZone(X); // la caravane perdue, un raid laissé derrière soi (1.13)
     if (fromZi != null) X.snapT = Math.min(X.snapT == null ? 2 : X.snapT, 2);
   };
 
@@ -262,7 +272,11 @@
     }
     AN.HUD.zoneChanged(X);
   };
-  Exp.heartOpen = (X) => { for (let i = 0; i < X.world.zones.length; i++) if (!X.conquered.has(i)) return false; return true; };
+  Exp.heartOpen = (X) => {
+    if (X.nation && X.nation.anchored) return true; // la capitale d'une nation ancrée vous est ouverte (1.12)
+    for (let i = 0; i < X.world.zones.length; i++) if (!X.conquered.has(i)) return false;
+    return true;
+  };
 
   /* ======================= Interactions ======================= */
   function interactables(X) {
@@ -270,6 +284,8 @@
     const zone = X.zone;
     // priorité absolue : relever un compagnon, achever un gardien épuisé
     for (const a of X.allies) if (a.downed && U.dist(a.x, a.y, p.x, p.y) < 54) return { kind: 'revive', target: a, text: 'Relever ' + (a.nickname || a.def.name), hold: 1.4 };
+    const g = AN.Base.downedNear(X);
+    if (g) return { kind: 'revive', target: g, text: 'Relever ' + (g.nickname || g.def.name) + ' (garde)', hold: 1.4 };
     for (const e of X.creatures) if (e.alive && e.boss && e.boss.exhausted && U.dist(e.x, e.y, p.x, p.y) < e.r + 60) return { kind: 'finish', target: e, text: 'Achever ' + e.def.name + ' (sans le capturer)', hold: 0.6 };
     for (const c of X.captives) if (U.dist(c.x, c.y, p.x, p.y) < c.r + 50) return { kind: 'free', target: c, text: 'Libérer ' + (c.nickname || c.def.name), hold: 1.6 };
     const L = AN.Civ.leader(X);
@@ -288,6 +304,7 @@
     }
     AN.Tools.interactables(X, consider);
     AN.Structures.interactables(X, consider);
+    AN.Base.interactables(X, consider);
     for (const r of zone.ruins) {
       if (r.used) continue;
       consider(U.dist(r.x, r.y, p.x, p.y), 56, () => ({ kind: 'ruin', target: r, text: r.kind === 'cache' ? 'Fouiller la structure' : 'Lire l’inscription', hold: 0.5 }));
@@ -301,6 +318,7 @@
     }
     if (L && rallying && L.team === 'civil') consider(U.dist(L.x, L.y, p.x, p.y), L.r + 24, () => ({ kind: 'talk', target: L, text: 'Parler à ' + X.civ.leader, hold: 0.25 }));
     AN.Cosmic.interactables(X, consider);
+    AN.Nations.interactables(X, consider);
     if (!X.collapse) for (const pl of zone.plates) consider(U.dist(pl.x, pl.y, p.x, p.y), Z.T * 2.4, () => ({ kind: 'extract', target: pl, text: 'Activer l’Artefact : extraction', hold: 0.5 }));
     for (const v of zone.vaults || []) {
       if (v.opened) continue;
@@ -327,6 +345,7 @@
         it.target.hp = it.target.maxHp * 0.4;
         FX.burst(it.target.x, it.target.y, '#5fd08a', 16, 120, { size: 3 });
         AN.HUD.toast((it.target.nickname || it.target.def.name) + ' est de nouveau sur pied.');
+        AN.Base.onRevive(X, it.target);
         break;
       case 'finish': AN.Boss.finish(X, it.target); break;
       case 'free': AN.Rescue.free(X, it.target); break;
@@ -392,10 +411,15 @@
         AN.Game.transition(() => Exp.enterZone(X, it.target.to, X.zi));
         break;
       case 'extract':
-        AN.UI.transferDialog(X, it.target);
+        if (X.world.place) AN.UI.placeReturn(X, it.target);
+        else AN.UI.transferDialog(X, it.target);
+        break;
+      case 'base_extract':
+        if (X.world.place) AN.UI.placeReturn(X, AN.Base.plate(X));
+        else AN.UI.transferDialog(X, AN.Base.plate(X));
         break;
       default:
-        if (!AN.Tools.interact(X, it)) AN.Structures.interact(X, it);
+        if (!AN.Nations.interact(X, it) && !AN.Beyond.interact(X, it) && !AN.Tools.interact(X, it)) AN.Structures.interact(X, it);
     }
   }
 
@@ -436,6 +460,8 @@
    * selection : { territories: [indices de zones] } pour une extraction normale.
    */
   Exp.finish = function (X, outcome) {
+    zoneLayer = null; // les calques du terrain et du halo n'ont plus lieu d'être (mémoire rendue)
+    AN.Collapse.release();
     // Le Seuil : sans extraction (ou en partie d'essai), on en sort sans rien garder.
     if (X.tuto && (outcome !== 'extrait' || X.tuto.sandbox)) { AN.Tutorial.leave(X, outcome); return; }
     const prof = X.profile;
@@ -445,10 +471,18 @@
     if (X.collapse && X.collapse.sound) X.collapse.sound.stop();
     if (X.droneSound) X.droneSound.stop();
     const result = { outcome, world: w, creatures: [], territories: [], resources: {}, lostGear: [], injured: [], hatched: [], lost: [], levels: [], rescueMsgs: [] };
+    // Ce qui rejoint l'Archive : la soute après une extraction, et toujours ce que l'hexagone
+    // submergé a déjà ramené (1.9)
+    const secured = X.base ? X.base.secured : [];
+    // retour d'un lieu ancré (1.10), monde d'une nation ancré (1.12) : comme une extraction, sans territoire
+    const back = outcome === 'extrait' || outcome === 'retour' || outcome === 'ancre';
+    const delivered = (back ? X.cargo : []).concat(secured);
+    X.delivered = delivered;
+    result.noBase = !X.base;
 
     // Ressources (le collecteur d'urgence sauve davantage du sac)
     const T = X.T || {};
-    if (outcome === 'extrait') result.resources = { ...X.bag };
+    if (back) result.resources = { ...X.bag };
     else if (outcome === 'echec' && T.keepOnDeath) {
       for (const k in X.bag) { const n = Math.floor(X.bag[k] * T.keepOnDeath); if (n > 0) result.resources[k] = n; }
     } else if (outcome === 'urgence') {
@@ -505,10 +539,12 @@
         prof.cosmos.astres.push(astre);
         result.astres.push(astre);
       });
+    }
+    if (delivered.length) {
       // Structures démontées : elles attendent d'être reconstruites dans l'Archive
-      result.structures = AN.Structures.afterExtraction(prof, X);
+      result.structures = AN.Structures.afterExtraction(prof, X, delivered);
       // Créatures
-      X.cargo.forEach((c) => {
+      delivered.forEach((c) => {
         if (c.inhabitants || c.ark || c.structure) return;
         let home = null;
         if (c.guardianOf != null && terrByZone[c.guardianOf]) home = terrByZone[c.guardianOf].uid;
@@ -526,21 +562,23 @@
           b.captured = (b.captured || 0) + 1;
         }
       });
-      prof.stats.captures += X.cargo.filter((c) => c.species && !c.egg && !c.inhabitants && !c.ark).length;
+      prof.stats.captures += delivered.filter((c) => c.species && !c.egg && !c.inhabitants && !c.ark).length;
       prof.stats.structures = (prof.stats.structures || 0) + (result.structures || []).length;
-      prof.stats.guardians += X.cargo.filter((c) => c.species && !c.egg && D.CREATURE[c.species].tier === 2).length;
-      prof.stats.ultras += X.cargo.filter((c) => c.species && !c.egg && D.CREATURE[c.species].tier === 3).length;
-      prof.stats.cosmic = (prof.stats.cosmic || 0) + X.cargo.filter((c) => c.species && !c.egg && D.CREATURE[c.species].tier >= 4).length;
+      prof.stats.guardians += delivered.filter((c) => c.species && !c.egg && D.CREATURE[c.species].tier === 2).length;
+      prof.stats.ultras += delivered.filter((c) => c.species && !c.egg && D.CREATURE[c.species].tier === 3).length;
+      prof.stats.cosmic = (prof.stats.cosmic || 0) + delivered.filter((c) => c.species && !c.egg && D.CREATURE[c.species].tier >= 4).length;
     }
 
     // Compagnons : après un échec, ceux qui étaient loin ou à terre restent dans le monde (voir rescue.js).
     // Sinon, un compagnon à terre revient blessé.
-    if (outcome === 'echec') AN.Rescue.onFailure(X, prof, result);
+    // dans un lieu ancré, l'Artefact retrouve toujours les siens : ils reviennent blessés
+    if (outcome === 'echec' && !w.place) AN.Rescue.onFailure(X, prof, result);
     else X.allies.forEach((a) => {
       if (a.temp) return;
       const c = P.findCreature(prof, a.uid);
-      if (c && a.downed) { c.injured = 2; result.injured.push(P.displayName(c)); }
+      if (c && (a.downed || (outcome === 'echec' && w.place))) { c.injured = 2; result.injured.push(P.displayName(c)); }
     });
+    AN.Base.finish(X, prof, outcome, result); // gardes de l'hexagone : rentrés, blessés, en sursis ou perdus
     result.levels = AN.Bonds.afterExpedition(prof, X, outcome);
     result.civ = AN.Civ.finish(X, outcome, X.collapse && X.collapse.selection, terrByZone, !result.sursis);
     // Les blessés des expéditions précédentes récupèrent.
@@ -553,7 +591,7 @@
     prof.stats.kills += X.stats.kills;
     if (outcome === 'echec') prof.stats.deaths++;
     if (outcome === 'urgence') prof.stats.emergencies++;
-    result.rescueMsgs = AN.Rescue.afterExpedition(prof, X, outcome);
+    result.rescueMsgs = (result.rescueMsgs || []).concat(AN.Rescue.afterExpedition(prof, X, outcome));
     if (result.hatched.length) result.hatched.forEach((c) => AN.Bonds.log(prof, 'Un œuf a éclos : ' + P.displayName(c) + '.', 'birth'));
     prof.journal.unshift({
       code: w.code, region: w.region, biome: w.primary, threat: w.threat, outcome, date: Date.now(), scale: w.scale || 'region',
@@ -561,14 +599,21 @@
       resources: U.sumValues(result.resources),
     });
     prof.journal = prof.journal.slice(0, 60);
+    if (w.place) { AN.Places.save(X, prof); result.place = { id: w.place, name: w.placeName || w.region }; }
+    AN.Nations.finish(X, prof, outcome, result);
     prof.pendingExpedition = null;
-    prof.destinations = null;
-    prof.destByScale = {};
+    if (!w.place) { prof.destinations = null; prof.destByScale = {}; } // un lieu ancré ne change pas les mondes captés
     if (X.tuto) AN.Tutorial.onExtracted(prof);
     AN.Save.write(prof);
 
     AN.HUD.hideExpedition();
     AN.UI.closeAll();
+    if (w.place || outcome === 'ancre') {
+      // un lieu ancré n'est pas détruit : pas de cinématique d'effondrement, on rentre
+      AN.X = null;
+      AN.Game.transition(() => AN.Archive.enter({ integration: result }), 0.5);
+      return;
+    }
     const thumbs = X.world.zones.map((z, i) => (X.zones[i] ? AN.Terrain.thumb(X.zones[i], 2) : null));
     AN.Cinematic.start({ result, X, thumbs, snapshot: X.canvas, zone: X.zone, zi: X.zi, player: { x: X.player.x, y: X.player.y } });
     AN.X = null;
@@ -644,7 +689,7 @@
       X.flowT = 0.35;
       X.flow = AN.Physics.flowField(X.zone, Math.floor(p.x / Z.T), Math.floor(p.y / Z.T));
     }
-    if (!X.ending) AN.PlayerCtl.update(X, dt);
+    if (!X.ending && !p.hidden) AN.PlayerCtl.update(X, dt);
     else { p.dvx = p.dvy = 0; }
     AN.Capture.update(X, dt);
     AN.Abilities.update(X, dt);
@@ -652,9 +697,11 @@
     for (const c of X.creatures) AN.AI.update(X, c, dt);
     for (const a of X.allies) AN.AI.update(X, a, dt);
     for (const c of X.civils) if (c.kind !== 'ark') AN.AI.update(X, c, dt);
+    AN.Base.update(X, dt);
     AN.Civ.update(X, dt);
+    AN.Nations.update(X, dt);
     AN.Cosmic.update(X, dt);
-    AN.Physics.separate(X.creatures.concat(X.allies.filter((a) => !a.ridden), X.captives, X.civils.filter((c) => c.kind !== 'ark')));
+    AN.Physics.separate(X.creatures.concat(X.allies.filter((a) => !a.ridden), X.captives, X.civils.filter((c) => c.kind !== 'ark'), AN.Base.entities(X)));
     if (X.creatures.some((c) => !c.alive)) X.creatures = X.creatures.filter((c) => c.alive);
     if (X.allies.some((a) => a.temp && !a.alive)) X.allies = X.allies.filter((a) => !a.temp || a.alive);
     AN.Combat.update(X, dt);
@@ -880,7 +927,18 @@
     ctx.globalAlpha = 1;
   }
 
+  /*
+   * Obscurité (1.8.2, même image qu'avant, en moins cher) : le calque des
+   * lumières, à demi-résolution, n'est plus préparé ni agrandi sur tout
+   * l'écran. L'écran est découpé en carreaux : ceux que touche une lumière
+   * passent par le calque (même agrandissement lissé, aligné sur les pixels
+   * de l'écran), les autres reçoivent la même couleur de brume par de simples
+   * rectangles pleins, ce qui donne exactement les mêmes pixels pour une
+   * fraction du coût.
+   */
   let lightCanvas = null;
+  const lights = [];
+  const DARK_PAD = 3; // marge, en pixels du calque, autour des lumières (le lissage lit les voisins)
   function drawDarkness(ctx, X, t) {
     let dark = X.biome.dark;
     if (X.eventDark) dark = Math.max(dark, X.eventDark);
@@ -892,52 +950,181 @@
     if (!lightCanvas || lightCanvas.width !== Math.ceil(W / 2) || lightCanvas.height !== Math.ceil(H / 2)) {
       lightCanvas = AN.Terrain.canvas(W / 2, H / 2);
     }
-    const lc = lightCanvas.getContext('2d');
-    lc.globalCompositeOperation = 'source-over';
-    lc.clearRect(0, 0, lightCanvas.width, lightCanvas.height);
-    const fog = X.world.rule === 'brume' ? '#c8ccd2' : '#05070e';
-    lc.fillStyle = U.rgba(fog, dark);
-    lc.fillRect(0, 0, lightCanvas.width, lightCanvas.height);
-    lc.globalCompositeOperation = 'destination-out';
+    const lw = lightCanvas.width, lh = lightCanvas.height;
+    const fog = U.rgba(X.world.rule === 'brume' ? '#c8ccd2' : '#05070e', dark);
+    // les lumières visibles, dans l'ordre où elles creusent le calque
+    lights.length = 0;
     const light = (wx, wy, r, a = 1) => {
       const s = cam.worldToScreen(wx, wy);
       const rr = (r * cam.zoom) / 2;
       if (s.x < -rr * 2 || s.y < -rr * 2 || s.x > W + rr * 2 || s.y > H + rr * 2) return;
-      const g = lc.createRadialGradient(s.x / 2, s.y / 2, 0, s.x / 2, s.y / 2, rr);
-      g.addColorStop(0, 'rgba(0,0,0,' + a + ')');
-      g.addColorStop(0.55, 'rgba(0,0,0,' + a * 0.6 + ')');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      lc.fillStyle = g;
-      lc.beginPath(); lc.arc(s.x / 2, s.y / 2, rr, 0, TAU); lc.fill();
+      lights.push(s.x / 2, s.y / 2, rr, a);
     };
     const p = X.player;
     const pr = X.world.rule === 'nuit' ? 230 : 330;
     light(p.x, p.y, pr + Math.sin(t * 3) * 6);
-    X.zone.plates.forEach((pl) => light(pl.x, pl.y, 220, 0.8));
-    X.zone.gates.forEach((g) => light(g.x, g.y, 140, 0.7));
+    for (const pl of X.zone.plates) light(pl.x, pl.y, 220, 0.8);
+    for (const g of X.zone.gates) light(g.x, g.y, 140, 0.7);
+    // les villes d'une nation sont éclairées (1.12)
+    if (X.zone.village && X.zone.village.city) { const v = X.zone.village; light(v.x, v.y, v.r * 1.15, 0.85); for (const b of v.buildings) if (b.kind !== 'house') light(b.x, b.y, 160, 0.8); }
     for (const e of X.creatures) if (e.alive && !e.hidden && (e.pal.glow || X.visionT > 0)) light(e.x, e.y, 60 + e.r * 4, 0.8);
     if (X.visionT > 0) light(X.player.x, X.player.y, 900, 0.6);
     for (const a of X.allies) if (a.pal.glow) light(a.x, a.y, 60 + a.r * 4, 0.8);
     for (const pr2 of X.projectiles) if (pr2.team === 'player') light(pr2.x, pr2.y, 50, 0.6);
     if (X.collapse) light(X.collapse.plate.x, X.collapse.plate.y, 420, 1);
-    ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
-    ctx.drawImage(lightCanvas, 0, 0, W, H);
+    AN.Base.lights(X, light);
+
+    // en pixels de l'écran (périphérique) : un pixel du calque en couvre kx × ky
+    const dw = ctx.canvas.width, dh = ctx.canvas.height;
+    const kx = (W * cam.dpr) / lw, ky = (H * cam.dpr) / lh;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = fog;
+    if (!lights.length) { ctx.fillRect(0, 0, dw, dh); return; }
+    // l'écran en carreaux : ceux que touche une lumière passent par le calque, les autres sont pleins
+    const cols = Math.ceil(dw / DARK_TILE), rows = Math.ceil(dh / DARK_TILE);
+    if (!darkMarks || darkMarks.length < cols * rows) darkMarks = new Uint8Array(cols * rows);
+    darkMarks.fill(0, 0, cols * rows);
+    let tx0 = cols, ty0 = rows, tx1 = -1, ty1 = -1;
+    for (let i = 0; i < lights.length; i += 4) {
+      const x = lights[i], y = lights[i + 1], rr = lights[i + 2];
+      const a0 = U.clamp(Math.floor(((x - rr - DARK_PAD) * kx) / DARK_TILE), 0, cols - 1), a1 = U.clamp(Math.floor(((x + rr + DARK_PAD) * kx) / DARK_TILE), 0, cols - 1);
+      const b0 = U.clamp(Math.floor(((y - rr - DARK_PAD) * ky) / DARK_TILE), 0, rows - 1), b1 = U.clamp(Math.floor(((y + rr + DARK_PAD) * ky) / DARK_TILE), 0, rows - 1);
+      for (let r = b0; r <= b1; r++) darkMarks.fill(1, r * cols + a0, r * cols + a1 + 1);
+      if (a0 < tx0) tx0 = a0; if (b0 < ty0) ty0 = b0; if (a1 > tx1) tx1 = a1; if (b1 > ty1) ty1 = b1;
+    }
+    // le calque, préparé seulement là où l'écran le lira
+    const X0 = tx0 * DARK_TILE, Y0 = ty0 * DARK_TILE, X1 = Math.min(dw, (tx1 + 1) * DARK_TILE), Y1 = Math.min(dh, (ty1 + 1) * DARK_TILE);
+    const ux0 = Math.max(0, Math.floor(X0 / kx) - 2), uy0 = Math.max(0, Math.floor(Y0 / ky) - 2);
+    const ux1 = Math.min(lw, Math.ceil(X1 / kx) + 2), uy1 = Math.min(lh, Math.ceil(Y1 / ky) + 2);
+    const lc = lightCanvas.getContext('2d');
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(ux0, uy0, ux1 - ux0, uy1 - uy0);
+    lc.fillStyle = fog;
+    lc.fillRect(ux0, uy0, ux1 - ux0, uy1 - uy0);
+    lc.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < lights.length; i += 4) {
+      const x = lights[i], y = lights[i + 1], rr = lights[i + 2], a = lights[i + 3];
+      const g = lc.createRadialGradient(x, y, 0, x, y, rr);
+      g.addColorStop(0, 'rgba(0,0,0,' + a + ')');
+      g.addColorStop(0.55, 'rgba(0,0,0,' + a * 0.6 + ')');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = g;
+      lc.beginPath(); lc.arc(x, y, rr, 0, TAU); lc.fill();
+    }
+    lc.globalCompositeOperation = 'source-over';
+    // rangée par rangée : suites de carreaux éclairés (même correspondance calque → écran
+    // que l'agrandissement complet d'avant) ou de carreaux pleins
+    if (Y0 > 0) ctx.fillRect(0, 0, dw, Y0);
+    if (Y1 < dh) ctx.fillRect(0, Y1, dw, dh - Y1);
+    for (let r = ty0; r <= ty1; r++) {
+      const y = r * DARK_TILE, hgt = Math.min(DARK_TILE, dh - y);
+      let c = 0;
+      while (c < cols) {
+        const lit = darkMarks[r * cols + c];
+        let e = c + 1;
+        while (e < cols && darkMarks[r * cols + e] === lit) e++;
+        const x = c * DARK_TILE, wid = Math.min(dw, e * DARK_TILE) - x;
+        if (lit) ctx.drawImage(lightCanvas, x / kx, y / ky, wid / kx, hgt / ky, x, y, wid, hgt);
+        else ctx.fillRect(x, y, wid, hgt);
+        c = e;
+      }
+    }
   }
+  let darkMarks = null;
+  const DARK_TILE = 64; // côté d'un carreau, en pixels de l'écran
+
+  /*
+   * Fond de la zone (1.8.2) : le terrain, déjà dessiné une fois pour toutes
+   * dans le canevas de la zone, devait être agrandi à l'échelle de l'écran à
+   * chaque image. Il l'est maintenant une fois dans un calque un peu plus
+   * grand que l'écran, recopié tel quel en suivant la caméra (au pixel près),
+   * et refait quand la vue en sort ou que le zoom change. Pendant
+   * l'effondrement, les cases effacées ou fissurées sont reportées une à une
+   * dans le calque (même dessin, limité à leur rectangle).
+   */
+  const ZONE_PAD = 160; // marge du calque, en pixels d'écran
+  let zoneLayer = null, zoneLastZoom = 0;
+  function drawZoneLayer(ctx, X, cam) {
+    const z = cam.zoom;
+    const stable = Math.abs(z - zoneLastZoom) <= z * 2e-5;
+    zoneLastZoom = z;
+    if (!stable) { zoneLayer = null; if (X.zoneDirty) X.zoneDirty.length = 0; return false; }
+    const dpr = cam.dpr, zd = z * dpr;
+    const tx = dpr * (cam.W / 2 + cam.sx) - cam.x * zd, ty = dpr * (cam.H / 2 + cam.sy) - cam.y * zd;
+    const dw = ctx.canvas.width, dh = ctx.canvas.height;
+    // sans fond de couleur quand le décor de l'échelon se voit au travers (1.10)
+    const fill = X.collapse ? AN.PAPER : X.zone.backdrop ? null : X.biome.wall.base;
+    let L = zoneLayer;
+    let ok = !!L && L.src === X.canvas && L.fill === fill && Math.abs(L.z - z) <= z * 2e-4 && L.dw === dw && L.dh === dh;
+    let dx = 0, dy = 0;
+    if (ok) {
+      dx = Math.round(tx - L.tx); dy = Math.round(ty - L.ty);
+      if (Math.abs(dx) > ZONE_PAD || Math.abs(dy) > ZONE_PAD) ok = false;
+    }
+    if (!ok) {
+      const PW = dw + 2 * ZONE_PAD, PH = dh + 2 * ZONE_PAD;
+      const cv = L && L.cv.width === PW && L.cv.height === PH ? L.cv : AN.Terrain.canvas(PW, PH);
+      const lc = cv.getContext('2d');
+      lc.setTransform(1, 0, 0, 1, 0, 0);
+      if (fill) { lc.fillStyle = fill; lc.fillRect(0, 0, PW, PH); } else lc.clearRect(0, 0, PW, PH);
+      lc.setTransform(zd, 0, 0, zd, tx + ZONE_PAD, ty + ZONE_PAD);
+      const cw = X.canvas.width, ch = X.canvas.height;
+      const sx = U.clamp(Math.floor((-ZONE_PAD - tx) / zd - 4), 0, cw), sy = U.clamp(Math.floor((-ZONE_PAD - ty) / zd - 4), 0, ch);
+      const ex = U.clamp(Math.ceil((dw + ZONE_PAD - tx) / zd + 4), 0, cw), ey = U.clamp(Math.ceil((dh + ZONE_PAD - ty) / zd + 4), 0, ch);
+      if (ex > sx && ey > sy) lc.drawImage(X.canvas, sx, sy, ex - sx, ey - sy, sx, sy, ex - sx, ey - sy);
+      L = zoneLayer = { cv, src: X.canvas, fill, z, zd, dw, dh, tx, ty };
+      dx = dy = 0;
+    } else if (X.zoneDirty && X.zoneDirty.length) {
+      // effondrement : chaque case touchée est redessinée dans son rectangle, aligné sur les pixels
+      const lc = L.cv.getContext('2d');
+      const T = Z.T, PW = L.cv.width, PH = L.cv.height;
+      const cw = X.canvas.width, ch = X.canvas.height;
+      const ox = L.tx + ZONE_PAD, oy = L.ty + ZONE_PAD;
+      const D = X.zoneDirty;
+      for (let i = 0; i < D.length; i += 3) {
+        const pad = D[i + 2] ? T : 1;
+        const wx0 = D[i] * T - pad, wy0 = D[i + 1] * T - pad, wx1 = (D[i] + 1) * T + pad, wy1 = (D[i + 1] + 1) * T + pad;
+        const X0 = Math.max(0, Math.floor(wx0 * L.zd + ox) - 2), Y0 = Math.max(0, Math.floor(wy0 * L.zd + oy) - 2);
+        const X1 = Math.min(PW, Math.ceil(wx1 * L.zd + ox) + 2), Y1 = Math.min(PH, Math.ceil(wy1 * L.zd + oy) + 2);
+        if (X1 <= X0 || Y1 <= Y0) continue;
+        lc.save();
+        lc.setTransform(1, 0, 0, 1, 0, 0);
+        lc.beginPath(); lc.rect(X0, Y0, X1 - X0, Y1 - Y0); lc.clip();
+        if (L.fill) { lc.fillStyle = L.fill; lc.fillRect(X0, Y0, X1 - X0, Y1 - Y0); } else lc.clearRect(X0, Y0, X1 - X0, Y1 - Y0);
+        lc.setTransform(L.zd, 0, 0, L.zd, ox, oy);
+        const sx = U.clamp(Math.floor(wx0 - T), 0, cw), sy = U.clamp(Math.floor(wy0 - T), 0, ch);
+        const ex = U.clamp(Math.ceil(wx1 + T), 0, cw), ey = U.clamp(Math.ceil(wy1 + T), 0, ch);
+        if (ex > sx && ey > sy) lc.drawImage(X.canvas, sx, sy, ex - sx, ey - sy, sx, sy, ex - sx, ey - sy);
+        lc.restore();
+      }
+    }
+    if (X.zoneDirty) X.zoneDirty.length = 0;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(L.cv, dx - ZONE_PAD, dy - ZONE_PAD);
+    return true;
+  }
+  Exp.dropLayer = () => { zoneLayer = null; };
+
 
   Exp.render = function (ctx) {
     const X = AN.X;
     if (!X) return;
     const cam = X.cam;
     const t = X.time;
-    ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
-    ctx.fillStyle = X.collapse ? AN.PAPER : X.biome.wall.base;
-    ctx.fillRect(0, 0, cam.W, cam.H);
+    const backdrop = X.zone.backdrop && !X.collapse;
+    if (backdrop) AN.Skies.drawBackdrop(ctx, X, t);
+    if (!drawZoneLayer(ctx, X, cam)) {
+      ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
+      if (!backdrop) { ctx.fillStyle = X.collapse ? AN.PAPER : X.biome.wall.base; ctx.fillRect(0, 0, cam.W, cam.H); }
+      cam.apply(ctx);
+      const v = cam.view(4);
+      const cw = X.canvas.width, ch = X.canvas.height;
+      const sx = U.clamp(Math.floor(v.x0), 0, cw), sy = U.clamp(Math.floor(v.y0), 0, ch);
+      const ex = U.clamp(Math.ceil(v.x1), 0, cw), ey = U.clamp(Math.ceil(v.y1), 0, ch);
+      if (ex > sx && ey > sy) ctx.drawImage(X.canvas, sx, sy, ex - sx, ey - sy, sx, sy, ex - sx, ey - sy);
+    }
     cam.apply(ctx);
     const v = cam.view(4);
-    const cw = X.canvas.width, ch = X.canvas.height;
-    const sx = U.clamp(Math.floor(v.x0), 0, cw), sy = U.clamp(Math.floor(v.y0), 0, ch);
-    const ex = U.clamp(Math.ceil(v.x1), 0, cw), ey = U.clamp(Math.ceil(v.y1), 0, ch);
-    if (ex > sx && ey > sy) ctx.drawImage(X.canvas, sx, sy, ex - sx, ey - sy, sx, sy, ex - sx, ey - sy);
 
     // reflets animés sur les terrains dangereux
     const zone = X.zone;
@@ -954,13 +1141,16 @@
     }
 
     if (X.collapse) AN.Collapse.drawUnder(ctx, X, t);
+    AN.Skies.drawWellGrid(ctx, X, t);
     AN.Cosmic.drawUnder(ctx, X, t);
+    AN.Base.drawUnder(ctx, X, t);
     AN.Tools.drawWorld(ctx, X, t);
     drawStructures(ctx, X, t);
     AN.Structures.drawWorld(ctx, X, t);
     AN.Events.drawWorld(ctx, X, t);
     AN.Keys.draw(ctx, X, t);
     AN.Civ.draw(ctx, X, t);
+    AN.Nations.drawWorld(ctx, X, t); // missions (1.13)
     drawNodes(ctx, X, t);
     if (X.tuto) AN.Tutorial.drawWorld(ctx, X, t);
     AN.Combat.drawUnder(ctx, X, t);
@@ -971,6 +1161,7 @@
     for (const a of X.allies) if (cam.visible(a.x, a.y, a.r * 3 + 40)) ents.push(a);
     for (const c of X.captives) if (cam.visible(c.x, c.y, c.r * 3 + 40)) ents.push(c);
     for (const c of X.civils) if (c.kind !== 'ark' && c.alive && cam.visible(c.x, c.y, c.r * 3 + 40)) ents.push(c);
+    for (const g of AN.Base.entities(X)) if (cam.visible(g.x, g.y, g.r * 3 + 40)) ents.push(g);
     ents.sort((a, b) => (a.isBoss ? 1 : 0) - (b.isBoss ? 1 : 0) || a.y - b.y);
     for (const e of ents) {
       if (e.downed) ctx.globalAlpha = 0.5;
@@ -982,15 +1173,20 @@
     AN.Combat.drawOver(ctx, X, t);
     AN.Capture.draw(ctx, X, t);
     AN.Cosmic.drawOver(ctx, X, t);
+    AN.Base.drawOver(ctx, X, t);
     AN.FX.draw(ctx, cam);
     AN.Abilities.drawGiants(ctx, X, t);
     drawWeather(ctx, X, t);
+    AN.Skies.drawFront(ctx, X, t);
+    cam.apply(ctx);
     if (X.collapse) AN.Collapse.drawOver(ctx, X, t);
     drawDarkness(ctx, X, t);
     ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
     if (X.flashT > 0 && !AN.Prefs.reduceFx()) { ctx.fillStyle = 'rgba(230,240,255,' + X.flashT * 3 + ')'; ctx.fillRect(0, 0, cam.W, cam.H); }
     if (X.collapse) AN.Collapse.drawScreen(ctx, X, t);
     if (!X.collapse && AN.Search) AN.Search.drawCompass(ctx, X, t);
+    if (!X.collapse) AN.Nations.drawCompass(ctx, X, t);
+    AN.Base.drawScreen(ctx, X, t);
     if (X.tuto) AN.Tutorial.drawScreen(ctx, X, t);
     AN.Cosmic.drawScreen(ctx, X, t);
     if (X.emergencyT > 0) {

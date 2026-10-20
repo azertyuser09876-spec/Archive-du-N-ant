@@ -35,11 +35,15 @@
     }, secs * 1000);
   };
 
+  /* Écritures de l'affichage tête haute : seulement quand la valeur change (1.8.2) */
+  function setText(el, v) { v = AN.Util.typo(v); if (el && el.textContent !== v) el.textContent = v; }
+  function setTf(el, v) { if (el && el._tf !== v) { el._tf = v; el.style.transform = v; } }
+
   HUD.prompt = function (p) {
     let el = HUD.els.prompt;
     if (!el) return;
-    if (!p) { el.hidden = true; HUD.lastPrompt = null; return; }
-    el.hidden = false;
+    if (!p) { if (!el.hidden) el.hidden = true; HUD.lastPrompt = null; return; }
+    if (el.hidden) el.hidden = false;
     const key = p.text + '|' + (p.locked ? 1 : 0);
     if (HUD.lastPrompt !== key) {
       HUD.lastPrompt = key;
@@ -49,7 +53,7 @@
       el.appendChild(h('i', { class: 'prompt-fill' }));
       el.classList.toggle('locked', !!p.locked);
     }
-    el.lastChild.style.transform = 'scaleX(' + U.clamp(p.progress || 0, 0, 1) + ')';
+    setTf(el.lastChild, 'scaleX(' + U.clamp(p.progress || 0, 0, 1) + ')');
   };
 
   HUD.hurt = function () {
@@ -79,12 +83,16 @@
       E.zoneName = h('div', { class: 'where-zone' }, ''),
       h('div', { class: 'threat', title: 'Menace' }, 'Menace ', ...Array.from({ length: 7 }, (_, i) => h('b', { class: i < w.threat ? 'on' : '' }))),
       E.eventLine = h('div', { class: 'where-event', hidden: true }),
+      E.missionLine = h('div', { class: 'where-event mission', hidden: true }), // raid ou mission d'une nation (1.13)
     );
-    E.mapBox = h('div', { class: 'card hud-map' }, E.map = h('canvas', { width: 190, height: 190 }), E.mapLabel = h('div', { class: 'map-label' }, ''));
+    // la minicarte de la zone, et sous elle la carte de l'échelon : où l'on se trouve (1.10) ; au toucher, l'une ou l'autre
+    E.mapBox = h('div', { class: 'card hud-map', onclick: () => { if (document.body.classList.contains('touch-on')) { E.mapBox.classList.toggle('where-on'); drawWhere(X); } } },
+      E.map = h('canvas', { width: 190, height: 190 }), E.whereMap = h('canvas', { class: 'where', width: 190, height: 100 }), E.mapLabel = h('div', { class: 'map-label' }, ''));
     E.hp = h('div', { class: 'hp' }, E.hpFill = h('i'), E.hpText = h('span'));
     E.dash = h('div', { class: 'dash' });
     E.mountRow = h('div', { class: 'mount-row', hidden: true }, E.mountName = h('span', { class: 'lbl' }), E.mountBar = h('div', { class: 'bar cargo' }, h('i')));
-    E.vitals = h('div', { class: 'card hud-vitals' }, h('div', { class: 'lbl' }, 'Intégrité'), E.hp, E.mountRow, h('div', { class: 'row' }, E.dash, E.weapons = h('div', { class: 'weapons' })));
+    E.baseRow = h('div', { class: 'mount-row base-row', hidden: !X.base }, E.baseName = h('span', { class: 'lbl' }, 'Hexagone'), E.baseBar = h('div', { class: 'bar cargo' }, h('i')));
+    E.vitals = h('div', { class: 'card hud-vitals' }, h('div', { class: 'lbl' }, 'Intégrité'), E.hp, E.mountRow, E.baseRow, h('div', { class: 'row' }, E.dash, E.weapons = h('div', { class: 'weapons' })));
     E.abil = h('div', { class: 'card hud-abil', hidden: true });
     E.cons = h('div', { class: 'hud-cons' });
     E.loot = h('div', { class: 'card hud-loot' },
@@ -155,7 +163,15 @@
     const unit = X.echelon ? X.echelon.unit : 'Zone';
     E.zoneName.textContent = (X.zone.isHeart ? '' : unit + ' ' + (X.zi + 1) + '/' + X.world.zones.length + ' · ') + spec.name + (conq ? ' · conquise' : '');
     X.fogDirty = true;
+    drawWhere(X);
   };
+
+  /** La carte de l'échelon (1.10) : l'ensemble des zones, celle où l'on est, l'hexagone. */
+  function drawWhere(X) {
+    const cv = HUD.els.whereMap;
+    if (!cv || !AN.Skies) return;
+    setText(HUD.els.mapLabel, AN.Skies.drawWhere(cv.getContext('2d'), X, cv.width, cv.height, X.time || 0));
+  }
 
   HUD.refreshWeapons = function (X) {
     const E = HUD.els;
@@ -218,7 +234,9 @@
     }
     X.allies.forEach((a) => { ctx.fillStyle = a.downed ? AN.STAMP : '#9fb4ff'; ctx.fillRect(a.x * k - 1.5, a.y * k - 1.5, 3, 3); });
     if (AN.Search) AN.Search.drawMinimap(ctx, X, k, X.time);
+    AN.Nations.drawMinimap(ctx, X, k, X.time);
     AN.Structures.drawMinimap(ctx, X, k, seen);
+    if (AN.Base) AN.Base.drawMinimap(ctx, X, k);
     if (X.T && X.T.deep) zone.nodes.forEach((n) => { if (n.deep && n.uses > 0 && seen(n.x, n.y)) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2; ctx.strokeRect(n.x * k - 3, n.y * k - 3, 6, 6); } });
     if (X.collapse) {
       ctx.strokeStyle = AN.CYAN; ctx.lineWidth = 2;
@@ -238,48 +256,59 @@
     if (HUD.mode !== 'expedition') return;
     HUD.t = (HUD.t || 0) + dt;
     const p = X.player;
-    E.hpFill.style.transform = 'scaleX(' + U.clamp(p.hp / p.maxHp, 0, 1) + ')';
+    setTf(E.hpFill, 'scaleX(' + U.clamp(p.hp / p.maxHp, 0, 1) + ')');
     E.hp.classList.toggle('low', p.hp / p.maxHp < 0.3);
-    E.hpText.textContent = Math.ceil(p.hp) + ' / ' + p.maxHp;
+    setText(E.hpText, Math.ceil(p.hp) + ' / ' + p.maxHp);
     E.dash.classList.toggle('ready', p.dashCd <= 0);
-    if (X.mount) E.mountBar.firstChild.style.transform = 'scaleX(' + U.clamp(X.mount.hp / X.mount.maxHp, 0, 1) + ')';
+    if (X.mount) setTf(E.mountBar.firstChild, 'scaleX(' + U.clamp(X.mount.hp / X.mount.maxHp, 0, 1) + ')');
     if (E.abilSlots) E.abilSlots.forEach(({ slot, s, cd }) => {
-      cd.style.transform = 'scaleY(' + U.clamp(s.cd / s.max, 0, 1) + ')';
+      setTf(cd, 'scaleY(' + U.clamp(s.cd / s.max, 0, 1) + ')');
       slot.classList.toggle('down', !!s.ally.downed);
     });
     if (HUD.t > 0.1) {
       HUD.t = 0;
       const bc = X.bagCount(), cap = X.S.bagCap;
-      E.bagBar.firstChild.style.transform = 'scaleX(' + U.clamp(bc / cap, 0, 1) + ')';
-      E.bagText.textContent = bc + ' / ' + cap;
+      setTf(E.bagBar.firstChild, 'scaleX(' + U.clamp(bc / cap, 0, 1) + ')');
+      setText(E.bagText, bc + ' / ' + cap);
       E.bagBar.classList.toggle('full', bc >= cap);
       const cu = X.cargoUsed();
-      E.cargoBar.firstChild.style.transform = 'scaleX(' + U.clamp(cu / X.cargoCap, 0, 1) + ')';
-      E.cargoText.textContent = cu + ' / ' + X.cargoCap;
+      setTf(E.cargoBar.firstChild, 'scaleX(' + U.clamp(cu / X.cargoCap, 0, 1) + ')');
+      setText(E.cargoText, cu + ' / ' + X.cargoCap);
       const stake = X.bagValue() + X.cargoValue();
-      E.value.textContent = 'En jeu : ' + U.fmt(stake) + (X.T && X.T.keepOnDeath ? ' — un tiers du sac survivrait à une chute' : ' — perdu si vous tombez');
+      setText(E.value, 'En jeu : ' + U.fmt(stake) + (X.T && X.T.keepOnDeath ? ' — un tiers du sac survivrait à une chute' : ' — perdu si vous tombez'));
       const evt = AN.Events.hudText(X);
       if (E.eventLine) { E.eventLine.hidden = !evt; if (evt) { E.eventLine.textContent = evt; E.eventLine.style.borderColor = D.WORLD_EVENTS[X.event.id].color; } }
+      const mis = AN.Nations.hudText(X);
+      if (E.missionLine) { E.missionLine.hidden = !mis; if (mis) setText(E.missionLine, mis); }
       drawMinimap(X);
+      drawWhere(X);
+      // l'hexagone (1.9) : sa vigueur, ou ce qu'il est devenu
+      const bs = X.base;
+      if (bs && E.baseRow) {
+        const gone = bs.state === 'gone' || bs.state === 'lift';
+        setText(E.baseName, gone ? (bs.submerged ? 'Hexagone parti (submergé)' : 'Hexagone parti') : X.zi === bs.zi ? 'Hexagone' + (bs.shield > 1 ? ' · bouclier ' + Math.ceil(bs.shield) : '') : 'Hexagone (' + (X.echelon ? X.echelon.unit.toLowerCase() : 'zone') + ' ' + (bs.zi + 1) + ')');
+        setTf(E.baseBar.firstChild, 'scaleX(' + (gone ? 0 : U.clamp(bs.hp / bs.st.maxHp, 0, 1)) + ')');
+        E.baseRow.classList.toggle('hit', !gone && X.time - bs.lastHit < 2);
+      }
     }
     const b = X.activeBoss;
     if (b && b.alive && b.boss.active) {
       E.boss.hidden = false;
-      E.bossName.textContent = b.def.name + (b.variant !== 'commun' ? ' ' + D.VARIANT[b.variant].name : '');
-      E.bossFill.style.transform = 'scaleX(' + U.clamp(b.boss.exhausted ? b.capture : b.hp / b.maxHp, 0, 1) + ')';
+      setText(E.bossName, b.def.name + (b.variant !== 'commun' ? ' ' + D.VARIANT[b.variant].name : ''));
+      setTf(E.bossFill, 'scaleX(' + U.clamp(b.boss.exhausted ? b.capture : b.hp / b.maxHp, 0, 1) + ')');
       E.boss.classList.toggle('exhausted', b.boss.exhausted);
-      E.bossPhase.textContent = b.boss.exhausted ? 'Épuisé : capture ' + Math.round(b.capture * 100) + ' %, se relève dans ' + Math.ceil(b.boss.exhaustT) + ' s' : 'Phase ' + (b.boss.phase + 1) + ' sur ' + b.def.phases.length;
+      setText(E.bossPhase, b.boss.exhausted ? 'Épuisé : capture ' + Math.round(b.capture * 100) + ' %, se relève dans ' + Math.ceil(b.boss.exhaustT) + ' s' : 'Phase ' + (b.boss.phase + 1) + ' sur ' + b.def.phases.length);
     } else E.boss.hidden = true;
     if (X.collapse) {
       const c = X.collapse;
       E.collapse.hidden = false;
-      E.colText.textContent = c.inPortal ? 'Transfert en cours' : 'Revenez dans le portail !';
+      setText(E.colText, c.inPortal ? 'Transfert en cours' : 'Revenez dans le portail !');
       E.collapse.classList.toggle('away', !c.inPortal);
-      E.colFill.style.transform = 'scaleX(' + U.clamp(c.progress / c.need, 0, 1) + ')';
-      E.colTime.textContent = (c.frozen > 0 ? 'Effondrement figé (' + Math.ceil(c.frozen) + ' s)' : 'Effondrement total dans ' + Math.max(0, Math.ceil(c.dur - c.t)) + ' s') + (c.integrity != null ? ' · portail ' + Math.ceil(c.integrity) + ' %' : '');
+      setTf(E.colFill, 'scaleX(' + U.clamp(c.progress / c.need, 0, 1) + ')');
+      setText(E.colTime, (c.frozen > 0 ? 'Effondrement figé (' + Math.ceil(c.frozen) + ' s)' : 'Effondrement total dans ' + Math.max(0, Math.ceil(c.dur - c.t)) + ' s') + (c.integrity != null ? ' · portail ' + Math.ceil(c.integrity) + ' %' : ''));
     }
     E.emerg.hidden = !(X.emergencyT > 0.05);
-    if (!E.emerg.hidden) E.emFill.style.transform = 'scaleX(' + U.clamp(X.emergencyT / 2.5, 0, 1) + ')';
+    if (!E.emerg.hidden) setTf(E.emFill, 'scaleX(' + U.clamp(X.emergencyT / 2.5, 0, 1) + ')');
   };
 
   /* ======================= Archive ======================= */
@@ -303,7 +332,7 @@
     if (HUD.mode !== 'archive') return;
     const p = A.profile;
     const rk = AN.Profile.rank(p);
-    E.rankName.textContent = 'Archive : ' + rk.def.name;
+    setText(E.rankName, 'Archive : ' + rk.def.name);
     if (rk.next) {
       const n = rk.next.need, c = rk.counts;
       const parts = [];
@@ -315,10 +344,16 @@
       if (n.astres) parts.push(Math.min(c.astres, n.astres) + '/' + n.astres + ' astres');
       if (n.stellaires) parts.push(Math.min(c.stellaires, n.stellaires) + '/' + n.stellaires + ' entité stellaire');
       if (n.galactiques) parts.push(Math.min(c.galactiques, n.galactiques) + '/' + n.galactiques + ' organisme galactique');
-      E.rankNext.textContent = rk.next.mystery ? 'Prochain rang : ??? (' + parts.join(', ') + ')' : 'Prochain rang, ' + rk.next.name + ' : ' + parts.join(', ');
-    } else E.rankNext.textContent = 'Il n’y a plus rien au-dessus. Ou rien que vous puissiez voir.';
-    AN.clear(E.stock);
+      if (n.amas) parts.push(Math.min(c.amas, n.amas) + '/' + n.amas + ' entité d’amas');
+      if (n.toiles) parts.push(Math.min(c.toiles, n.toiles) + '/' + n.toiles + ' entité de la Toile');
+      setText(E.rankNext, rk.next.mystery ? 'Prochain rang : ??? (' + parts.join(', ') + ')' : 'Prochain rang, ' + rk.next.name + ' : ' + parts.join(', '));
+    } else setText(E.rankNext, 'Il n’y a plus rien au-dessus. Ou rien que vous puissiez voir.');
     const entries = Object.entries(p.stock).filter(([, n]) => n > 0).sort((a, b) => D.RESOURCES[b[0]].rarity - D.RESOURCES[a[0]].rarity || b[1] - a[1]);
+    // la réserve n'est reconstruite que si ce qu'elle montre a changé (1.8.2)
+    const sig = entries.slice(0, 12).map(([k, n]) => k + ':' + U.fmt(n)).join(',') + '|' + entries.length + '|' + AN.CYAN + AN.STAMP;
+    if (E.stock._sig === sig) return;
+    E.stock._sig = sig;
+    AN.clear(E.stock);
     if (!entries.length) E.stock.appendChild(h('div', { class: 'muted' }, 'Réserve vide'));
     entries.slice(0, 12).forEach(([k, n]) => E.stock.appendChild(h('div', { class: 'res', title: D.RESOURCES[k].name }, AN.Icons.img('res', k, 18), h('span', null, U.fmt(n)))));
     if (entries.length > 12) E.stock.appendChild(h('div', { class: 'muted' }, '+' + (entries.length - 12)));
@@ -333,8 +368,8 @@
     if (HUD.mode !== 'archive' || !E.arrange) return;
     const on = !!A.mapMode;
     if (E.arrange.hidden === on) E.arrange.hidden = !on;
-    if (E.stock) E.stock.hidden = on;
-    document.body.classList.toggle('arranging', on);
+    if (E.stock && E.stock.hidden !== on) E.stock.hidden = on;
+    if (document.body.classList.contains('arranging') !== on) document.body.classList.toggle('arranging', on);
     if (!on) { HUD.arrKey = null; return; }
     const p = A.profile;
     const Ag = AN.Arrange;

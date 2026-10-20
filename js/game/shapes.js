@@ -19,15 +19,23 @@
   S.cellsOf = (t) => (t.cells && t.cells.length ? t.cells : [[0, 0]]);
   S.abs = (t, q = t.q, r = t.r, cells = S.cellsOf(t)) => cells.map(([dq, dr]) => ({ q: q + dq, r: r + dr }));
   S.centers = (t) => S.abs(t).map((c) => H.toPx(c.q, c.r));
-  S.centroid = (t) => {
+  // centre et rayon d'un territoire, gardés tant qu'il ne bouge pas (1.8.2 : mêmes valeurs,
+  // sans recalcul à chaque image)
+  const geoMemo = new WeakMap();
+  function geo(t) {
+    const cells = S.cellsOf(t);
+    let g = geoMemo.get(t);
+    if (g && g.q === t.q && g.r === t.r && g.cells === cells) return g;
     const cs = S.centers(t);
-    return { x: cs.reduce((s, c) => s + c.x, 0) / cs.length, y: cs.reduce((s, c) => s + c.y, 0) / cs.length };
-  };
+    const c = { x: cs.reduce((s, p) => s + p.x, 0) / cs.length, y: cs.reduce((s, p) => s + p.y, 0) / cs.length };
+    const rad = cs.reduce((m, p) => Math.max(m, Math.hypot(p.x - c.x, p.y - c.y)), 0) + H.R;
+    g = { q: t.q, r: t.r, cells, x: c.x, y: c.y, rad };
+    if (t && typeof t === 'object') geoMemo.set(t, g);
+    return g;
+  }
+  S.centroid = (t) => { const g = geo(t); return { x: g.x, y: g.y }; };
   /** Rayon englobant (depuis le centroïde), pour la caméra et les animations. */
-  S.radius = (t) => {
-    const c = S.centroid(t);
-    return S.centers(t).reduce((m, p) => Math.max(m, Math.hypot(p.x - c.x, p.y - c.y)), 0) + H.R;
-  };
+  S.radius = (t) => geo(t).rad;
 
   /** Rotation de 60° d'une forme (coordonnées axiales). */
   S.rotate = (cells) => cells.map(([q, r]) => [-r, q + r]);

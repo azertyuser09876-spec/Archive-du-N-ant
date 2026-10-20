@@ -37,8 +37,9 @@
       return { x0: this.x - hw, y0: this.y - hh, x1: this.x + hw, y1: this.y + hh };
     }
     visible(x, y, r) {
-      const v = this.view(r);
-      return x >= v.x0 && x <= v.x1 && y >= v.y0 && y <= v.y1;
+      // même calcul que view(r), sans créer d'objet à chaque appel (1.8.2)
+      const hw = this.W / 2 / this.zoom + r, hh = this.H / 2 / this.zoom + r;
+      return x >= this.x - hw && x <= this.x + hw && y >= this.y - hh && y <= this.y + hh;
     }
   }
   AN.Camera = Camera;

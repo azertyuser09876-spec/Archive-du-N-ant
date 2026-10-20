@@ -162,6 +162,111 @@
     line(ctx, 0, -0.05 * s, Math.cos(a * 12 - Math.PI / 2) * 0.13 * s, -0.05 * s + Math.sin(a * 12 - Math.PI / 2) * 0.13 * s, c, 1.6);
   };
 
+  /* --- bâtiments de la 1.9 --- */
+  A.library = (ctx, s, c, t, o) => {
+    rect(ctx, -0.85 * s, -0.25 * s, 1.7 * s, 1.0 * s, '#efe8da');
+    poly(ctx, [[-1.0 * s, -0.25 * s], [0, -0.85 * s], [1.0 * s, -0.25 * s]], U.shade(c, 0.1));
+    for (let k = 0; k < 4; k++) rect(ctx, (-0.7 + k * 0.4) * s, -0.15 * s, 0.14 * s, 0.85 * s, '#f7f3ea', 1.1);
+    // des tranches de livres, à peine
+    for (let k = 0; k < 5; k++) line(ctx, (-0.18 + k * 0.09) * s, 0.25 * s, (-0.18 + k * 0.09) * s, 0.55 * s, k % 2 ? c : U.shade(c, -0.3), 2);
+    if (o.level > 1) circ(ctx, 0, -0.5 * s, 0.1 * s, '#fff8e8', 1);
+  };
+  A.garrison = (ctx, s, c, t, o) => {
+    rect(ctx, -0.8 * s, -0.1 * s, 1.6 * s, 0.85 * s, '#d8cfc0');
+    for (let k = 0; k < 5; k++) rect(ctx, (-0.8 + k * 0.35) * s, -0.3 * s, 0.2 * s, 0.2 * s, '#d8cfc0', 1.2);
+    poly(ctx, [[-0.22 * s, 0.75 * s], [-0.22 * s, 0.25 * s], [0, 0.08 * s], [0.22 * s, 0.25 * s], [0.22 * s, 0.75 * s]], U.shade(c, -0.2), 1.2);
+    line(ctx, 0.55 * s, -0.3 * s, 0.55 * s, -1.0 * s, INK, 1.4);
+    const wave = Math.sin(t * 3) * 0.06 * s;
+    poly(ctx, [[0.55 * s, -1.0 * s], [0.95 * s, -0.88 * s + wave], [0.55 * s, -0.72 * s]], AN.CYAN || '#2a9fd6', 1);
+  };
+  A.starport = (ctx, s, c, t, o) => {
+    poly(ctx, [[-0.9 * s, 0.75 * s], [0.9 * s, 0.75 * s], [0.6 * s, 0.4 * s], [-0.6 * s, 0.4 * s]], '#cfc8bc');
+    line(ctx, 0, 0.4 * s, 0, -0.55 * s, INK, 2);
+    ctx.save(); ctx.translate(0, -0.6 * s); ctx.rotate(t * 0.4);
+    ctx.beginPath(); ctx.ellipse(0, 0, 0.7 * s, 0.22 * s, 0, 0, TAU); ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.restore();
+    glow(ctx, 0, -0.6 * s, 0.5 * s, c, 0.5);
+    circ(ctx, 0, -0.6 * s, 0.16 * s, c, 1.2);
+    for (let k = 0; k < (o.level > 1 ? 2 : 1); k++) { const a = t * 0.9 + k * Math.PI; circ(ctx, Math.cos(a) * 0.7 * s, -0.6 * s + Math.sin(a) * 0.22 * s, 0.07 * s, '#ffffff', 1); }
+  };
+  A.temple = (ctx, s, c, t, o) => {
+    rect(ctx, -0.9 * s, 0.55 * s, 1.8 * s, 0.2 * s, '#e3dccb');
+    for (let k = 0; k < 4; k++) rect(ctx, (-0.72 + k * 0.42) * s, -0.3 * s, 0.18 * s, 0.85 * s, '#f7f3ea', 1.2);
+    poly(ctx, [[-0.95 * s, -0.3 * s], [0, -0.8 * s], [0.95 * s, -0.3 * s]], c);
+    glow(ctx, 0, 0.2 * s, 0.6 * s, '#fff3c0', 0.3 + Math.sin(t * 1.5) * 0.08);
+  };
+  A.yard = (ctx, s, c, t, o) => {
+    rect(ctx, -0.8 * s, 0.25 * s, 1.0 * s, 0.5 * s, '#d8cfc0');
+    // échafaudage
+    for (let k = 0; k < 3; k++) line(ctx, (-0.8 + k * 0.5) * s, 0.25 * s, (-0.8 + k * 0.5) * s, -0.45 * s, U.shade(c, -0.3), 1.6);
+    line(ctx, -0.8 * s, -0.1 * s, 0.2 * s, -0.1 * s, U.shade(c, -0.3), 1.4);
+    line(ctx, -0.8 * s, -0.45 * s, 0.2 * s, -0.45 * s, U.shade(c, -0.3), 1.4);
+    // grue
+    line(ctx, 0.55 * s, 0.75 * s, 0.55 * s, -0.9 * s, INK, 2);
+    line(ctx, 0.1 * s, -0.85 * s, 1.0 * s, -0.85 * s, INK, 1.6);
+    const sw = Math.sin(t * 1.2) * 0.12 * s;
+    line(ctx, 0.9 * s + sw * 0.2, -0.85 * s, 0.9 * s + sw, -0.35 * s, U.rgba(INK, 0.7), 1);
+    rect(ctx, 0.8 * s + sw, -0.35 * s, 0.2 * s, 0.16 * s, c, 1);
+  };
+
+  /* --- modules de défense de l'hexagone (1.9) --- */
+  const DEF = {};
+  DEF.tourelle = (ctx, s, c, t, o) => {
+    circ(ctx, 0, 0.35 * s, 0.6 * s, '#cfc8bc');
+    ctx.save(); ctx.translate(0, 0.05 * s); ctx.rotate(o.aim != null ? o.aim : t * 0.5);
+    rect(ctx, 0, -0.1 * s, 0.85 * s, 0.2 * s, U.shade(c, -0.2), 1.2);
+    ctx.restore();
+    circ(ctx, 0, 0.05 * s, 0.32 * s, c, 1.4);
+    if (o.level > 1) circ(ctx, 0, 0.05 * s, 0.12 * s, '#ffffff', 1);
+  };
+  DEF.mur = (ctx, s, c, t, o) => {
+    for (let k = 0; k < 3; k++) rect(ctx, (-0.85 + k * 0.58) * s, (0.05 - (k % 2) * 0.08) * s, 0.54 * s, 0.6 * s, k % 2 ? U.shade(c, 0.15) : c, 1.3);
+    if (o.level > 1) line(ctx, -0.85 * s, 0.05 * s, 0.89 * s, 0.05 * s, U.rgba(INK, 0.5), 1);
+  };
+  DEF.bouclier = (ctx, s, c, t, o) => {
+    rect(ctx, -0.3 * s, 0.1 * s, 0.6 * s, 0.6 * s, '#d8cfc0');
+    glow(ctx, 0, -0.25 * s, 0.8 * s, c, 0.45 + Math.sin(t * 4) * 0.1);
+    circ(ctx, 0, -0.25 * s, 0.3 * s, c, 1.4);
+    ctx.beginPath(); ctx.arc(0, -0.25 * s, 0.55 * s, t * 2, t * 2 + 2); ctx.strokeStyle = U.rgba(c, 0.9); ctx.lineWidth = 1.4; ctx.stroke();
+  };
+  DEF.phare_lent = (ctx, s, c, t, o) => {
+    poly(ctx, [[-0.28 * s, 0.75 * s], [0.28 * s, 0.75 * s], [0.16 * s, -0.4 * s], [-0.16 * s, -0.4 * s]], '#f7f3ea');
+    line(ctx, -0.22 * s, 0.3 * s, 0.22 * s, 0.3 * s, AN.STAMP || '#c8322c', 2);
+    glow(ctx, 0, -0.55 * s, 0.9 * s, c, 0.4);
+    circ(ctx, 0, -0.55 * s, 0.2 * s, c, 1.3);
+    const a = t * 1.5;
+    ctx.fillStyle = U.rgba(c, 0.25);
+    ctx.beginPath(); ctx.moveTo(0, -0.55 * s); ctx.arc(0, -0.55 * s, 1.1 * s, a, a + 0.5); ctx.closePath(); ctx.fill();
+  };
+  DEF.source = (ctx, s, c, t, o) => {
+    ctx.beginPath(); ctx.ellipse(0, 0.35 * s, 0.7 * s, 0.32 * s, 0, 0, TAU); ctx.fillStyle = '#d8cfc0'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0.3 * s, 0.52 * s, 0.2 * s, 0, 0, TAU); ctx.fillStyle = c; ctx.fill();
+    for (let k = 0; k < 3; k++) { const ph = (t * 0.7 + k / 3) % 1; circ(ctx, (k - 1) * 0.25 * s, 0.25 * s - ph * 0.8 * s, 0.06 * s * (1 - ph) + 0.02 * s, U.rgba(c, 1 - ph), 0); }
+  };
+  /** Dessine un module de défense de l'hexagone. */
+  SA.drawDefense = function (ctx, id, x, y, s, t, opts = {}) {
+    const def = D.DEFENSES && D.DEFENSES[id];
+    if (!def) return;
+    ctx.save();
+    ctx.translate(x, y);
+    if (opts.alpha != null) ctx.globalAlpha *= opts.alpha;
+    ctx.fillStyle = 'rgba(10,12,20,0.16)';
+    ctx.beginPath(); ctx.ellipse(s * 0.08, s * 0.78, s * 0.8, s * 0.24, 0, 0, TAU); ctx.fill();
+    (DEF[id] || DEF.mur)(ctx, s, def.color, t, opts);
+    ctx.restore();
+  };
+  SA.defenseIcon = function (id, size = 32) {
+    const cv = document.createElement('canvas');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = cv.height = size * dpr;
+    cv.style.width = cv.style.height = size + 'px';
+    cv.className = 'struct-icon';
+    const ctx = cv.getContext('2d');
+    ctx.scale(dpr, dpr);
+    SA.drawDefense(ctx, id, size / 2, size / 2, size * 0.38, 1.3, { level: 1 });
+    return cv;
+  };
+
   /** Dessine une structure centrée en (x, y), de rayon s. */
   SA.draw = function (ctx, id, x, y, s, t, opts = {}) {
     const def = D.STRUCTURES[id];

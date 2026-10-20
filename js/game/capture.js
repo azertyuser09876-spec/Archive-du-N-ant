@@ -11,7 +11,12 @@
 
   const Cap = (AN.Capture = {});
 
-  Cap.eligible = (X, e) => (e.boss ? e.boss.exhausted && AN.Cosmic.formReady(X, e) : e.weak && !e.core);
+  Cap.eligible = (X, e) => {
+    if (e.reflection) return true; // un reflet du Relieur (1.10) : le rayon le déchire
+    if (e.herd || (e.def && e.def.echo)) return false;
+    if (e.def && e.def.npc && !X.civ) return false; // on ne capture pas les gens d'une nation (1.12)
+    return e.boss ? e.boss.exhausted && AN.Cosmic.formReady(X, e) : e.weak && !e.core;
+  };
 
   function findTarget(X, p) {
     const range = X.beamRange;
@@ -65,7 +70,7 @@
     if (!Cap.eligible(X, tg)) {
       if (beam.msgT <= 0) {
         beam.msgT = 1.6;
-        FX.text(tg.x, tg.y - tg.r - 12, tg.core ? 'détruisez ce noyau' : tg.boss ? (tg.boss.exhausted ? AN.Cosmic.formHint(X, tg) : 'pas encore épuisé') : 'trop vigoureuse : affaiblissez-la', AN.INK, { size: 11 });
+        FX.text(tg.x, tg.y - tg.r - 12, tg.core ? 'détruisez ce noyau' : tg.def.npc && !X.civ ? 'on ne capture pas les gens d’une nation' : tg.herd ? 'repoussez-la dans son orbite' : tg.def.echo ? 'un écho ne se capture pas' : tg.boss ? (tg.boss.exhausted ? AN.Cosmic.formHint(X, tg) : 'pas encore épuisé') : 'trop vigoureuse : affaiblissez-la', AN.INK, { size: 11 });
       }
       beam.sound.set(0.05);
       return;
@@ -80,13 +85,14 @@
       return;
     }
     const v = D.VARIANT[tg.variant] || D.VARIANT.commun;
-    const tierDiv = [1, 1.7, 3.2, 5, 6, 7, 8, 9][tg.def.tier];
+    const tierDiv = [1, 1.7, 3.2, 5, 6, 7, 8, 9, 10, 11, 12][tg.def.tier] || 12;
     const boost = X.abil && X.abil.buffs.capBoost > 0 ? 2 : 1;
     const rate = (boost / 2.4) * X.beamMult * (1 + X.powers.capture) * (1 + X.captureHelpers * 0.25) / tierDiv / tg.def.resist / (v.id === 'chromatique' ? 1.3 : 1);
     tg.capture = U.clamp(tg.capture + rate * AN.Cosmic.captureMul(X, tg) * dt, 0, 1);
     tg.captureT = 0.2;
     tg.aggroT = Math.max(tg.aggroT, 1);
     beam.sound.set(tg.capture);
+    if (tg.reflection) { if (tg.capture > 0.25) AN.Cosmic.tearReflection(X, tg); return; }
     if (Math.random() < dt * 20) FX.add({ kind: 'dot', x: tg.x + (Math.random() - 0.5) * tg.r * 2, y: tg.y + (Math.random() - 0.5) * tg.r * 2, color: AN.CYAN, life: 0.4, size: 2.5, glow: true, vx: (p.x - tg.x) * 0.8, vy: (p.y - tg.y) * 0.8, drag: 0 });
     if (tg.capture >= 1) Cap.complete(X, tg);
   };

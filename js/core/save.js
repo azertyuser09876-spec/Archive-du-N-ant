@@ -5,7 +5,7 @@
   const AN = window.AN;
 
   const KEY = 'archive-du-neant/save';
-  const S = (AN.Save = { KEY, VERSION: 5, memory: null, available: true, SLOTS: 3, slot: 1 });
+  const S = (AN.Save = { KEY, VERSION: 6, memory: null, available: true, SLOTS: 3, slot: 1 });
   /** Trois emplacements de partie ; le premier garde la clé historique. */
   S.keyOf = (n) => (n === 1 ? KEY : KEY + '-' + n);
   S.useSlot = function (n) {
@@ -60,9 +60,12 @@
       settlements: [],
       structures: [],
       civLore: [],
-      cosmos: { astres: [] },
+      cosmos: { astres: [], visits: {} },
+      nations: [], // nations ancrées (1.12)
+      mercs: [], // mercenaires engagés pour la prochaine expédition
       destByScale: {},
       arrange: { reshape: false, autoReshape: true }, // agencement (1.7) : forme adaptée au déplacement, au rangement
+      base: { guards: [], defenses: {}, installed: [] }, // hexagone de l'Artefact (1.9) : gardes, modules bâtis (niveau), modules installés
     };
   };
 
@@ -109,6 +112,18 @@
       ['tool_harvest', 'tool_capture', 'tool_extract', 'tool_transport'].forEach((k) => { if (d.loadout[k] === undefined) d.loadout[k] = null; });
       d.structures = d.structures || [];
       d.version = 5;
+      return d;
+    },
+    // 5 → 6 : la base mobile. L'hexagone central part en expédition : les bâtiments posés autour
+    // de l'Artefact rejoignent chacun un territoire (celui dont le paysage leur convient le mieux),
+    // ou sont rangés faute de place. Rien n'est perdu ni à repayer.
+    5: (d) => {
+      d.structures = d.structures || [];
+      d.territories = d.territories || [];
+      if (AN.Structures) AN.Structures.migrate(d);
+      else d.structures.forEach((s) => { delete s.slot; s.terr = null; });
+      d.base = d.base || { guards: [], defenses: {}, installed: [] };
+      d.version = 6;
       return d;
     },
     0: (d) => { d.version = 1; return d; },

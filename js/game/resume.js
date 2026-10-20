@@ -5,7 +5,8 @@
    vigueur, le sac, la soute, les zones conquises, et ce qui a changé dans
    chaque zone visitée (gisements, caveaux, œufs, structures, brouillard…).
    À la reprise, les zones sont regénérées puis ces changements réappliqués.
-   Les créatures, elles, réapparaissent : le monde a continué sans vous. */
+   Les créatures, elles, réapparaissent : le monde a continué sans vous.
+   Depuis la 1.13 : l'état d'une nation (faveur, guerre, missions) et les mercenaires. */
 (function () {
   'use strict';
   const AN = window.AN;
@@ -108,11 +109,14 @@
       callUsed: !!(X.abil && X.abil.call && X.abil.call.used),
       search: X.search || null,
       civ: civPlain(X.civ),
+      base: AN.Base ? AN.Base.snapshot(X) : null, // l'hexagone (1.9) : vigueur, soute déjà ramenée, gardes
+      nation: AN.Nations.snapshot(X), // faveur, guerre, offres, missions (1.13)
+      mercs: AN.Nations.mercsSnapshot(X), // les mercenaires engagés (1.13)
       zones,
     };
   };
 
-  R.canSave = (X) => !!X && !X.tuto && !X.collapse && !X.ending && !X.left && !AN.Save.suspended && X.player.alive;
+  R.canSave = (X) => !!X && !X.tuto && !X.collapse && !X.ending && !X.left && !AN.Save.suspended && X.player.alive && !(X.base && (X.base.state === 'land' || X.base.state === 'lift'));
 
   /** Enregistre un point de reprise (si le moment s'y prête). */
   R.checkpoint = function (X) {
@@ -143,6 +147,9 @@
     X.freed = new Set(s.freed || []); // prisonniers déjà libérés : ils ne retournent pas dans leur cage
     X.beaconUsed = !!s.beaconUsed;
     X.search = s.search || null;
+    if (s.nation) AN.Nations.restore(X, s.nation); // avant la première zone : ses villes savent si elles vous sont ouvertes
+    if (s.base && AN.Base) AN.Base.restore(X, s.base);
+    else if (X.base) { X.base.state = 'ok'; X.player.hidden = false; } // point de reprise d'avant la 1.9 : l'hexagone est déjà posé
     if (X.civ && s.civ) {
       const st = s.civ.state;
       Object.assign(X.civ, s.civ);
@@ -180,6 +187,7 @@
       freedBack++;
     });
     if (freedBack) AN.Abilities.setup(X);
+    AN.Nations.restoreMercs(X, s.mercs); // les mercenaires reprennent leur place (1.13)
     const byUid = new Map((s.allies || []).map((a) => [a.uid, a]));
     X.allies.forEach((a, i) => {
       const sa = byUid.get(a.uid);

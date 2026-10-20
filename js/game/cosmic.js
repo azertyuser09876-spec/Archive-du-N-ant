@@ -17,6 +17,7 @@
 
   Co.echelon = (world) => D.ECHELONS[(world && world.scale) || 'region'] || D.ECHELONS.region;
   Co.isCosmic = (X) => !!(X && X.echelon && X.echelon.id !== 'region');
+  Co.tearReflection = (X, c) => AN.Beyond.tearReflection(X, c);
 
   const EVENTS = {
     seisme: { first: 24, every: [30, 40] },
@@ -27,8 +28,8 @@
 
   Co.setup = function (X) {
     X.echelon = Co.echelon(X.world);
-    const ev = X.echelon.event && EVENTS[X.echelon.event];
-    X.cosmo = { eventT: ev ? ev.first : 1e9, warn: null, flare: null, flash: 0, ring: null, hole: null, beacons: [], charge: 0, leapTrail: [] };
+    const ev = X.echelon.event && (EVENTS[X.echelon.event] || AN.Beyond.EVENTS[X.echelon.event]);
+    X.cosmo = { eventT: ev ? ev.first : 1e9, warn: null, flare: null, flash: 0, ring: null, hole: null, beacons: [], charge: 0, leapTrail: [], voids: [], creases: [], safe: null };
   };
 
   /* ======================= Déplacements ======================= */
@@ -60,7 +61,7 @@
    * Renvoie true si l'action d'esquive a été prise en charge ici.
    */
   Co.leapControl = function (X, p, dt, ax) {
-    if (!X.echelon || X.echelon.move !== 'leap') return false;
+    if (!AN.Beyond.leaps(X)) return false; // galaxie et amas (1.10)
     const c = X.cosmo;
     if (p.leap) return true;
     if (I.down('Space') && p.dashCd <= 0) {
@@ -189,18 +190,19 @@
     if (!c) return;
     const p = X.player;
     // menaces périodiques
-    const ev = X.echelon.event && EVENTS[X.echelon.event];
+    const ev = X.echelon.event && (EVENTS[X.echelon.event] || AN.Beyond.EVENTS[X.echelon.event]);
     if (ev && !X.ending) {
       c.eventT -= dt * (X.collapse ? 0.6 : 1);
       if (c.eventT <= 0) {
         c.eventT = U.lerp(ev.every[0], ev.every[1], Math.random());
-        RUN[X.echelon.event](X);
+        (RUN[X.echelon.event] || AN.Beyond.RUN[X.echelon.event])(X);
       }
     }
     if (c.warn) {
       c.warn.t += dt;
       if (Math.random() < dt * 8) X.cam.shake(2 + c.warn.t * 3);
-      if (c.warn.t >= c.warn.dur) {
+      if (c.warn.t >= c.warn.dur && c.warn.run) { const w = c.warn; c.warn = null; w.run(X); }
+      else if (c.warn.t >= c.warn.dur) {
         c.warn = null;
         X.cam.shake(16);
         AN.Audio.play('explosion');
@@ -270,6 +272,7 @@
       return b.t < b.life;
     });
 
+    AN.Beyond.update(X, dt); // au-delà de la galaxie (1.10)
     // formes de capture des boss épuisés
     for (const e of X.creatures) {
       if (!e.alive || !e.boss || !e.boss.form || !e.boss.exhausted) continue;
@@ -344,7 +347,7 @@
       F.done = true;
       F.period = 2.4;
       F.window = 0.8;
-    }
+    } else AN.Beyond.makeForm(X, e, F);
     const lvl = Co.anchorTier(X);
     const need = lvl < e.def.tier ? ' L’Ancrage de l’Artefact est trop faible pour le retenir (niveau ' + (e.def.tier - 3) + ' requis) : vous pouvez seulement l’achever (' + AN.Input.label('KeyE') + ').' : '';
     AN.HUD.toast(e.def.name + ' est épuisé. ' + D.CAPTURE_FORMS[form].name + ' : ' + D.CAPTURE_FORMS[form].desc + need, 9);
@@ -355,6 +358,7 @@
     const F = e.boss.form;
     if (!F) return;
     if (F.cores) F.cores.forEach((k) => { k.alive = false; });
+    AN.Beyond.onRecover(X, e, F);
     e.boss.form = null;
   };
 
@@ -371,7 +375,7 @@
     if (F.kind === 'ancrage') return 'ancres plantées : ' + F.anchors.filter((a) => a.planted).length + ' / 3';
     if (F.kind === 'scellement') return 'noyaux restants : ' + F.cores.filter((k) => k.alive).length;
     if (F.kind === 'encerclement') return 'anneau parcouru : ' + Math.round((F.sectors.filter(Boolean).length / F.sectors.length) * 100) + ' %';
-    return '';
+    return AN.Beyond.formHint(X, e, F) || '';
   };
   /** Synchronisation : le rayon avance au rythme du boss, et recule hors du rythme. */
   Co.syncOpen = function (e) {
@@ -387,6 +391,7 @@
 
   /** Interactions : planter les ancres autour d'un Souverain épuisé. */
   Co.interactables = function (X, consider) {
+    AN.Beyond.interactables(X, consider);
     for (const e of X.creatures) {
       const F = e.alive && e.boss && e.boss.exhausted && e.boss.form;
       if (!F || F.kind !== 'ancrage') continue;
@@ -472,7 +477,7 @@
       case 'trou_noir':
         X.cosmo.hole = { x: m.x, y: m.y, r: 280, t: 0, life: 5, dps: 45 * pw, burst: 160 * pw };
         break;
-      default: break;
+      default: AN.Beyond.call(X, id, pw, visible); break;
     }
   };
 
@@ -499,6 +504,7 @@
 
   /* ======================= Dessin ======================= */
   Co.drawUnder = function (ctx, X, t) {
+    AN.Beyond.drawUnder(ctx, X, t);
     const wells = X.zone.wells;
     if (wells && wells.length) {
       for (const w of wells) {
@@ -534,6 +540,7 @@
   Co.drawOver = function (ctx, X, t) {
     const c = X.cosmo;
     if (!c) return;
+    AN.Beyond.drawOver(ctx, X, t);
     const p = X.player;
     // traînée et préparation du saut
     for (const q of c.leapTrail) {

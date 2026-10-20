@@ -199,8 +199,10 @@
    * Dessine une grille dans un contexte (zone d'expédition ou territoire).
    * g : { w, h, T, grid, bmap, shade, biome, mix, decor, plates }
    */
-  function paintGrid(ctx, g, seed) {
+  function* paintSteps(ctx, g, seed) {
     const T = g.T;
+    // travail fait depuis la dernière pause (en cases parcourues) ; pause en fin de rangée (1.8.2)
+    let work = 0;
     const B = D.BIOME[g.biome], M = g.mix ? D.BIOME[g.mix] : null;
     const rng = new AN.RNG(seed);
     const at = (x, y) => (M && g.bmap[y * g.w + x] ? M : B);
@@ -211,17 +213,20 @@
       const b = at(x, y);
       ctx.fillStyle = groundColor(b, g.shade[i]);
       ctx.fillRect(x * T, y * T, T + 1, T + 1);
+      if (x === g.w - 1) { work += g.w; if (work >= STEP) { yield work; work = 0; } }
     }
     // adoucit la frontière entre deux biomes mêlés
     if (M) {
-      for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+      for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
         const i = y * g.w + x;
         if (!g.bmap[i]) continue;
         const border = (x > 0 && !g.bmap[i - 1]) || (x < g.w - 1 && !g.bmap[i + 1]) || (y > 0 && !g.bmap[i - g.w]) || (y < g.h - 1 && !g.bmap[i + g.w]);
         if (!border) continue;
         ctx.fillStyle = groundColor(M, g.shade[i]);
         ctx.beginPath(); ctx.arc(x * T + T / 2 + rng.float(-4, 4), y * T + T / 2 + rng.float(-4, 4), T * 0.8, 0, TAU); ctx.fill();
-      }
+        work++;
+      } work += g.w; if (work >= STEP) { yield work; work = 0; } }
+      if (work >= STEP) { yield work; work = 0; }
     }
     // texture organique
     const blots = Math.round(g.w * g.h * 0.5);
@@ -230,13 +235,24 @@
       const b = at(x, y);
       ctx.fillStyle = U.rgba(rng.pick(b.ground), 0.35);
       ctx.beginPath(); ctx.arc(x * T + rng.float(0, T), y * T + rng.float(0, T), rng.float(4, 15), 0, TAU); ctx.fill();
+      if (++work >= STEP) { yield work; work = 0; }
+    }
+    // orbite, système (1.10) : le sol devient en partie transparent, le fond de l'échelon se voit au travers
+    if (g.backdrop) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'rgba(0,0,0,0.32)';
+      ctx.fillRect(0, 0, g.w * T, g.h * T);
+      ctx.restore();
     }
     const isW = (x, y) => x < 0 || y < 0 || x >= g.w || y >= g.h || g.grid[y * g.w + x] === Z.WALL;
     const isH = (x, y) => x >= 0 && y >= 0 && x < g.w && y < g.h && g.grid[y * g.w + x] === Z.HAZARD;
-    const isA = (x, y) => x >= 0 && y >= 0 && x < g.w && y < g.h && g.grid[y * g.w + x] === Z.ABYSS;
+    // le vide, et les ponts de l'Amas (1.10) : le canevas les montre vides, leur matière est dessinée par-dessus
+    const isAb = (v) => v === Z.ABYSS || v === Z.BRIDGE_ON || v === Z.BRIDGE_OFF;
+    const isA = (x, y) => x >= 0 && y >= 0 && x < g.w && y < g.h && isAb(g.grid[y * g.w + x]);
     // vide galactique : un ciel profond entre les îles, bordé de lumière
     let hasAbyss = false;
-    for (let i = 0; i < g.w * g.h && !hasAbyss; i++) if (g.grid[i] === Z.ABYSS) hasAbyss = true;
+    for (let i = 0; i < g.w * g.h && !hasAbyss; i++) if (isAb(g.grid[i])) hasAbyss = true;
     if (hasAbyss) {
       const edgeA = (x, y) => !isA(x - 1, y) || !isA(x + 1, y) || !isA(x, y - 1) || !isA(x, y + 1);
       // bords arrondis et lueur : des îles qui flottent au-dessus du vide
@@ -244,18 +260,18 @@
       ctx.shadowColor = U.rgba(D.BIOME[g.biome].accent, 0.9);
       ctx.shadowBlur = 14;
       ctx.fillStyle = '#06070d';
-      for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+      for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
         if (!isA(x, y) || !edgeA(x, y)) continue;
         ctx.beginPath(); ctx.arc(x * T + T / 2 + rng.float(-3, 3), y * T + T / 2 + rng.float(-3, 3), T * 0.78, 0, TAU); ctx.fill();
-      }
+      } work += g.w; if (work >= STEP) { yield work; work = 0; } }
       ctx.restore();
       ctx.fillStyle = '#06070d';
-      for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+      for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
         if (!isA(x, y)) continue;
         if (edgeA(x, y)) { ctx.beginPath(); ctx.arc(x * T + T / 2, y * T + T / 2, T * 0.7, 0, TAU); ctx.fill(); }
         else ctx.fillRect(x * T - 1, y * T - 1, T + 2, T + 2);
-      }
-      for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+      } work += g.w; if (work >= STEP) { yield work; work = 0; } }
+      for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
         if (!isA(x, y)) continue;
         for (let k = 0; k < 2; k++) {
           if (!rng.chance(0.5)) continue;
@@ -263,10 +279,10 @@
           const s = rng.float(0.6, 1.8);
           ctx.fillRect(x * T + rng.float(0, T), y * T + rng.float(0, T), s, s);
         }
-      }
+      } work += g.w; if (work >= STEP) { yield work; work = 0; } }
     }
     // terrains dangereux : masse pleine, bords arrondis, reflets
-    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
       if (!isH(x, y)) continue;
       const b = at(x, y);
       if (!b.hazard) continue;
@@ -274,14 +290,14 @@
       const edge = !isH(x - 1, y) || !isH(x + 1, y) || !isH(x, y - 1) || !isH(x, y + 1);
       if (!edge) ctx.fillRect(x * T - 1, y * T - 1, T + 2, T + 2);
       else { ctx.beginPath(); ctx.arc(x * T + T / 2 + rng.float(-3, 3), y * T + T / 2 + rng.float(-3, 3), T * 0.74, 0, TAU); ctx.fill(); }
-    }
-    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    } work += g.w; if (work >= STEP) { yield work; work = 0; } }
+    for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
       if (!isH(x, y) || !rng.chance(0.3)) continue;
       const b = at(x, y);
       if (!b.hazard) continue;
       ctx.fillStyle = U.rgba(U.shade(b.hazard.color, 0.22), 0.7);
       ctx.beginPath(); ctx.ellipse(x * T + T / 2 + rng.float(-6, 6), y * T + T / 2 + rng.float(-6, 6), T * rng.float(0.2, 0.42), T * rng.float(0.12, 0.25), rng.float(0, 3), 0, TAU); ctx.fill();
-    }
+    } work += g.w; if (work >= STEP) { yield work; work = 0; } }
     // plaques blanches (surfaces de néant)
     (g.plates || []).forEach((p) => {
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -292,24 +308,24 @@
       ctx.closePath(); ctx.fill();
     });
     // décor
-    (g.decor || []).forEach((d) => Terrain.decor(ctx, d));
+    for (const d of g.decor || []) { Terrain.decor(ctx, d); work += 4; if (work >= STEP) { yield work; work = 0; } }
     const edgeW = (x, y) => !isW(x - 1, y) || !isW(x + 1, y) || !isW(x, y - 1) || !isW(x, y + 1);
     // ombres portées du relief (bords seulement)
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
       if (!isW(x, y) || !edgeW(x, y)) continue;
       ctx.beginPath(); ctx.arc(x * T + T / 2 + 5, y * T + T / 2 + 9, T * 0.72, 0, TAU); ctx.fill();
-    }
+    } work += g.w; if (work >= STEP) { yield work; work = 0; } }
     // relief : masse pleine au centre, bords arrondis
-    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
       if (!isW(x, y)) continue;
       const b = at(x, y);
       const cx = x * T + T / 2, cy = y * T + T / 2;
       if (b.wall.shape === 'block' || b.wall.shape === 'hex' || edgeW(x, y)) wallBase(ctx, b, cx, cy, T, rng);
       else { ctx.fillStyle = b.wall.base; ctx.fillRect(x * T - 1, y * T - 1, T + 2, T + 2); }
-    }
+    } work += g.w; if (work >= STEP) { yield work; work = 0; } }
     // sommets : volumes plus grands à l'intérieur des massifs, éclairés d'en haut à gauche
-    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
       const i = y * g.w + x;
       if (!isW(x, y)) continue;
       const b = at(x, y);
@@ -327,12 +343,20 @@
       } else {
         wallTop(ctx, b, cx, cy, T, rng, g.shade[i]);
       }
-    }
-    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    } work += g.w; if (work >= STEP) { yield work; work = 0; } }
+    for (let y = 0; y < g.h; y++) { for (let x = 0; x < g.w; x++) {
       if (!isW(x, y)) continue;
       if (rng.chance(0.4)) ornament(ctx, at(x, y), x * T + T / 2, y * T + T / 2, T, rng);
-    }
+    } work += g.w; if (work >= STEP) { yield work; work = 0; } }
+    if (work) yield work;
   }
+
+  /** Dessin complet, d'un seul tenant (zones d'expédition, appels directs). */
+  function paintGrid(ctx, g, seed) {
+    const it = paintSteps(ctx, g, seed);
+    while (!it.next().done) { /* tout de suite */ }
+  }
+  const STEP = 240; // granularité des pauses du dessin découpé (en cases parcourues)
 
   /** Canevas complet d'une zone d'expédition. */
   Terrain.renderZone = function (zone, seed) {
@@ -345,16 +369,20 @@
     return cv;
   };
 
+  /** Couleur d'une case de la miniature. */
+  function thumbColor(zone, i, B, M) {
+    const b = M && zone.bmap[i] ? M : B;
+    const g = zone.grid[i];
+    return g === Z.WALL ? U.mix(b.wall.base, b.wall.top, 0.35) : g === Z.ABYSS || g === Z.BRIDGE_OFF ? '#06070d' : g === Z.BRIDGE_ON ? '#3a2a60' : g === Z.HAZARD && b.hazard ? b.hazard.color : g === Z.PLATE ? AN.PAPER : groundColor(b, zone.shade[i]);
+  }
+
   /** Miniature de la grille (carte, cinématique). */
   Terrain.thumb = function (zone, S = 3) {
     const cv = canvas(zone.w * S, zone.h * S);
     const ctx = cv.getContext('2d');
     const B = D.BIOME[zone.biome], M = zone.mix ? D.BIOME[zone.mix] : null;
     for (let y = 0; y < zone.h; y++) for (let x = 0; x < zone.w; x++) {
-      const i = y * zone.w + x;
-      const b = M && zone.bmap[i] ? M : B;
-      const g = zone.grid[i];
-      ctx.fillStyle = g === Z.WALL ? U.mix(b.wall.base, b.wall.top, 0.35) : g === Z.ABYSS ? '#06070d' : g === Z.HAZARD && b.hazard ? b.hazard.color : g === Z.PLATE ? AN.PAPER : groundColor(b, zone.shade[i]);
+      ctx.fillStyle = thumbColor(zone, y * zone.w + x, B, M);
       ctx.fillRect(x * S, y * S, S, S);
     }
     (zone.vaults || []).forEach((v) => {
@@ -370,12 +398,80 @@
   };
 
   /**
+   * Repeint une seule case d'une miniature (1.8.2) : même résultat que de
+   * tout recalculer, pour la case qui a changé (effondrement).
+   */
+  Terrain.thumbTile = function (cv, zone, x, y, S = 3) {
+    const ctx = cv.getContext('2d');
+    const i = y * zone.w + x;
+    ctx.fillStyle = thumbColor(zone, i, D.BIOME[zone.biome], zone.mix ? D.BIOME[zone.mix] : null);
+    ctx.fillRect(x * S, y * S, S, S);
+    // ce qui est peint par-dessus dans la miniature complète
+    (zone.vaults || []).forEach((v) => {
+      if (v.opened || !v.tiles.includes(i)) return;
+      ctx.fillStyle = D.KEYS[v.key].color;
+      ctx.fillRect(x * S, y * S, S, S);
+    });
+    if (zone.village && D.PEOPLE) {
+      zone.village.buildings.forEach((b) => {
+        if (b.taken || x < b.tx || y < b.ty || x >= b.tx + b.w || y >= b.ty + b.h) return;
+        ctx.fillStyle = D.PEOPLE[zone.village.people].body.trim;
+        ctx.fillRect(x * S, y * S, S, S);
+      });
+    }
+  };
+
+  /**
    * Territoire de l'Archive : un morceau de biome découpé en hexagone.
    * Retourne un canevas carré de côté 2R * scale.
    */
   Terrain.renderTerritory = function (terr, R, scale = 0.5) {
+    const it = territorySteps(terr, R, scale);
+    let r;
+    while (!(r = it.next()).done) { /* tout de suite */ }
+    return r.value;
+  };
+
+  /**
+   * Le même dessin, découpé (1.8.2) : job.step(budget, échéance, horloge) avance
+   * d'environ « budget » cases (ou jusqu'à l'échéance) et renvoie le travail fait ; job.done et job.canvas
+   * quand c'est fini. Le résultat est identique à renderTerritory : mêmes
+   * dessins, dans le même ordre, sur le même canevas, seulement étalés sur
+   * plusieurs images au lieu de figer le jeu.
+   */
+  Terrain.territoryJob = function (terr, R, scale = 0.5) {
+    // le dessin se fait dans des canevas en mémoire, rendus image par image (pas d'un
+    // seul coup au premier affichage), puis recopié tel quel dans un canevas ordinaire
+    const ref = { cv: null, mk: (w, h) => { const c = canvas(w, h); c.getContext('2d', { willReadFrequently: true }); return c; } };
+    const it = territorySteps(terr, R, scale, ref);
+    const job = {
+      done: false, canvas: null,
+      step(budget, deadline, clock) {
+        let spent = 0;
+        while (!job.done && spent < budget && !(deadline && clock() >= deadline)) {
+          const r = it.next();
+          if (r.done) {
+            const src = r.value;
+            const fin = canvas(src.width, src.height);
+            fin.getContext('2d').drawImage(src, 0, 0);
+            fin.offX = src.offX; fin.offY = src.offY; fin.wpx = src.wpx; fin.hpx = src.hpx;
+            job.done = true; job.canvas = fin;
+          } else {
+            spent += r.value || 1;
+            // rendu de ce morceau maintenant : son coût compte dans le temps accordé
+            if (ref.cv) ref.cv.getContext('2d').getImageData(0, 0, 1, 1);
+          }
+        }
+        return spent;
+      },
+    };
+    return job;
+  };
+
+  function* territorySteps(terr, R, scale, ref) {
+    const mk = ref ? ref.mk : canvas;
     const cells = AN.Shapes ? AN.Shapes.cellsOf(terr) : [[0, 0]];
-    if (cells.length > 1) return renderShape(terr, R, scale, cells);
+    if (cells.length > 1) return yield* shapeSteps(terr, R, scale, cells, ref);
     const T = 32;
     const n = Math.ceil((R * 2) / T) + 2;
     const rng = AN.RNG.from(terr.seed, 'terrain');
@@ -386,15 +482,18 @@
     const g = { w: n, h: n, T, biome: terr.biome, mix: terr.mix || null, grid: new Uint8Array(n * n), bmap: new Uint8Array(n * n), shade: new Float32Array(n * n), decor: [], plates: [] };
     const c = (n * T) / 2;
     const wallLimit = terr.quality === 'fragment' ? 0.74 : 0.7;
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-      const i = y * n + x;
-      g.shade[i] = noise.fbm(x * 0.2, y * 0.2, 3);
-      const px = x * T + T / 2 - c, py = y * T + T / 2 - c;
-      const dc = Math.hypot(px, py) / R;
-      const v = noise.fbm(x * 0.13 + 30, y * 0.13, 3);
-      if (dc > 0.3 && v > wallLimit) g.grid[i] = Z.WALL;
-      else if (B.hazard && hz.fbm(x * 0.15, y * 0.15, 3) > 0.7) g.grid[i] = Z.HAZARD;
-      if (g.mix && mixN.fbm(x * 0.1, y * 0.1, 2) > 0.55) g.bmap[i] = 1;
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const i = y * n + x;
+        g.shade[i] = noise.fbm(x * 0.2, y * 0.2, 3);
+        const px = x * T + T / 2 - c, py = y * T + T / 2 - c;
+        const dc = Math.hypot(px, py) / R;
+        const v = noise.fbm(x * 0.13 + 30, y * 0.13, 3);
+        if (dc > 0.3 && v > wallLimit) g.grid[i] = Z.WALL;
+        else if (B.hazard && hz.fbm(x * 0.15, y * 0.15, 3) > 0.7) g.grid[i] = Z.HAZARD;
+        if (g.mix && mixN.fbm(x * 0.1, y * 0.1, 2) > 0.55) g.bmap[i] = 1;
+      }
+      yield n;
     }
     const dn = Math.round(n * n * 0.1);
     for (let k = 0; k < dn; k++) {
@@ -403,9 +502,10 @@
       const d = rng.pick(B.decor);
       g.decor.push({ x: x * T + rng.float(2, T - 2), y: y * T + rng.float(2, T - 2), type: d[0], color: d[1], s: rng.float(0.8, 1.4), rot: rng.float(0, TAU) });
     }
-    const big = canvas(n * T, n * T);
+    const big = mk(n * T, n * T);
+    if (ref) ref.cv = big;
     const bctx = big.getContext('2d');
-    paintGrid(bctx, g, rng.int(1, 1e9));
+    yield* paintSteps(bctx, g, rng.int(1, 1e9));
     const size = R * 2 * scale;
     const out = canvas(size, size);
     const ctx = out.getContext('2d');
@@ -418,10 +518,10 @@
     ctx.restore();
     out.offX = -R; out.offY = -R; out.wpx = R * 2; out.hpx = R * 2;
     return out;
-  };
+  }
 
   /** Territoire de plusieurs cases : même terrain, découpé selon la forme. */
-  function renderShape(terr, R, scale, cells) {
+  function* shapeSteps(terr, R, scale, cells, ref) {
     const T = 32;
     const cs = cells.map(([q, r]) => AN.Hex.toPx(q, r));
     const minX = Math.min(...cs.map((c) => c.x)) - R, maxX = Math.max(...cs.map((c) => c.x)) + R;
@@ -434,17 +534,20 @@
     const mixN = new AN.Noise(rng.int(1, 1e9));
     const B = D.BIOME[terr.biome];
     const g = { w: nx, h: ny, T, biome: terr.biome, mix: terr.mix || null, grid: new Uint8Array(nx * ny), bmap: new Uint8Array(nx * ny), shade: new Float32Array(nx * ny), decor: [], plates: [] };
-    for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
-      const i = y * nx + x;
-      g.shade[i] = noise.fbm(x * 0.2, y * 0.2, 3);
-      const px = x * T + T / 2 + minX, py = y * T + T / 2 + minY;
-      let dc = 1e9;
-      for (const c of cs) { const d = Math.hypot(px - c.x, py - c.y); if (d < dc) dc = d; }
-      dc /= R;
-      const v = noise.fbm(x * 0.13 + 30, y * 0.13, 3);
-      if (dc > 0.3 && v > 0.68) g.grid[i] = Z.WALL;
-      else if (B.hazard && hz.fbm(x * 0.15, y * 0.15, 3) > 0.7) g.grid[i] = Z.HAZARD;
-      if (g.mix && mixN.fbm(x * 0.1, y * 0.1, 2) > 0.55) g.bmap[i] = 1;
+    for (let y = 0; y < ny; y++) {
+      for (let x = 0; x < nx; x++) {
+        const i = y * nx + x;
+        g.shade[i] = noise.fbm(x * 0.2, y * 0.2, 3);
+        const px = x * T + T / 2 + minX, py = y * T + T / 2 + minY;
+        let dc = 1e9;
+        for (const c of cs) { const d = Math.hypot(px - c.x, py - c.y); if (d < dc) dc = d; }
+        dc /= R;
+        const v = noise.fbm(x * 0.13 + 30, y * 0.13, 3);
+        if (dc > 0.3 && v > 0.68) g.grid[i] = Z.WALL;
+        else if (B.hazard && hz.fbm(x * 0.15, y * 0.15, 3) > 0.7) g.grid[i] = Z.HAZARD;
+        if (g.mix && mixN.fbm(x * 0.1, y * 0.1, 2) > 0.55) g.bmap[i] = 1;
+      }
+      yield nx;
     }
     const dn = Math.round(nx * ny * 0.1);
     for (let k = 0; k < dn; k++) {
@@ -453,7 +556,8 @@
       const d = rng.pick(B.decor);
       g.decor.push({ x: x * T + rng.float(2, T - 2), y: y * T + rng.float(2, T - 2), type: d[0], color: d[1], s: rng.float(0.8, 1.4), rot: rng.float(0, TAU) });
     }
-    const out = canvas(wpx * scale, hpx * scale);
+    const out = (ref ? ref.mk : canvas)(wpx * scale, hpx * scale);
+    if (ref) ref.cv = out;
     const ctx = out.getContext('2d');
     ctx.save();
     ctx.scale(scale, scale);
@@ -463,7 +567,7 @@
       ctx.closePath();
     });
     ctx.clip();
-    paintGrid(ctx, g, rng.int(1, 1e9));
+    yield* paintSteps(ctx, g, rng.int(1, 1e9));
     ctx.restore();
     out.offX = minX; out.offY = minY; out.wpx = wpx; out.hpx = hpx;
     return out;

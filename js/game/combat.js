@@ -30,6 +30,7 @@
   C.enemiesOf = (X, team) => {
     const out = baseEnemies(X, team);
     if (team === 'wild' && X.civils) for (const c of X.civils) if (c.alive && c.exposed) out.push(c);
+    if (team === 'wild' && X.base && AN.Base) AN.Base.enemies(X, out); // l'hexagone et ses gardes (1.9)
     return out;
   };
 
@@ -46,6 +47,7 @@
   /** Inflige des dégâts à une entité. Retourne les dégâts réellement infligés. */
   C.hit = (X, target, dmg, src, opts = {}) => {
     if (!target || !target.alive || target.hidden) return 0;
+    if (target.kind === 'base') return AN.Base.damage(X, dmg, src);
     if (target.kind === 'player') return AN.PlayerCtl.damage(X, dmg, src, opts);
     if (target.downed) return 0;
     if (target.boss && (target.boss.invuln > 0 || target.boss.underground)) return 0;
@@ -66,7 +68,7 @@
     if (target.team === 'wild') {
       target.aggroT = 5;
       if (opts.slow) { target.slowT = 2.5; target.slowAmt = opts.slow; }
-      if (src && src.team === 'ally') target.target = src;
+      if (src && (src.team === 'ally' || (src.team === 'civil' && src.alive))) target.target = src;
       if (target.def.traits.includes('puff') && Math.random() < 0.6) C.pool(X, { x: target.x, y: target.y, r: 40, dps: 4, life: 2.5, color: '#93c94e', team: 'wild' });
       if (target.boss && !target.boss.active) AN.Boss.wake(X, target);
     }
@@ -94,6 +96,7 @@
       AN.Audio.play('death', { at: e });
       if (e.team === 'wild' && !e.noLoot) C.drop(X, e.x, e.y, e.def.drops, 1);
       AN.Civ.onKilled(X, e, src);
+      AN.Nations.onKilled(X, e, src);
       return;
     }
     if (src && src.team === 'ally' && src.kind === 'creature' && e.team === 'wild') src.kills = (src.kills || 0) + 1;
@@ -112,6 +115,7 @@
     if (!e.noLoot) C.drop(X, e.x, e.y, e.def.drops, (e.variant === 'geant' ? 1.6 : 1) * (X.dropMul || 1));
     if (!e.def.fake) {
       X.stats.kills++;
+      AN.Nations.onBeastKilled(X, e, src); // raids et battues (1.13)
       const b = AN.Profile.markSeen(X.profile, e.def.id);
       b.killed = (b.killed || 0) + 1;
     }

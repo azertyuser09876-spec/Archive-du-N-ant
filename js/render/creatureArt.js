@@ -470,12 +470,15 @@
     const bob = flying ? Math.sin(t * 3 + (e.seed || 0)) * e.r * 0.15 - e.r * 0.25 : 0;
     ctx.save();
     ctx.translate(e.x, e.y);
-    // ombre
-    ctx.fillStyle = 'rgba(10,12,20,0.22)';
-    ctx.beginPath();
-    ctx.ellipse(flying ? e.r * 0.2 : e.r * 0.08, e.r * (flying ? 0.75 : 0.45), e.r * (flying ? 0.7 : 0.95), e.r * (flying ? 0.32 : 0.5), 0, 0, TAU);
-    ctx.fill();
+    // ombre (un reflet du Relieur n'en a pas, 1.10)
+    if (!e.noShadow) {
+      ctx.fillStyle = 'rgba(10,12,20,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(flying ? e.r * 0.2 : e.r * 0.08, e.r * (flying ? 0.75 : 0.45), e.r * (flying ? 0.7 : 0.95), e.r * (flying ? 0.32 : 0.5), 0, 0, TAU);
+      ctx.fill();
+    }
     ctx.translate(0, bob);
+    if (e.mirror) ctx.scale(-1, 1);
     if (e.hidden) {
       // créature enfouie : seulement un remous
       ctx.strokeStyle = U.rgba(e.pal.dark, 0.5);

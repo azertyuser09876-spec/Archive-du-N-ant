@@ -16,10 +16,15 @@
   Ar.state = () => A;
 
   Ar.enter = function (opts = {}) {
+    layer = null; // nouvelle Archive : le calque des territoires sera refait
     const profile = AN.Game.profile;
     const cam = AN.Game.cam;
+    // au retour d'expédition, les terrains déjà dessinés de la même partie sont repris (1.8.2)
+    const prev = A && A.profile === profile ? A : null;
+    if (prev) for (const c of prev.canvases.values()) c.used = 0;
     A = {
-      profile, cam, time: 0, canvases: new Map(), creatures: [], pickups: [],
+      profile, cam, time: 0, canvases: prev ? prev.canvases : new Map(), creatures: [], pickups: [],
+      canvasesLo: prev ? prev.canvasesLo : undefined,
       player: { kind: 'player', x: 0, y: 150, vx: 0, vy: 0, dvx: 0, dvy: 0, kbx: 0, kby: 0, r: 12, aim: -Math.PI / 2, anim: 0, iframes: 0, flash: 0 },
       zoom: 1, mapMode: false, selected: null, follow: profile.flags.follow || null, reveal: new Map(), queue: [], qT: 0, saveT: 20, tickT: 0, bondT: 60, mount: null,
       artefactShown: !!profile.flags.intro, introT: profile.flags.intro ? -1 : 0, hover: null, focus: null,
@@ -52,7 +57,7 @@
       delete profile.flags.afterTutorial;
       setTimeout(() => AN.HUD.toast('Voici l’Archive : ce que vous ramenez y vit et y produit. Approchez-vous de l’Artefact (' + AN.Input.label('KeyE') + ') pour choisir votre prochain monde.', 9), 10500);
     }
-    if (opts.integration) Ar.integrate(opts.integration);
+    if (opts.integration) { Ar.integrate(opts.integration); if (!opts.integration.noBase) AN.Base.archiveLand(A); }
     else if (off > 60) setTimeout(() => AN.HUD.toast('Pendant votre absence, l’Archive a continué de produire.', 4), 600);
     setTimeout(() => Ar.announce(bondEv), opts.integration ? 9000 : 1500);
     Ar.checkRank(!!opts.integration);
@@ -83,6 +88,9 @@
       e.homeR = home ? H.R * (def.tier >= 3 ? 0.35 : 0.68) : 260;
       e.homeCells = cells && cells.length > 1 && def.tier < 3 ? cells : null; // elles parcourent tout le territoire
       e.entry = c;
+      // les gardes de l'hexagone vivent dans l'hexagone central, près de l'Artefact (1.9)
+      const gi = AN.Base.of(p).guards.indexOf(c.uid);
+      if (gi >= 0 && !home) { e.homeC = AN.Base.guardHome(gi, AN.Base.of(p).guards.length); e.homeR = 70; e.guardHex = true; if (!old) { e.x = e.homeC.x; e.y = e.homeC.y; } }
       if (old) { e.hiddenUntilIntegrated = old.hiddenUntilIntegrated; e.face = old.face; }
       if (riding === c.uid) { e.ridden = true; A.mount = e; }
       return e;
@@ -135,24 +143,50 @@
 
   /**
    * Canevas d'un territoire. De loin, une version légère ; de près, le terrain complet,
-   * calculé au plus une fois par image et oublié quand il n'est plus regardé.
+   * oublié quand il n'est plus regardé. Le terrain complet se dessine par morceaux,
+   * sur plusieurs images (1.8.2) : la version légère reste affichée en attendant,
+   * au lieu de figer le jeu le temps du dessin.
    */
-  Ar.terrCanvas = function (t, far) {
-    const key = t.uid + ':' + AN.Shapes.cellsOf(t).join(';');
+  const TERR_BUDGET = 9000; // plafond du dessin des terrains par image (en cases parcourues)
+  const TERR_FRAME_MS = 11; // le dessin s'arrête quand l'image a déjà pris ce temps…
+  const TERR_MIN_MS = 3; // … mais dispose toujours d'au moins ce temps
+  const keyMemo = new WeakMap(); // clé du canevas d'un territoire, refaite seulement si sa forme change
+  function terrKey(t) {
+    const cells = AN.Shapes.cellsOf(t);
+    const m = keyMemo.get(t);
+    if (m && m.cells === cells && m.uid === t.uid) return m.key;
+    const key = t.uid + ':' + cells.join(';');
+    keyMemo.set(t, { cells, uid: t.uid, key });
+    return key;
+  }
+  Ar.terrCanvas = function (t, far, urgent, peek) {
+    const key = terrKey(t);
     A.canvasesLo = A.canvasesLo || new Map();
     let lo = A.canvasesLo.get(key);
     if (!lo) { lo = AN.Terrain.renderTerritoryLo(t, H.R); A.canvasesLo.set(key, lo); }
     if (far) return lo;
     let c = A.canvases.get(key);
-    if (!c && A.hiBudget > 0) {
-      A.hiBudget--;
-      c = AN.Terrain.renderTerritory(t, H.R, AN.Shapes.cellsOf(t).length > 1 ? 0.45 : 0.55);
-      A.canvases.set(key, c);
+    if (!c && !peek && (A.hiBudget > 0 || urgent)) {
+      A.jobs = A.jobs || new Map();
+      let job = A.jobs.get(key);
+      if (!job) { job = AN.Terrain.territoryJob(t, H.R, AN.Shapes.cellsOf(t).length > 1 ? 0.45 : 0.55); A.jobs.set(key, job); }
+      job.used = A.time;
+      // un territoire qu'on est en train de révéler est fini tout de suite, comme avant
+      if (urgent) job.step(Infinity);
+      else {
+        const G = AN.Game;
+        if (!A.terrDeadline) A.terrDeadline = Math.max((G.frameT0 || G.clock()) + TERR_FRAME_MS, G.clock() + TERR_MIN_MS);
+        A.hiBudget -= job.step(A.hiBudget, A.terrDeadline, G.clock);
+        if (G.clock() >= A.terrDeadline) A.hiBudget = 0;
+      }
+      if (job.done) { c = job.canvas; A.canvases.set(key, c); A.jobs.delete(key); }
     }
     if (c) { c.used = A.time; return c; }
     return lo;
   };
   function evictCanvases() {
+    // un dessin commencé puis délaissé est abandonné au bout de quelques secondes
+    if (A.jobs) for (const [k, j] of A.jobs) if (A.time - (j.used || 0) > 4) A.jobs.delete(k);
     if (A.canvases.size <= 18) return;
     for (const [k, c] of A.canvases) if (A.time - (c.used || 0) > 4) A.canvases.delete(k);
   }
@@ -300,7 +334,11 @@
     const p = A.player;
     const cam = A.cam;
     if (A.introT >= 0 && A.introT < 3) A.introT += dt;
-    processQueue(dt);
+    AN.Base.archiveUpdate(A, dt); // départ et retour de l'hexagone (1.9)
+    if (A.depart) { A.player.dvx = A.player.dvy = A.player.vx = A.player.vy = 0; A.cam.zoom += (A.focus.zoom - A.cam.zoom) * (1 - Math.exp(-4 * dt)); A.cam.x *= Math.exp(-4 * dt); A.cam.y *= Math.exp(-4 * dt); FX.update(dt); return; }
+    // au retour, on regarde d'abord l'hexagone se reposer, puis arrivent les territoires
+    if (A.baseLand) A.focus = { x: 0, y: 0, zoom: U.clamp(Math.min(A.cam.W, A.cam.H) / 1500, 0.22, 0.6) };
+    else processQueue(dt);
 
     // déplacement
     const ax = I.axis();
@@ -396,6 +434,12 @@
       }
     }
 
+    // dézoomée, l'Archive montre ce qu'on a ramené : un clic sur un astre ou un continent y conduit (1.10)
+    // les nations ancrées (1.13) se visent à toute distance
+    if (!A.mapMode && (A.cam.zoom < 0.05 || (A.placeHover && A.placeHover.any)) && I.mouseHit(0) && !I.blocked) {
+      const target = A.placeHover ? A.placeHover.id : Ar.continentPlace();
+      if (target) { AN.Audio.play('ui_ok'); AN.UI.openPlace(target); }
+    }
     // survol et interactions
     A.hover = null;
     if (!A.mapMode && A.cam.zoom < 0.08) AN.HUD.prompt(null);
@@ -633,6 +677,7 @@
   Ar.layoutChanged = function (before) {
     const p = A.profile;
     A.layoutV = (A.layoutV || 0) + 1;
+    AN.Structures.changed(); // les bâtiments suivent leur territoire
     A.moldCache = null;
     if (before) {
       const old = new Map(before.map((o) => [o.uid, AN.Shapes.centroid(o)]));
@@ -764,17 +809,26 @@
         ctx.restore();
       }
     }
-    // arches emportées : des monuments près de l'Artefact
+    // arches emportées : des monuments près de leur peuple (1.9 : plus autour de l'Artefact)
     AN.Structures.list(A.profile).forEach((s, i) => {
       if (s.kind !== 'arche') return;
       const P = D.PEOPLE[s.people];
-      const pos = D.STRUCT_SLOTS[s.slot] || { x: 0, y: 200 };
+      const pos = AN.Structures.archePos(A.profile, s, A.settle);
+      if (!pos || !cam.visible(pos.x, pos.y, 120)) return;
       AN.CivArt.drawBuilding(ctx, pos.x, pos.y, 56, P.style, P, 'ark', 0, t, i + 1);
     });
   }
 
-  function drawArtefact(ctx, t) {
+  function drawArtefact(ctx, t, lift) {
     if (!A.artefactShown && A.introT <= 0) return;
+    if (lift && (lift.up > 0 || lift.alpha < 1)) {
+      // l'Artefact part (ou revient) avec son hexagone
+      if (lift.alpha <= 0) return;
+      ctx.save(); ctx.globalAlpha *= lift.alpha; ctx.translate(0, -lift.up * 520); ctx.scale(1 + lift.up * 0.35, 1 + lift.up * 0.35);
+      AN.Base.drawArtefact(ctx, 0, 0, t, 1, 1);
+      ctx.restore();
+      return;
+    }
     let k = 1;
     if (A.introT >= 0 && A.introT < 3) {
       k = U.easeOut(U.clamp(A.introT / 2.2, 0, 1));
@@ -821,45 +875,37 @@
     }
   }
 
-  Ar.render = function (ctx) {
-    if (!A) return;
-    const cam = A.cam;
-    const t = A.time;
-    ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
-    ctx.fillStyle = AN.PAPER;
-    ctx.fillRect(0, 0, cam.W, cam.H);
-    cam.apply(ctx);
-    drawGrid(ctx, cam);
-    const z = cam.zoom;
-    const p = A.profile;
-
-    AN.Cosmos.drawPlanet(ctx, A, z, t);
-    // courbure de l'Archive : visible seulement au rang Monde et à très grande échelle
-    if (AN.Profile.rank(p).index >= 5 && z < 0.03 && (AN.Profile.rank(p).index === 5 || z > 0.008)) {
-      const R = 60000;
-      ctx.strokeStyle = U.rgba(AN.INK, U.clamp((0.03 - z) / 0.015, 0, 1) * 0.35);
-      ctx.lineWidth = 2 / z;
-      ctx.beginPath(); ctx.arc(0, R * 0.98, R, 0, TAU); ctx.stroke();
-    }
-
-    // territoires
-    const syns = A.mapMode ? synergyView() : null;
+  /**
+   * Avec ce qui reste du travail de l'image : les terrains détaillés des territoires
+   * qui vont arriver (intégration) et de ceux qui bordent la vue sont préparés
+   * d'avance, pour être prêts quand on les regarde (1.8.2).
+   */
+  function prefetchTerritories(p, cam, z) {
+    if (A.hiBudget <= 0) return;
+    for (const q of A.queue) if (q.type === 'territory' && A.hiBudget > 0) Ar.terrCanvas(q.t, false);
+    if (z < 0.15 || A.hiBudget <= 0) return;
     const S = AN.Shapes;
-    A.hiBudget = 1;
-    const far = z < 0.15;
-    const hoverT = A.mapMode && A.hover ? AN.Profile.territoryAt(p, A.hover.q, A.hover.r) : null;
-    const slideK = A.slide ? 1 - U.easeOut(U.clamp(A.slide.t / A.slide.dur, 0, 1)) : 0;
+    const margin = Math.max(cam.W, cam.H) * 0.6 / z;
     for (const tr of p.territories) {
-      if (z < 0.0012) break; // la mosaïque n'est plus qu'un point
+      if (A.hiBudget <= 0) break;
+      const c = S.centroid(tr);
+      if (cam.visible(c.x, c.y, S.radius(tr) + margin)) Ar.terrCanvas(tr, false);
+    }
+  }
+
+  /** Les territoires : ombre, terrain, contour, nom. */
+  function drawTerritories(ctx, p, z, far, hoverT, slideK, inView, record) {
+    const S = AN.Shapes;
+    for (const tr of p.territories) {
       const sl = A.slide && A.slide.from.get(tr.uid);
       const ox = sl ? sl.dx * slideK : 0, oy = sl ? sl.dy * slideK : 0;
       const c0 = S.centroid(tr);
-      const c = { x: c0.x + ox, y: c0.y + oy };
       const rad = S.radius(tr);
-      if (!cam.visible(c.x, c.y, rad)) continue;
+      if (!inView(c0.x + ox, c0.y + oy, rad)) continue;
       const rev = A.reveal.has(tr.uid) ? A.reveal.get(tr.uid) : 1;
-      if (rev <= 0) continue;
-      const cv = Ar.terrCanvas(tr, far);
+      if (rev <= 0) { if (!far) Ar.terrCanvas(tr, far); continue; } // en attente : son terrain se prépare
+      const cv = Ar.terrCanvas(tr, far, rev < 1);
+      if (record) record.set(tr, cv);
       const a = H.toPx(tr.q, tr.r);
       ctx.save();
       if (sl) ctx.translate(ox, oy);
@@ -902,6 +948,83 @@
       }
       ctx.restore();
     }
+  }
+
+  /*
+   * Calque des territoires (1.8.2). Quand rien ne bouge dans la mosaïque (pas
+   * d'agencement, d'arrivée, de glissement ni de zoom en cours), les territoires
+   * sont dessinés une fois dans un calque un peu plus grand que l'écran, puis
+   * recopiés tels quels à chaque image en suivant la caméra (au pixel près).
+   * Le calque est refait quand la vue en sort, quand le zoom change, quand
+   * l'Archive change ou quand un terrain détaillé vient d'être fini.
+   */
+  const LAYER_PAD = 192; // marge du calque autour de l'écran, en pixels d'écran
+  let layer = null, lastZoom = 0;
+  function drawTerritoryLayer(ctx, cam, p, z, far) {
+    // zoom posé : il ne bouge plus que d'un cent-millième par image (moins d'un dixième de pixel)
+    const stable = Math.abs(z - lastZoom) <= z * 2e-5;
+    lastZoom = z;
+    if (A.mapMode || A.slide || A.reveal.size || !stable || cam.sx || cam.sy) return false;
+    const dpr = cam.dpr, zd = z * dpr;
+    const tx = dpr * (cam.W / 2) - cam.x * zd, ty = dpr * (cam.H / 2) - cam.y * zd;
+    const dw = ctx.canvas.width, dh = ctx.canvas.height;
+    const key = (A.layoutV || 0) + ':' + p.territories.length + ':' + far + ':' + (A.selected || '') + ':' + AN.INK + AN.CYAN;
+    let ok = !!layer && layer.key === key && Math.abs(layer.z - z) <= z * 2e-4 && layer.dpr === dpr && layer.dw === dw && layer.dh === dh;
+    let dx = 0, dy = 0;
+    if (ok) {
+      dx = Math.round(tx - layer.tx); dy = Math.round(ty - layer.ty);
+      if (Math.abs(dx) > LAYER_PAD || Math.abs(dy) > LAYER_PAD) ok = false;
+    }
+    // les terrains du calque sont-ils toujours ceux-là ? (un terrain détaillé vient d'être fini)
+    if (ok) for (const [tr, cv] of layer.used) if (Ar.terrCanvas(tr, far, false, true) !== cv) { ok = false; break; }
+    if (!ok) {
+      const PW = dw + 2 * LAYER_PAD, PH = dh + 2 * LAYER_PAD;
+      const cv = layer && layer.cv.width === PW && layer.cv.height === PH ? layer.cv : AN.Terrain.canvas(PW, PH);
+      const lctx = cv.getContext('2d');
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, PW, PH);
+      lctx.setTransform(zd, 0, 0, zd, tx + LAYER_PAD, ty + LAYER_PAD);
+      const wx0 = (-LAYER_PAD - tx) / zd, wx1 = (dw + LAYER_PAD - tx) / zd;
+      const wy0 = (-LAYER_PAD - ty) / zd, wy1 = (dh + LAYER_PAD - ty) / zd;
+      const used = new Map();
+      drawTerritories(lctx, p, z, far, null, 0, (x, y, r) => x >= wx0 - r && x <= wx1 + r && y >= wy0 - r && y <= wy1 + r, used);
+      layer = { cv, key, z, dpr, dw, dh, tx, ty, used };
+      dx = dy = 0;
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer.cv, dx - LAYER_PAD, dy - LAYER_PAD);
+    ctx.restore();
+    return true;
+  }
+  Ar.dropLayer = () => { layer = null; };
+
+  Ar.render = function (ctx) {
+    if (!A) return;
+    const cam = A.cam;
+    const t = A.time;
+    ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
+    ctx.fillStyle = AN.PAPER;
+    ctx.fillRect(0, 0, cam.W, cam.H);
+    cam.apply(ctx);
+    drawGrid(ctx, cam);
+    const z = cam.zoom;
+    const p = A.profile;
+
+    AN.Cosmos.drawPlanet(ctx, A, z, t);
+
+    // territoires
+    const syns = A.mapMode ? synergyView() : null;
+    const S = AN.Shapes;
+    A.hiBudget = TERR_BUDGET;
+    A.terrDeadline = 0;
+    const far = z < 0.15;
+    const hoverT = A.mapMode && A.hover ? AN.Profile.territoryAt(p, A.hover.q, A.hover.r) : null;
+    const slideK = A.slide ? 1 - U.easeOut(U.clamp(A.slide.t / A.slide.dur, 0, 1)) : 0;
+    if (z >= 0.0012 && !drawTerritoryLayer(ctx, cam, p, z, far)) {
+      drawTerritories(ctx, p, z, far, hoverT, slideK, (x, y, r) => cam.visible(x, y, r), null);
+    }
+    prefetchTerritories(p, cam, z);
     evictCanvases();
     // synergies (mode agencement) : la frontière commune s'allume, un badge la résume
     if (syns) {
@@ -974,11 +1097,14 @@
       ctx.restore();
     }
 
-    drawArtefact(ctx, t);
+    // l'hexagone central : ses modules, son départ et son retour (1.9)
+    const hexO = AN.Base.drawArchiveHex(ctx, A, t, z);
+    const lift = AN.Base.drawArchiveModules(ctx, A, t, hexO);
+    drawArtefact(ctx, t, lift);
     drawSettlements(ctx, t, z);
     AN.Cosmos.drawGiants(ctx, A, z, t);
 
-    const ents = A.creatures.filter((e) => !e.hiddenUntilIntegrated && cam.visible(e.x, e.y, e.r * 3));
+    const ents = A.creatures.filter((e) => !e.hiddenUntilIntegrated && cam.visible(e.x, e.y, e.r * 3) && !(e.guardHex && (lift.up > 0 || lift.alpha < 1)));
     if (z > 0.12) for (const v of A.villagers || []) if (cam.visible(v.x, v.y, 30)) ents.push(v);
     if (z > 0.05) { const act = new Set(AN.Structures.active(p).map((s) => s.uid)); for (const b of AN.Structures.drawables(p)) { b.active = act.has(b.s.uid); ents.push(b); } }
     ents.sort((a, b) => a.y - b.y);
@@ -991,7 +1117,8 @@
         ctx.fillText('blessé', e.x, e.y - e.r - 6);
       }
     }
-    if (z > 0.2) {
+    if (A.depart) { /* le joueur est à bord : il part avec l'hexagone */ }
+    else if (z > 0.2) {
       if (A.mount) AN.Art.drawPlayer(ctx, Object.assign({}, A.player, { y: A.player.y - A.mount.r * 0.42, r: 11 }), t, { weapon: false, mounted: true });
       else AN.Art.drawPlayer(ctx, A.player, t, { weapon: false });
     }
@@ -999,13 +1126,36 @@
       ctx.fillStyle = AN.INK;
       ctx.beginPath(); ctx.arc(A.player.x, A.player.y, 3 / z, 0, TAU); ctx.fill();
     }
+    // un continent ancré sous le pointeur : on peut s'y rendre
+    const cp = !A.mapMode && z < 0.05 && z > 0.002 ? Ar.continentPlace() : null;
+    if (cp) {
+      const pl = AN.Places.find(p, cp);
+      p.territories.filter((tr) => 'm:' + tr.world === cp).forEach((tr) => { ctx.strokeStyle = AN.CYAN; ctx.lineWidth = 4 / z; S.strokeOutline(ctx, tr, H.R - 4); });
+      const mw = AN.Game.mouseWorld();
+      ctx.save(); ctx.translate(mw.x, mw.y); ctx.scale(1 / z, 1 / z);
+      ctx.font = '600 12px ' + AN.FONT_UI; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(247,248,247,0.9)';
+      const txt = pl.name + ' : cliquer pour s’y rendre';
+      ctx.strokeText(txt, 0, -16); ctx.fillStyle = AN.INK; ctx.fillText(txt, 0, -16);
+      ctx.restore();
+    }
     FX.draw(ctx, cam);
     AN.Cosmos.drawLayers(ctx, A, t);
     AN.Cosmos.checkEpilogue(A);
   };
 
+  /** Le continent sous le pointeur, s'il appartient à un monde ancré (lieux ancrés, 1.10). */
+  Ar.continentPlace = function () {
+    if (!A || A.cam.zoom >= 0.05) return null;
+    const mw = AN.Game.mouseWorld();
+    const h = H.fromPx(mw.x, mw.y);
+    const t = AN.Profile.territoryAt(A.profile, h.q, h.r);
+    if (!t || (t.quality !== 'continent' && t.quality !== 'cratere')) return null;
+    return AN.Places.find(A.profile, 'm:' + t.world) ? 'm:' + t.world : null;
+  };
+
   Ar.exit = function () {
     if (A && A.drone) A.drone.stop();
+    layer = null; // le calque des territoires n'a plus lieu d'être (mémoire rendue)
   };
 
   Ar.scene = { name: 'archive', update: (dt) => Ar.update(dt), render: (ctx) => Ar.render(ctx) };

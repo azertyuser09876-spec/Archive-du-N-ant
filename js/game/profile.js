@@ -73,7 +73,7 @@
   P.upgradeValue = (p, key) => D.UPGRADES[key].levels[p.artefact[key] || 0].v;
 
   P.counts = (p) => {
-    const by = [0, 0, 0, 0, 0, 0, 0, 0];
+    const by = new Array(D.TIERS.length).fill(0);
     p.collection.forEach((c) => {
       const d = D.CREATURE[c.species];
       if (!d) return;
@@ -82,6 +82,7 @@
     return {
       territories: p.territories.length, creatures: p.collection.length,
       guardians: by[2], ultras: by[3], souverains: by[4], cataclysmes: by[5], stellaires: by[6], galactiques: by[7],
+      amas: by[8] || 0, toiles: by[9] || 0, plis: by[10] || 0, // au-delà de la galaxie (1.10)
       astres: ((p.cosmos && p.cosmos.astres) || []).length,
     };
   };

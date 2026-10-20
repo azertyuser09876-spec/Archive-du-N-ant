@@ -393,7 +393,7 @@
       const outc = S.result.outcome;
       const stamp = sursis ? 'EN SURSIS' : 'DÉTRUIT';
       const sub = outc === 'extrait' ? 'Transfert terminé. Ce monde n’existe plus.' : outc === 'urgence' ? 'Extraction d’urgence. Presque tout est resté là-bas.' : sursis ? 'Échec. Ce monde tient encore, et des vôtres y sont restés.' : 'Échec. L’Artefact vous a ramené sans rien.';
-      const upper = { region: 'Échelle supérieure', monde: 'Échelle supérieure : son système', orbite: 'Échelle supérieure : son système', systeme: 'Échelle supérieure : sa galaxie', galaxie: 'Échelle supérieure : ???' }[S.scale] || 'Échelle supérieure';
+      const upper = { region: 'Échelle supérieure', monde: 'Échelle supérieure : son système', orbite: 'Échelle supérieure : son système', systeme: 'Échelle supérieure : sa galaxie', galaxie: 'Échelle supérieure : son amas', amas: 'Échelle supérieure : sa toile', toile: 'Échelle supérieure : ???', pli: 'Échelle supérieure : ???' }[S.scale] || 'Échelle supérieure';
       const la = U.clamp((t - C0 - 0.3) * 2, 0, 1) * (1 - out);
       label(ctx, W, H, upper, sub, la, t > C_DEATH - 0.1 || sursis ? stamp : null);
     }

@@ -16,8 +16,9 @@
     let dx = tx - e.x, dy = ty - e.y;
     const d = Math.hypot(dx, dy) || 1;
     dx /= d; dy /= d;
-    if (useFlow && X.flow && d > 70 && !Z.los(X.zone, e.x, e.y, tx, ty)) {
-      const f = AN.Physics.flowDir(X.zone, X.flow, e.x, e.y);
+    const flow = e.flowTo || X.flow; // vers l'hexagone, le champ de flux qui y mène (1.9)
+    if (useFlow && flow && d > 70 && !Z.los(X.zone, e.x, e.y, tx, ty)) {
+      const f = AN.Physics.flowDir(X.zone, flow, e.x, e.y);
       if (f) { dx = f.x; dy = f.y; }
     }
     e.dvx = dx * speed; e.dvy = dy * speed;
@@ -51,8 +52,9 @@
   /** Effectue l'attaque du composant attack contre une cible. Retourne la distance souhaitée. */
   function attack(X, e, target, dt) {
     const A = e.atk;
+    e.flowTo = target.kind === 'base' && X.base ? X.base.flow : null;
     const d = U.dist(e.x, e.y, target.x, target.y);
-    const team = e.team === 'ally' ? 'player' : 'wild';
+    const team = e.team === 'ally' || e.team === 'civil' ? 'player' : 'wild'; // les gardes d'une ville (1.13) frappent les bêtes
     const sp = e.speed * (e.slowT > 0 ? 1 - e.slowAmt : 1);
     e.face += U.angDiff(e.face, Math.atan2(target.y - e.y, target.x - e.x)) * Math.min(1, dt * 8);
     const dmg = (A ? A.dmg : 0) * e.dmgMul * (e.team === 'ally' ? X.compDmg : 1);
@@ -170,7 +172,18 @@
         if (!pl.alive || U.dist(e.x, e.y, pl.x, pl.y) > pd + 60 || e.arkHunter) return prey;
       }
     }
-    if (e.target && e.target.alive && !e.target.downed && e.target.team === 'ally' && U.dist(e.x, e.y, e.target.x, e.target.y) < 500) return e.target;
+    if (e.target && e.target.alive && !e.target.downed && (e.target.team === 'ally' || (e.target.team === 'civil' && e.target.exposed)) && U.dist(e.x, e.y, e.target.x, e.target.y) < 500) return e.target;
+    // raid sur une ville (1.13) : les bêtes marchent sur ses habitants, sauf si l'on se met en travers
+    if (e.cityRaid) {
+      let prey = null, pd = 1e9;
+      for (const c of X.civils) {
+        if (!c.alive || !c.exposed || !c.npc || !c.npc.nation) continue;
+        const d = U.dist(e.x, e.y, c.x, c.y);
+        if (d < pd) { pd = d; prey = c; }
+      }
+      const pl = X.player;
+      if (prey && (!pl.alive || U.dist(e.x, e.y, pl.x, pl.y) > Math.min(pd, 200))) return prey;
+    }
     let best = X.player.alive ? X.player : null;
     let bd = best ? U.dist(e.x, e.y, best.x, best.y) : 1e9;
     for (const a of X.allies) {
@@ -178,10 +191,12 @@
       const d = U.dist(e.x, e.y, a.x, a.y);
       if (d < bd * 0.7) { best = a; bd = d; }
     }
+    if (X.base && AN.Base) best = AN.Base.pick(X, e, best, bd);
     return best;
   }
 
   AI.wild = function (X, e, dt) {
+    e.flowTo = null;
     if (e.fearT > 0 && X.player.alive) { flee(X, e, X.player, e.speed * 1.1); return; }
     const tgt = pickTarget(X, e);
     if (!tgt) { wander(X, e, dt, e.speed * 0.35); return; }
@@ -299,7 +314,7 @@
     if (e.atk) {
       const capT = X.beam && X.beam.target;
       for (const c of X.creatures) {
-        if (!c.alive || c.team !== 'wild' || c.hidden || c.weak || c === capT) continue;
+        if (!c.alive || c.team !== 'wild' || c.hidden || c.weak || c === capT || c.herd || c.reflection || (c.echo && c.temper !== 'territorial')) continue;
         if (c.def.npc && !c.fighter && c.npc && c.npc.mode !== 'thief' && c.npc.mode !== 'zealot') continue; // les compagnons ne s'en prennent pas aux habitants qui fuient
         if (c.boss && (c.boss.exhausted || !c.boss.active)) continue;
         if (!c.isBoss && c.state !== 'attack' && c.aggroT <= 0) continue;
@@ -329,15 +344,21 @@
     if (e.captureT > 0) e.captureT -= dt;
     if (e.stunT > 0) { e.dvx = e.dvy = 0; }
     else if (e.npc && e.npc.role === 'leader' && e.weak && e.team === 'wild' && X.civ && X.civ.attitude === 'hostiles') { e.dvx = e.dvy = 0; e.kneel = true; }
+    else if (e.npc && e.npc.sovereign && e.weak && e.team === 'wild') { e.dvx = e.dvy = 0; e.kneel = true; } // souverain vaincu (1.12)
+    else if (e.npc && e.npc.nation && e.team === 'civil' && AN.Nations.defend(X, e, dt)) { /* les gardes défendent leur ville (1.13) */ }
     else if (e.def.npc && !e.fighter) AN.Civ.ai(X, e, dt);
     else if (e.boss) AN.Boss.update(X, e, dt);
+    else if (e.guard) AN.Base.guardAI(X, e, dt);
     else if (e.team === 'ally') AI.ally(X, e, dt);
     else AI.wild(X, e, dt);
     const flies = e.move === 'fly' || (e.boss && e.boss.underground);
+    if (X.zone.filaments) { const k = AN.Beyond.speedMul(X, e); e.dvx *= k; e.dvy *= k; } // la Toile (1.10)
     AN.Physics.move(X.zone, e, dt, flies);
     // Chute dans le vide pendant l'effondrement.
     if (X.collapse && Z.tileAt(X.zone, e.x, e.y) === Z.VOID && !flies) {
-      if (e.team === 'ally') {
+      if (e.guard && X.base) {
+        e.x = X.base.x + (Math.random() - 0.5) * 80; e.y = X.base.y + (Math.random() - 0.5) * 80;
+      } else if (e.team === 'ally') {
         e.x = X.collapse.plate.x + (Math.random() - 0.5) * 60; e.y = X.collapse.plate.y + (Math.random() - 0.5) * 60;
       } else if (!e.isBoss) {
         e.alive = false; e.noLoot = true;

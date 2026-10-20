@@ -11,6 +11,8 @@
     fungus: 'Fongiques', blob: 'Amorphes', insect: 'Arthropodes', construct: 'Mécanismes', moth: 'Lépidoptères',
     jelly: 'Gélatineux', quad: 'Quadrupèdes', worm: 'Vermiformes', cell: 'Cellulaires', orb: 'Formes sphériques',
     plant: 'Végétaux mobiles', drone: 'Mécanismes', serpent: 'Serpentiformes', fish: 'Nageurs', wraith: 'Silhouettes',
+    frog: 'Batraciens', bird: 'Oiseaux', snail: 'Gastéropodes', crab: 'Crustacés', ray: 'Raies', scorpion: 'Arachnides',
+    candle: 'Cierges', bell: 'Clochettes', stag: 'Cervidés', hourglass: 'Sabliers', satellite: 'Mécanismes', origami: 'Papiers pliés',
   };
   const ADJ = {
     foret_fongique: 'fongiques', marais_electrique: 'électriques', ruines_mecaniques: 'rouillés', desert_osseux: 'osseux',
@@ -18,6 +20,8 @@
     toundra_givree: 'givrés', jungle_carnivore: 'carnivores', abysses_lumineuses: 'luminescents', foret_minerale: 'minéraux',
     cite_carbonisee: 'charognards', jardins_ambre: 'dorés', steppes_orageuses: 'orageux', fosses_acides: 'corrosifs',
     ruche_chitineuse: 'chitineux', desert_verre: 'vitreux', entrailles_vivantes: 'organiques', lisiere_neant: 'blancs',
+    foret_cire: 'cireux', salines: 'salins', rift_continental: 'telluriques', mer_interieure: 'lacustres', calotte_polaire: 'polaires',
+    foret_continent: 'sylvestres',
   };
 
   const W = (AN.WorldGen = {});
@@ -60,7 +64,8 @@
   /**
    * Crée une destination.
    * @param {number} seed graine du monde
-   * @param {object} ctx { threat, reliability }
+   * @param {object} ctx { threat, reliability, scale, rep, noNation }
+   *   noNation : jamais un monde tenu par un peuple (lieux ancrés, 1.13 : ils restent ceux de la 1.11)
    */
   W.destination = function (seed, ctx) {
     if (ctx.scale && ctx.scale !== 'region' && D.ECHELONS && D.ECHELONS[ctx.scale]) return W.cosmic(seed, ctx);
@@ -122,6 +127,7 @@
       life: life.id, resources,
     };
     world.civ = W.civilisation(seed, zones, threat, ctx.rep);
+    if (!ctx.noNation) W.applyNation(world, 'region', ctx.rep);
     world.scan = W.scan(world, rng, ctx.reliability);
     return world;
   };
@@ -135,15 +141,19 @@
     const E = D.ECHELONS[scale];
     const rng = new AN.RNG(seed);
     const threat = 7;
-    const pool = scale === 'monde' ? D.BIOMES.filter((b) => !b.scale) : D.BIOMES.filter((b) => b.scale === scale);
-    const primary = rng.pick(pool);
+    // un monde entier mêle les paysages des régions et ses propres continents (1.11), plus souvent tirés en premier
+    const pool = scale === 'monde' ? D.BIOMES.filter((b) => (!b.scale || b.scale === 'monde') && !b.heartOnly) : D.BIOMES.filter((b) => b.scale === scale && !b.heartOnly);
+    const own = (b) => (scale === 'monde' && b.scale === 'monde' ? 1.5 : 0);
+    // un lieu ancré (1.10) garde le paysage de ce qu'on a rapporté ; le tirage reste le même
+    const drawn = scale === 'monde' ? rng.weighted(pool.map((b) => [b, b.scale === 'monde' ? 4 : 1])) : rng.pick(pool);
+    const primary = ctx.primary && D.BIOME[ctx.primary] ? D.BIOME[ctx.primary] : drawn;
     const nZones = rng.int(E.zones[0], E.zones[1]);
     const zones = [];
     const used = [primary.id];
     for (let i = 0; i < nZones; i++) {
       let biome = primary;
       if (i > 0) {
-        const cands = pool.filter((b) => !used.includes(b.id)).map((b) => [b, W.sharedTags(primary, b) * 3 + 0.4]);
+        const cands = pool.filter((b) => !used.includes(b.id)).map((b) => [b, W.sharedTags(primary, b) * 3 + 0.4 + own(b)]);
         biome = cands.length ? rng.weighted(cands) : primary;
         used.push(biome.id);
       }
@@ -158,8 +168,8 @@
     zones.forEach((z) => { const g = W.guardianFor(z.biome, rng, guardians); z.guardian = g; guardians.push(g); });
     const vr = AN.RNG.from(seed, 'caveaux');
     zones.forEach((z) => { z.vault = vr.chance(0.5) ? vr.pick(D.keysForBiome(D.BIOME[z.biome])) : null; });
-    const heartBiome = scale === 'monde' ? 'cratere_souverain' : primary.id;
-    const regionName = rng.pick(E.words) + ' ' + primary.region;
+    const heartBiome = scale === 'monde' ? 'cratere_souverain' : E.heartBiome || primary.id;
+    rng.pick(E.words); // tirage gardé (l'ancien nom de région), pour ne pas décaler la suite
     const heart = { biome: heartBiome, mix: null, name: E.heart, guardian: W.bossFor(scale, heartBiome, rng), heart: true };
     heart.vault = vr.chance(0.25) ? vr.pick(D.keysForBiome(D.BIOME[heartBiome])) : null;
     const anomaly = rng.weighted(D.ANOMALIES.map((a) => [a.id, a.id === 'aucune' ? 5 : a.id === 'errant' ? 1 : 1.2]));
@@ -172,14 +182,46 @@
     const stability = U.clamp(0.7 + rng.float(-0.12, 0.12) - (rule === 'instable' ? 0.2 : 0), 0.25, 0.95);
     const density = rng.float(0.9, 1.25) * (anomaly === 'migration' ? 1.6 : 1);
     const tiles = rng.int(E.tiles[0], E.tiles[1]);
+    const code = W.code(rng);
     const world = {
-      seed, code: W.code(rng), region: regionName, primary: primary.id, threat, size: D.SIZE_OF[scale], tiles,
+      // un nom propre tiré du code (1.11) : « Système d'Arithal » ; ce qu'on en ramène le portera aussi
+      seed, code, region: AN.Names ? AN.Names.world(scale, code) : E.name + ' ' + primary.region, primary: primary.id, threat, size: D.SIZE_OF[scale], tiles,
       zones, heart, anomaly, anomalyZone: rng.int(0, zones.length - 1), rule, stability, density,
       life: life.id, resources, scale,
     };
     world.civ = scale === 'monde' ? W.civilisation(seed, zones, threat, ctx.rep) : null;
+    if (!ctx.noNation) W.applyNation(world, scale, ctx.rep);
     world.scan = W.scan(world, rng, ctx.reliability);
     return world;
+  };
+
+  /**
+   * Nation (1.12) : un monde tout entier tenu par un peuple, une ville par zone et
+   * sa capitale au cœur. Tirage à part : un monde qui n'en est pas une ne change pas.
+   */
+  W.nation = function (seed, zones, scale, threat, rep) {
+    const N = D.NATION;
+    if (!N) return null;
+    const nr = AN.RNG.from(seed, 'nation');
+    const ch = N.chance[scale || 'region'];
+    if (!ch || threat < N.minThreat || !nr.chance(ch)) return null;
+    const here = zones.map((z) => z.biome);
+    const cands = D.PEOPLES.filter((p) => (p.reach || []).includes(scale || 'region'))
+      .map((p) => [p, (p.biomes.some((b) => here.includes(b)) ? 3 : 0.4) * (p.rare ? 0.3 : 1)]);
+    if (!cands.length) return null;
+    const people = nr.weighted(cands);
+    const attitude = nr.weighted(Object.keys(N.attitudes).map((a) => [a, (people.bias[a] || 0.35) * D.repWeight(rep, a)]));
+    const name = (k) => (AN.Names ? AN.Names.proper(seed + ':' + k) : k);
+    return {
+      people: people.id, attitude, realm: people.realm, sovereign: nr.pick(people.names), title: nr.pick(people.titles),
+      capital: name('capitale'), cities: zones.map((z, i) => name('ville' + i)), seed: nr.int(1, 1e9),
+    };
+  };
+  W.applyNation = function (world, scale, rep) {
+    const nat = W.nation(world.seed, world.zones, scale, world.threat, rep);
+    if (!nat) return;
+    world.nation = nat;
+    world.civ = null; // le village isolé laisse la place à leurs villes
   };
 
   /** Un peuple habite-t-il ce monde ? Tirage séparé, influencé par la réputation du joueur. */
@@ -227,6 +269,7 @@
     s.rule = rng.chance(0.4 + r * 0.6) ? ru.name : 'Inconnue';
     s.resources = w.resources.filter(() => rng.chance(0.45 + r * 0.55));
     if (w.civ) s.civ = rng.chance(0.35 + r * 0.65) ? D.PEOPLE[w.civ.people].Name + ', environ ' + (Math.round(w.civ.n / 5) * 5 || 5) + ' habitants' : 'Signes de vie intelligente';
+    else if (w.nation) s.civ = w.nation.realm + ' : une ville par zone';
     else s.civ = rng.chance(0.15 * (1 - r)) ? 'Signes de vie intelligente' : 'Aucune';
     const keys = [...new Set(w.zones.concat([w.heart]).map((z) => z.vault).filter(Boolean))];
     s.vaults = keys.length ? (rng.chance(0.3 + r * 0.7) ? keys : ['?']) : [];

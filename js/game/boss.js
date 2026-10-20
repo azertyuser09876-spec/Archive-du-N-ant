@@ -366,6 +366,7 @@
   /** Commun à la capture et au coup de grâce : conquête de la zone. */
   B.defeated = function (X, e, how) {
     X.activeBoss = null;
+    if (AN.Nations) AN.Nations.onGuardian(X, e); // il menaçait l'une de leurs villes (1.12)
     e.boss.summoned.forEach((m) => { if (m.alive) { m.alive = false; m.noLoot = true; FX.burst(m.x, m.y, m.pal.body, 8, 100); } });
     if (e.boss.errant) { AN.HUD.toast(e.def.name + ' ' + how + '.'); return; }
     X.conquer(e.boss.zoneIndex, e);

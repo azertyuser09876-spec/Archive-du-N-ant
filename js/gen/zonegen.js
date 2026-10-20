@@ -8,10 +8,11 @@
   const U = AN.Util;
 
   const T = 32; // taille d'une tuile en pixels du monde
-  const FLOOR = 0, WALL = 1, HAZARD = 2, PLATE = 3, VOID = 4, KEYWALL = 5, BUILDING = 6, ABYSS = 7;
-  const Z = (AN.ZoneGen = { T, FLOOR, WALL, HAZARD, PLATE, VOID, KEYWALL, BUILDING, ABYSS });
+  // BRIDGE_ON / BRIDGE_OFF (1.10) : les ponts de matière sombre de l'Amas, ouverts ou défaits
+  const FLOOR = 0, WALL = 1, HAZARD = 2, PLATE = 3, VOID = 4, KEYWALL = 5, BUILDING = 6, ABYSS = 7, BRIDGE_ON = 8, BRIDGE_OFF = 9;
+  const Z = (AN.ZoneGen = { T, FLOOR, WALL, HAZARD, PLATE, VOID, KEYWALL, BUILDING, ABYSS, BRIDGE_ON, BRIDGE_OFF });
   /** Tuiles qui bloquent le passage (le vide galactique se franchit d'un bond, voir game/cosmic.js). */
-  Z.SOLID = new Uint8Array([0, 1, 0, 0, 0, 1, 1, 1]);
+  Z.SOLID = new Uint8Array([0, 1, 0, 0, 0, 1, 1, 1, 0, 1]);
   Z.isSolid = (g) => Z.SOLID[g] === 1;
 
   function quantile(values, q) {
@@ -20,6 +21,42 @@
   }
 
   /** @param world destination @param index 0..n-1 pour les zones, n pour le cœur */
+  /**
+   * Ville d'une nation (1.12) : une place au centre, ses bâtiments publics (comptoir,
+   * caserne, et le palais dans la capitale), puis deux couronnes de maisons.
+   */
+  function buildCity(world, index, isHeart, c, R, grid, idx, T) {
+    const nat = world.nation;
+    const vr = AN.RNG.from(world.seed, 'quartiers' + index);
+    const buildings = [];
+    const put = (tx, ty, bw, bh, kind) => {
+      for (let y = ty; y < ty + bh; y++) for (let x = tx; x < tx + bw; x++) if (grid[idx(x, y)] !== FLOOR) return false;
+      for (let y = ty; y < ty + bh; y++) for (let x = tx; x < tx + bw; x++) grid[idx(x, y)] = BUILDING;
+      buildings.push({ tx, ty, w: bw, h: bh, x: (tx + bw / 2) * T, y: (ty + bh / 2) * T, kind, variant: vr.int(0, 2), seed: vr.int(1, 1e6) });
+      return true;
+    };
+    const base = vr.float(0, Math.PI * 2);
+    const at = (a, r, bw, bh, kind) => {
+      for (let k = 0; k < 6; k++) {
+        const aa = a + k * 0.35 * (k % 2 ? 1 : -1);
+        if (put(Math.round(c.x + Math.cos(aa) * r - bw / 2), Math.round(c.y + Math.sin(aa) * r - bh / 2), bw, bh, kind)) return true;
+      }
+      return false;
+    };
+    // la place reste libre ; autour d'elle, les bâtiments publics
+    if (isHeart) at(base - Math.PI / 2, 4.2, 4, 3, 'palace');
+    at(base + (isHeart ? 0.9 : 0), 4.2, 3, 2, 'market');
+    at(base + (isHeart ? 2.6 : Math.PI), 4.2, 3, 2, 'hall');
+    const rings = [[R - 2.6, isHeart ? 14 : 11], [R - 5.2, isHeart ? 7 : 5]];
+    rings.forEach(([rr, n], ri) => {
+      for (let k = 0; k < n; k++) at(base + (k / n) * Math.PI * 2 + (ri ? 0.3 : 0) + vr.float(-0.12, 0.12), rr, 2, 2, 'house');
+    });
+    return {
+      x: c.x * T + T / 2, y: c.y * T + T / 2, r: R * T, tx: c.x, ty: c.y, people: nat.people, buildings,
+      city: true, capital: isHeart, name: isHeart ? nat.capital : nat.cities[index] || nat.capital,
+    };
+  }
+
   Z.generate = function (world, index) {
     if (world.tutorial && AN.Tutorial) return AN.Tutorial.zone(world, index);
     const isHeart = index >= world.zones.length;
@@ -124,19 +161,23 @@
     carve(plates[0], arenaT);
 
     // ---- Village d'une civilisation : une clairière reliée à l'entrée ----
+    // (1.12) dans une nation, chaque zone a sa ville, et le cœur sa capitale : une clairière plus grande
     let villageT = null;
     const civ = world.civ && world.civ.zone === index && !isHeart ? world.civ : null;
-    if (civ) {
-      const vr = AN.RNG.from(world.seed, 'village' + index);
+    const nat = world.nation || null;
+    const VR = nat ? (isHeart ? 10 : 9) : 7;
+    if (civ || nat) {
+      const vr = AN.RNG.from(world.seed, (nat ? 'ville' : 'village') + index);
       const far = (x, y, p, d) => (x - p.x) ** 2 + (y - p.y) ** 2 >= d * d;
-      for (let tries = 0; tries < 400 && !villageT; tries++) {
-        const x = vr.int(10, w - 11), y = vr.int(10, h - 11);
-        if (!far(x, y, entry, 15) || !far(x, y, arenaT, arenaR + 9)) continue;
-        if (plates.some((pp) => !far(x, y, pp, 9)) || gates.some((g) => !far(x, y, g.t, 8))) continue;
+      const m = VR + 3;
+      for (let tries = 0; tries < 600 && !villageT; tries++) {
+        const x = vr.int(m, w - m - 1), y = vr.int(m, h - m - 1);
+        if (!far(x, y, entry, VR + 8) || !far(x, y, arenaT, arenaR + VR + 2)) continue;
+        if (plates.some((pp) => !far(x, y, pp, VR + 2)) || gates.some((g) => !far(x, y, g.t, VR + 1))) continue;
         villageT = { x, y };
       }
       if (!villageT) villageT = { x: Math.round(U.lerp(entry.x, arenaT.x, 0.5)), y: Math.round(U.lerp(entry.y, arenaT.y, 0.5)) };
-      clearCircle(villageT, 7);
+      clearCircle(villageT, VR);
       carve(entry, villageT);
     }
 
@@ -161,7 +202,8 @@
 
     // Bâtiments du village (tuiles pleines, dessinées à part)
     let village = null;
-    if (civ && villageT) {
+    if (nat && villageT) village = buildCity(world, index, isHeart, villageT, VR, grid, idx, T);
+    else if (civ && villageT) {
       const vr = AN.RNG.from(world.seed, 'maisons' + index);
       const people = D.PEOPLE[civ.people];
       const buildings = [];
@@ -378,7 +420,7 @@
 
     // ---- Échelons cosmiques ----
     // Galaxie : le relief devient du vide entre des îles de lumière (on le franchit d'un bond).
-    if (world.scale === 'galaxie') {
+    if (world.scale === 'galaxie' || world.scale === 'amas') {
       const keep = vaults.map((v) => ({ x: Math.floor(v.cx / T), y: Math.floor(v.cy / T) }));
       for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
         const i = idx(x, y);
@@ -406,6 +448,100 @@
       }
     }
 
+    // ---- Au-delà de la galaxie (1.10) : tirages à part, rien ne change pour les autres échelons ----
+    const protect = [entry, arenaT].concat(plates, gates.map((g) => g.t), villageT ? [villageT] : []);
+    const nearKey = (x, y, d) => protect.some((q) => !farFrom(x, y, q, d)) || vaults.some((v) => !farFrom(x, y, { x: Math.floor(v.cx / T), y: Math.floor(v.cy / T) }, 7));
+    // Amas : des bandes de vide traversent la zone ; là où elles coupent le sol, des ponts qui se font et se défont
+    const bridges = [];
+    if (world.scale === 'amas') {
+      const br = AN.RNG.from(world.seed, 'ponts' + index);
+      const mark = new Int16Array(w * h).fill(-1);
+      for (let b = 0; b < 3; b++) {
+        const ox = br.int(10, w - 11), oy = br.int(10, h - 11), a = br.float(0, Math.PI);
+        const nx = -Math.sin(a), ny = Math.cos(a);
+        for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
+          if (Math.abs((x - ox) * nx + (y - oy) * ny) > 1.6) continue;
+          const i = idx(x, y);
+          if ((grid[i] !== FLOOR && grid[i] !== HAZARD) || nearKey(x, y, 6)) continue;
+          mark[i] = 0;
+        }
+      }
+      // chaque morceau de bande posé sur le sol devient un pont
+      for (let i = 0; i < w * h; i++) {
+        if (mark[i] !== 0) continue;
+        const tiles = [];
+        const st = [i];
+        mark[i] = bridges.length + 1;
+        while (st.length) {
+          const j = st.pop();
+          tiles.push(j);
+          const x = j % w;
+          for (const k of [j - 1, j + 1, j - w, j + w]) {
+            if (k < 0 || k >= w * h || mark[k] !== 0) continue;
+            if ((k === j - 1 && x === 0) || (k === j + 1 && x === w - 1)) continue;
+            mark[k] = bridges.length + 1;
+            st.push(k);
+          }
+        }
+        if (tiles.length < 3) { tiles.forEach((j) => { mark[j] = -1; }); continue; }
+        tiles.forEach((j) => { grid[j] = BRIDGE_ON; });
+        const cx = tiles.reduce((s2, j) => s2 + (j % w), 0) / tiles.length, cy = tiles.reduce((s2, j) => s2 + ((j / w) | 0), 0) / tiles.length;
+        bridges.push({ tiles, x: cx * T + T / 2, y: cy * T + T / 2, on: br.float(10, 16), off: br.float(6, 10), phase: br.float(0, 20), open: true });
+      }
+    }
+    // Toile : des filaments de lumière relient les lieux de la zone ; on y file, ailleurs on se traîne
+    const filaments = [];
+    if (world.scale === 'toile') {
+      const fr = AN.RNG.from(world.seed, 'filaments' + index);
+      const pts = protect.slice();
+      for (let tries = 0; tries < 400 && pts.length < protect.length + 6; tries++) {
+        const x = fr.int(6, w - 7), y = fr.int(6, h - 7);
+        if (!isFloor(x, y) || pts.some((q) => !farFrom(x, y, q, 9))) continue;
+        pts.push({ x, y });
+      }
+      // arbre couvrant le plus court, puis deux raccourcis
+      const inT = [0], edges = [];
+      while (inT.length < pts.length) {
+        let best = null, bd = 1e9;
+        for (const a of inT) for (let b2 = 0; b2 < pts.length; b2++) {
+          if (inT.includes(b2)) continue;
+          const d = (pts[a].x - pts[b2].x) ** 2 + (pts[a].y - pts[b2].y) ** 2;
+          if (d < bd) { bd = d; best = [a, b2]; }
+        }
+        edges.push(best); inT.push(best[1]);
+      }
+      for (let k = 0; k < 2; k++) {
+        const a = fr.int(0, pts.length - 1), b2 = fr.int(0, pts.length - 1);
+        if (a !== b2 && !edges.some((e) => (e[0] === a && e[1] === b2) || (e[0] === b2 && e[1] === a))) edges.push([a, b2]);
+      }
+      edges.forEach(([a, b2]) => {
+        const A = pts[a], B = pts[b2];
+        const n = Math.ceil(Math.hypot(B.x - A.x, B.y - A.y) * 2);
+        for (let s2 = 0; s2 <= n; s2++) {
+          const x = Math.round(U.lerp(A.x, B.x, s2 / n)), y = Math.round(U.lerp(A.y, B.y, s2 / n));
+          for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+            const xx = x + ox, yy = y + oy;
+            if (xx < 2 || yy < 2 || xx >= w - 2 || yy >= h - 2) continue;
+            if (vaults.some((v) => !farFrom(xx, yy, { x: Math.floor(v.cx / T), y: Math.floor(v.cy / T) }, 7))) continue;
+            const i = idx(xx, yy);
+            if (grid[i] === WALL || grid[i] === HAZARD) grid[i] = FLOOR;
+          }
+        }
+        filaments.push({ x1: A.x * T + T / 2, y1: A.y * T + T / 2, x2: B.x * T + T / 2, y2: B.y * T + T / 2 });
+      });
+    }
+    // Pli : des endroits où la marche s'inverse
+    const inversions = [];
+    if (world.scale === 'pli') {
+      const ir = AN.RNG.from(world.seed, 'envers' + index);
+      for (let tries = 0; tries < 500 && inversions.length < 6; tries++) {
+        const x = ir.int(6, w - 7), y = ir.int(6, h - 7);
+        if (!isFloor(x, y) || nearKey(x, y, 9)) continue;
+        if (inversions.some((q) => (q.tx - x) ** 2 + (q.ty - y) ** 2 < 144)) continue;
+        inversions.push({ tx: x, ty: y, x: x * T + T / 2, y: y * T + T / 2, r: T * ir.float(3.5, 5.5) });
+      }
+    }
+
     // ---- Décor (non bloquant) ----
     const decor = [];
     const decorCount = Math.round(w * h * 0.07);
@@ -425,7 +561,7 @@
       arena: { ...toPx(arenaT), r: arenaR * T, tx: arenaT.x, ty: arenaT.y },
       plates: plates.map(toPx),
       gates: gates.map((g) => ({ ...toPx(g.t), to: g.to, kind: g.kind })),
-      nodes, groups, ruins, decor, vaults, eggs, village, wells, structure,
+      nodes, groups, ruins, decor, vaults, eggs, village, wells, structure, bridges, filaments, inversions,
       starAngle: AN.RNG.from(world.seed, 'etoile' + index).float(0, Math.PI * 2),
     };
     return zone;

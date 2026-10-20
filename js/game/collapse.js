@@ -31,10 +31,12 @@
       if (d > maxD) maxD = d;
     }
     tiles.sort((a, b) => b[0] - a[0]);
+    // depuis l'hexagone (1.9) : le portail est l'hexagone entier, et le transfert y est plus court
+    const base = plate.base && X.base;
     X.collapse = {
-      plate, selection, t: 0, dur, need: dur * 0.62 * Col.transferMul(X), progress: 0, frozen: 0,
-      maxD, front: maxD, safe: T * 4.2, tiles, ptr: 0, cracked: new Set(),
-      portalR: T * 3.2, waveT: 3, debrisT: 2, sound: AN.Audio.loop('rumble'), done: false,
+      plate, selection, t: 0, dur, need: dur * 0.62 * Col.transferMul(X) * (base ? 1 - D.BASE.transfer : 1), progress: 0, frozen: 0,
+      maxD, front: maxD, safe: base ? X.base.R + T : T * 4.2, tiles, ptr: 0, cracked: new Set(),
+      portalR: base ? X.base.R * 0.92 : T * 3.2, waveT: 3, debrisT: 2, sound: AN.Audio.loop('rumble'), done: false,
     };
     for (const e of X.creatures) {
       if (!e.alive || e.team !== 'wild' || e.boss) continue;
@@ -84,8 +86,12 @@
       const i = y * zone.w + x;
       const was = zone.grid[i];
       zone.grid[i] = Z.VOID;
+      // la miniature est repeinte case par case (1.8.2) plutôt qu'entièrement ;
+      // un sol effacé y garde sa couleur, seuls relief, vide, danger et plaques changent
+      if (X.thumb && (was === Z.WALL || was === Z.ABYSS || was === Z.HAZARD || was === Z.PLATE)) AN.Terrain.thumbTile(X.thumb, zone, x, y, 3);
       ctx.fillStyle = AN.PAPER;
       ctx.fillRect(x * T - 0.5, y * T - 0.5, T + 1, T + 1);
+      (X.zoneDirty || (X.zoneDirty = [])).push(x, y, 0); // à reporter dans le calque du terrain
       const px = x * T + T / 2, py = y * T + T / 2;
       if (px > view.x0 && px < view.x1 && py > view.y0 && py < view.y1 && Math.random() < 0.6) {
         const b = Z.biomeAt(zone, px, py);
@@ -98,10 +104,8 @@
       const [d, x, y] = c.tiles[j];
       if (d < c.front - 90) break;
       const key = y * zone.w + x;
-      if (!c.cracked.has(key) && Math.random() < 0.08) { c.cracked.add(key); crackTile(X, x, y, ctx); }
+      if (!c.cracked.has(key) && Math.random() < 0.08) { c.cracked.add(key); crackTile(X, x, y, ctx); (X.zoneDirty || (X.zoneDirty = [])).push(x, y, 1); }
     }
-    // relief du minimap
-    if (n > 0) X.thumbDirty = true;
 
     // présence dans le portail
     const inPortal = U.dist(p.x, p.y, c.plate.x, c.plate.y) <= c.portalR;
@@ -125,6 +129,7 @@
           const def = pool[Math.floor(Math.random() * pool.length)];
           const e = AN.Entities.creature(def, x, y, { threat: X.world.threat, rule: X.world.rule });
           e.frenzy = true; e.aggroT = 30; e.noLoot = true;
+          if (c.plate.base) e.raid = true; // elles marchent sur l'hexagone (1.9)
           X.creatures.push(e);
           FX.burst(x, y, e.pal.body, 10, 120, { size: 3 });
         }
@@ -152,7 +157,9 @@
       c.done = true;
       c.sound.stop();
       AN.Audio.play('shatter');
-      AN.Expedition.finish(X, 'extrait');
+      // depuis l'hexagone, il repart d'abord avec le butin, le joueur à bord (1.9)
+      if (c.plate.base && X.base && X.base.state === 'ok') AN.Base.lift(X, true, () => AN.Expedition.finish(X, 'extrait'));
+      else AN.Expedition.finish(X, 'extrait');
     }
   };
 
@@ -175,8 +182,8 @@
     // progression du transfert
     ctx.strokeStyle = AN.CYAN; ctx.lineWidth = 6;
     ctx.beginPath(); ctx.arc(pl.x, pl.y, c.portalR + 8, -Math.PI / 2, -Math.PI / 2 + TAU * U.clamp(c.progress / c.need, 0, 1)); ctx.stroke();
-    // anneaux de l'Artefact
-    for (let i = 0; i < 3; i++) {
+    // anneaux de l'Artefact (l'hexagone dessine déjà le sien)
+    for (let i = 0; i < (pl.base ? 0 : 3); i++) {
       ctx.save();
       ctx.translate(pl.x, pl.y);
       ctx.rotate(t * (0.6 + i * 0.4) * (i % 2 ? -1 : 1));
@@ -196,14 +203,37 @@
     }
   };
 
+  /*
+   * Halo blanc du bord de l'écran. Son intensité ne prend que 256 valeurs
+   * (le navigateur arrondit l'opacité d'une couleur) : il est peint dans un
+   * calque gardé tant qu'elle ne change pas (1.8.2), au lieu d'un dégradé
+   * plein écran recalculé à chaque image.
+   */
+  let halo = null;
   Col.drawScreen = function (ctx, X, t) {
     const c = X.collapse;
     const k = U.clamp(c.t / c.dur, 0, 1);
-    const W = X.cam.W, H = X.cam.H;
-    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
-    g.addColorStop(0, 'rgba(255,255,255,0)');
-    g.addColorStop(1, 'rgba(255,255,255,' + (0.15 + k * 0.45) + ')');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    const W = X.cam.W, H = X.cam.H, dpr = X.cam.dpr;
+    const alpha = 0.15 + k * 0.45;
+    const a8 = Math.round(alpha * 255);
+    const dw = ctx.canvas.width, dh = ctx.canvas.height;
+    if (!halo || halo.a8 !== a8 || halo.W !== W || halo.H !== H || halo.dpr !== dpr || halo.cv.width !== dw || halo.cv.height !== dh) {
+      const cv = halo && halo.cv.width === dw && halo.cv.height === dh ? halo.cv : AN.Terrain.canvas(dw, dh);
+      const hc = cv.getContext('2d');
+      hc.setTransform(1, 0, 0, 1, 0, 0);
+      hc.clearRect(0, 0, dw, dh);
+      hc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const g = hc.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(1, 'rgba(255,255,255,' + alpha + ')');
+      hc.fillStyle = g;
+      hc.fillRect(0, 0, W, H);
+      halo = { cv, a8, W, H, dpr };
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(halo.cv, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
+  /** Fin du transfert : le calque du halo est rendu. */
+  Col.release = () => { halo = null; };
 })();

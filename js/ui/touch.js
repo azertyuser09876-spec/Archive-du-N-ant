@@ -21,7 +21,9 @@
   T.LABELS = { KeyE: '« Agir »', Space: '« Esquive »', KeyF: '« Capture »', KeyQ: '« Capacité »', KeyG: '« Appel »', KeyR: '« Monture »', Tab: '« Sac »', KeyX: '« Urgence »', KeyV: '« Agencer »', Escape: '« Pause »', Digit1: 'la case 1', Digit2: 'la case 2', Digit3: 'la case 3', Digit4: 'la case 4', Mouse0: 'stick droit', Mouse2: '« Frappe »' };
 
   const prefs = () => (AN.Prefs ? AN.Prefs.data.touch : { mode: 'auto', size: 1, left: false });
-  const coarse = () => { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } };
+  // la requête est préparée une fois (1.8.2) : sa réponse reste à jour toute seule
+  let coarseMQ = null;
+  const coarse = () => { try { if (!coarseMQ) coarseMQ = window.matchMedia('(pointer: coarse)'); return coarseMQ.matches; } catch (e) { return false; } };
 
   /** Faut-il afficher les commandes ? */
   T.wanted = function () {
@@ -163,8 +165,10 @@
       if (!mode) T.releaseAll();
     }
     T.on = want;
-    document.body.classList.toggle('touch-on', !!want);
-    document.documentElement.style.setProperty('--tsize', String(prefs().size || 1));
+    // écrites seulement quand elles changent (1.8.2)
+    if (T.lastWant !== !!want) { T.lastWant = !!want; document.body.classList.toggle('touch-on', !!want); }
+    const tsize = String(prefs().size || 1);
+    if (T.lastSize !== tsize) { T.lastSize = tsize; document.documentElement.style.setProperty('--tsize', tsize); }
     if (!mode) return;
     const L = T.sticks.left, R = T.sticks.right;
     // déplacement

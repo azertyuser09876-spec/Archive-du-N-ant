@@ -226,7 +226,8 @@
         break;
       }
       default:
-        wanderNear(e, dt, v.x, v.y, v.r * 0.75, sp * 0.3);
+        if (n.governor) wanderNear(e, dt, v.x, v.y + Z.T * 1.9, Z.T * 0.8, sp * 0.3); // le gouverneur d'une ville reste près de la fontaine (1.13)
+        else wanderNear(e, dt, v.x, v.y, v.r * 0.75, sp * 0.3);
     }
   };
 
@@ -554,8 +555,10 @@
     const memo = Cv.peopleMemo(prof, civ.people);
     const out = { people: civ.people, attitude: civ.attitude, revealed: civ.revealed, saved: 0, forced: 0, abandoned: 0, escaped: 0, killed: civ.killed || 0, carried: 0, ark: false };
     const boarded = civ.boarded || 0;
-    const forcedCargo = outcome === 'extrait' ? X.cargo.filter((c) => c.inhabitants).reduce((s, c) => s + c.inhabitants, 0) : 0;
-    const arkTaken = outcome === 'extrait' && X.cargo.some((c) => c.ark);
+    // la soute livrée : celle de l'extraction, et ce que l'hexagone submergé a déjà ramené (1.9)
+    const cargo = X.delivered || (outcome === 'extrait' ? X.cargo : []);
+    const forcedCargo = cargo.filter((c) => c.inhabitants).reduce((s, c) => s + c.inhabitants, 0);
+    const arkTaken = cargo.some((c) => c.ark);
     // Le territoire du village transféré emporte ses habitants avec lui.
     let carried = 0;
     const vt = outcome === 'extrait' && terrByZone[civ.zone];
@@ -628,8 +631,10 @@
     if (!v) return;
     const P = D.PEOPLE[v.people];
     const view = X.cam.view(120);
-    if (v.x < view.x0 - 400 || v.x > view.x1 + 400 || v.y < view.y0 - 400 || v.y > view.y1 + 400) return;
-    // place du village
+    const vm = (v.r || 0) + 240;
+    if (v.x < view.x0 - vm || v.x > view.x1 + vm || v.y < view.y0 - vm || v.y > view.y1 + vm) return;
+    // place du village (et, dans une ville, son pavage)
+    if (v.city && AN.Nations) AN.Nations.drawPlaza(ctx, X, v, t);
     ctx.strokeStyle = U.rgba(P.body.trim, 0.35);
     ctx.lineWidth = 2;
     ctx.setLineDash([3, 9]);
@@ -661,8 +666,10 @@
         }
         continue;
       }
-      AN.CivArt.drawBuilding(ctx, b.x, b.y, Z.T * 2, P.style, P, 'house', b.variant, t, b.seed);
+      const pub = b.kind === 'market' || b.kind === 'hall' || b.kind === 'palace';
+      AN.CivArt.drawBuilding(ctx, b.x, b.y, Z.T * (pub ? Math.max(b.w, b.h) * 0.95 : 2), P.style, P, pub ? b.kind : 'house', b.variant, t, b.seed);
     }
+    if (v.city && AN.Nations) AN.Nations.drawCity(ctx, X, v, t);
     // bulle au-dessus du chef
     const L = Cv.leader(X);
     if (L && civ && !D.ATTITUDES[civ.attitude].hostile && !civ.met) {

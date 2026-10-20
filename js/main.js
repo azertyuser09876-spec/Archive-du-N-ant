@@ -81,7 +81,10 @@
     G.cam.resize(W, H, dpr);
   }
 
+  // horloge réelle (le banc d'essai des performances fige performance.now pendant une image)
+  G.clock = () => (window.__realNow ? window.__realNow() : performance.now());
   function frame(now) {
+    G.frameT0 = G.clock();
     requestAnimationFrame(frame);
     let dt = (now - G.last) / 1000;
     G.last = now;
@@ -256,6 +259,7 @@
   }
 
   const Z_T = () => AN.ZoneGen.T;
+  const Exp_enter = (X, zi) => AN.Expedition.enterZone(X, zi, X.zi);
   const D_BIOMES = () => AN.Data.BIOMES;
   /** Outils de test, uniquement avec ?debug=1 dans l'adresse. */
   function installDebug() {
@@ -292,7 +296,7 @@
         }
         return null;
       },
-      /** Expédition d'un échelon supérieur : 'monde', 'orbite', 'systeme', 'galaxie'. */
+      /** Expédition d'un échelon supérieur : 'monde', 'orbite', 'systeme', 'galaxie', 'amas', 'toile', 'pli'. */
       goScale(scale, k = 0) {
         const w = AN.WorldGen.destination(AN.hash('echelon' + scale + k), { scale, threat: 7, reliability: 1, rep: AN.Civ.reputation(G.profile) });
         AN.UI.closeAll(); AN.Expedition.start(G.profile, w);
@@ -323,7 +327,9 @@
         if (rank >= 7) { add('baleine_orbitale'); ['mer_regolithe', 'anneau_glace'].forEach((b) => this.astre(b)); }
         if (rank >= 8) { add('astre_veilleur'); ['couronne_solaire', 'geante_gazeuse', 'ceinture_fer'].forEach((b) => this.astre(b)); }
         if (rank >= 9) add('myriade');
-        P.artefact.ancrage = Math.min(4, Math.max(0, rank - 4));
+        if (rank >= 10) { add('berger_amas'); ['nebuleuse', 'galaxie_naine', 'pont_sombre'].forEach((b) => this.astre(b)); }
+        if (rank >= 11) add('tisserand');
+        P.artefact.ancrage = Math.min(AN.Data.UPGRADES.ancrage.levels.length - 1, Math.max(0, rank - 4));
         P.artefact.soute = 6; P.artefact.liens = 5; P.artefact.rayon = 5;
         P.destinations = null; P.destByScale = {};
         AN.Save.write(P);
@@ -337,8 +343,52 @@
         if (AN.Archive.state()) AN.Archive.rebuildCreatures();
         return P.cosmos.astres.length;
       },
+      /** Monde tenu par un peuple (1.12) : échelon, peuple et humeur au choix. */
+      goNation(scale = 'region', people, attitude, threat = 4) {
+        for (let s = 1; s < 40000; s++) {
+          const w = AN.WorldGen.destination(AN.hash('nation' + scale + s), { scale, threat, reliability: 1, rep: AN.Civ.reputation(G.profile) });
+          if (!w.nation || (people && w.nation.people !== people) || (attitude && w.nation.attitude !== attitude)) continue;
+          AN.UI.closeAll(); AN.Expedition.start(G.profile, w);
+          return w.code + ' ' + w.nation.realm + ' ' + w.nation.attitude;
+        }
+        return null;
+      },
+      /** Faveur de la nation où l'on se trouve. */
+      favor(v = 80) { const X = AN.X; if (!X || !X.nation) return null; X.nation.favor = v; return v; },
+      /** Mission du gouverneur de la ville où l'on se trouve (1.13) : battue, livraison, defense, caravane, gardien. */
+      mission(kind) { const X = AN.X; if (!X || !X.nation) return null; const m = AN.Nations.mission(X, X.zi, kind || 'battue'); return m && m.kind; },
+      /** Raid de bêtes sur la ville où l'on se trouve (1.13). */
+      cityRaid() { const X = AN.X; return !!(X && X.nation && AN.Nations.startRaid(X, false)); },
+      /** Une nation ancrée de chaque taille (1.13), pour voir le ciel de l'Archive. */
+      nationSky(scales = ['region', 'monde', 'orbite', 'systeme']) {
+        const P = G.profile;
+        scales.forEach((scale) => {
+          for (let s = 1; s < 40000; s++) {
+            const w = AN.WorldGen.destination(AN.hash('ciel' + scale + s), { scale, threat: 4, reliability: 1, rep: 'inconnu' });
+            if (!w.nation || AN.Nations.entry(P, w.code)) continue;
+            AN.Nations.list(P).push({ code: w.code, seed: w.seed, scale, threat: w.threat, people: w.nation.people, attitude: w.nation.attitude, mode: s % 2 ? 'allie' : 'vassal', favor: 60, since: Date.now(), tributeAt: Date.now(), primary: w.primary, region: w.region });
+            break;
+          }
+        });
+        AN.Save.write(P);
+        return AN.Nations.list(P).map((n) => n.scale + ' ' + n.code);
+      },
+      /** Lieu ancré (1.10) : liste, ou départ vers le n-ième (sans passer par la Préparation). */
+      place(n) {
+        const L = AN.Places.list(G.profile);
+        if (n == null) return L.map((x, i) => i + ' ' + x.id + ' ' + x.name + ' (' + x.scale + ')');
+        const pl = L[n];
+        if (!pl) return null;
+        AN.UI.closeAll(); AN.Expedition.start(G.profile, AN.Places.world(G.profile, pl));
+        return pl.name;
+      },
       zoom(z) { const A = AN.Archive.state(); if (A) { A.zoom = z; A.cam.zoom = z; } },
       village() { const X = AN.X; if (!X || !X.zone.village) return false; const v = X.zone.village; X.player.x = v.x; X.player.y = v.y + Z_T(); AN.Physics.collide(X.zone, X.player); return true; },
+      /** L'hexagone (1.9) : y aller, le submerger, lancer un assaut, ajouter un garde. */
+      base() { const X = AN.X; if (!X || !X.base) return null; if (X.zi !== X.base.zi) Exp_enter(X, X.base.zi); X.player.x = X.base.x; X.player.y = X.base.y + 60; return X.base.state; },
+      submerge() { const X = AN.X; if (X && X.base) AN.Base.damage(X, 1e9); return X && X.base && X.base.state; },
+      raid() { const X = AN.X; if (X && X.base) AN.Base.raid(X); },
+      guard(species, o = {}) { const c = this.add(species, o); AN.Base.of(G.profile).guards.push(c.uid); AN.Save.write(G.profile); if (AN.Archive.state()) AN.Archive.rebuildCreatures(); return c.uid; },
       vault() { const X = AN.X; if (!X) return null; const v = (X.zone.vaults || [])[0]; if (!v) return null; X.player.x = v.x + v.dir[0] * 60; X.player.y = v.y + v.dir[1] * 60; AN.Physics.collide(X.zone, X.player); return v.key; },
     };
     console.log('[AN] mode débogage : AN.dbg.give(), AN.dbg.go(0), AN.dbg.god(), AN.dbg.weaken(), AN.dbg.tp(), AN.dbg.boss()');

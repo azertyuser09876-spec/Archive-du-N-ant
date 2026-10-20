@@ -20,6 +20,7 @@
     atelier: '<path d="M3 15l6.5-6.5"/><path d="M8 4.5l2.5-2 5 5-2 2.5Z"/><path d="M10.5 7l1.5 1.5"/>',
     artefact: '<path d="M9 2l6 7-6 7-6-7Z"/><path d="M9 6l2.6 3L9 12 6.4 9Z"/>',
     constructions: '<path d="M3 16V8l6-5 6 5v8"/><path d="M7 16v-4.5h4V16"/>',
+    hexagone: '<path d="M9 1.8l6.2 3.6v7.2L9 16.2l-6.2-3.6V5.4Z"/><path d="M9 6.5l2.2 1.25v2.5L9 11.5 6.8 10.25v-2.5Z"/>',
     archive: '<path d="M9 1.8l3 1.75v3.5L9 8.8 6 7.05v-3.5Z"/><path d="M6 7.05l3 1.75v3.5l-3 1.75-3-1.75v-3.5Z"/><path d="M12 7.05l3 1.75v3.5l-3 1.75-3-1.75"/>',
     collection: '<circle cx="9" cy="10.5" r="5"/><circle cx="7.2" cy="9.6" r=".9" fill="currentColor"/><circle cx="10.8" cy="9.6" r=".9" fill="currentColor"/><path d="M5.5 6.5 4 3.5M12.5 6.5 14 3.5"/>',
     peuples: '<path d="M2.5 15.5 9 3l6.5 12.5Z"/><path d="M9 15.5V11"/>',
@@ -36,13 +37,13 @@
   UI.tabIcon = icon;
 
   const GROUPS = [
-    { name: 'Voyager', tabs: ['destinations', 'preparation'] },
+    { name: 'Voyager', tabs: ['destinations', 'preparation', 'hexagone'] },
     { name: 'Fabriquer', tabs: ['atelier', 'artefact', 'constructions'] },
     { name: 'L’Archive', tabs: ['archive', 'collection', 'peuples'] },
     { name: 'Savoir', tabs: ['bestiaire', 'journal'] },
   ];
   const TABS = {
-    destinations: 'Destinations', preparation: 'Préparation', atelier: 'Atelier', artefact: 'Améliorations', constructions: 'Constructions',
+    destinations: 'Destinations', preparation: 'Préparation', hexagone: 'Hexagone', atelier: 'Atelier', artefact: 'Améliorations', constructions: 'Constructions',
     archive: 'Vue d’ensemble', collection: 'Collection', peuples: 'Peuples', bestiaire: 'Bestiaire', journal: 'Journal',
   };
 
@@ -59,7 +60,7 @@
       if (next && (next.rank || 0) <= rk && P.canPay(prof, P.upgradeCost(prof, next.cost))) out.artefact.push('Améliorer : ' + D.UPGRADES[key].name);
     });
     (AN.Structures ? AN.Structures.list(prof) : []).forEach((s) => {
-      if (D.STRUCTURES[s.id] && s.slot == null) out.constructions.push(D.STRUCTURES[s.id].name + ' attend d’être ' + (D.STRUCTURES[s.id].kind === 'found' && !s.built ? 'reconstruite' : 'reposée'));
+      if (D.STRUCTURES[s.id] && !AN.Structures.placed(prof, s)) out.constructions.push(D.STRUCTURES[s.id].name + ' attend d’être ' + (D.STRUCTURES[s.id].kind === 'found' && !s.built ? 'reconstruite' : 'reposée'));
     });
     prof.collection.forEach((c) => {
       if (!c.lost && AN.Bonds.evolutions(prof, c).some((o) => o.ok)) out.collection.push(P.displayName(c) + ' peut évoluer');
@@ -166,7 +167,7 @@
     let done = 0, tot = 0;
     const add = (k, label) => { if (!n[k]) return; parts.push(Math.min(c[k] || 0, n[k]) + '/' + n[k] + ' ' + label); done += Math.min(c[k] || 0, n[k]) / n[k]; tot++; };
     add('territories', 'territoires'); add('guardians', 'gardiens'); add('ultras', 'ultra-boss'); add('souverains', 'souverains');
-    add('cataclysmes', 'cataclysmes'); add('astres', 'astres'); add('stellaires', 'entités stellaires'); add('galactiques', 'organismes galactiques');
+    add('cataclysmes', 'cataclysmes'); add('astres', 'astres'); add('stellaires', 'entités stellaires'); add('galactiques', 'organismes galactiques'); add('amas', 'entités d’amas'); add('toiles', 'entités de la Toile');
     return { name: rk.next.mystery ? '???' : rk.next.name, k: tot ? done / tot : 0, short: parts.join(', '), text: 'Prochain rang : ' + (rk.next.mystery ? '???' : rk.next.name) + ' (' + parts.join(', ') + ')' };
   }
 
@@ -182,6 +183,9 @@
   /* ---------- Destinations ---------- */
   RENDER.destinations = function (prof, show) {
     const ech = AN.Profile.echelons(prof);
+    const places = AN.Places.list(prof);
+    if (state.scale === 'lieux' && !places.length) state.scale = 'region';
+    if (state.scale === 'lieux') return placesPage(prof, show, ech, places);
     if (!ech.some((x) => x.e.id === state.scale && x.open)) state.scale = 'region';
     const list = AN.Profile.destinations(prof, state.scale);
     const scanCost = { etincelle: 3, verre: 2 };
@@ -189,11 +193,7 @@
     // les échelons apparaissent quand l'Archive approche de l'échelle correspondante
     const shown = ech.filter((x) => x.open || rk + 1 >= x.e.rank);
     const E = D.ECHELONS[state.scale];
-    const chips = shown.length > 1 ? h('div', { class: 'echelons', role: 'tablist' }, shown.map((x) => h('button', {
-      class: 'echelon' + (x.e.id === state.scale ? ' on' : '') + (x.open ? '' : ' locked'), type: 'button', disabled: !x.open,
-      title: x.open ? x.e.desc || '' : 'Requiert une Archive de rang ' + D.RANKS[x.e.rank].name,
-      onclick: () => { AN.Audio.play('tab'); state.scale = x.e.id; state.world = null; show('destinations'); },
-    }, x.e.plural, x.open ? null : h('small', null, D.RANKS[x.e.rank].name)))) : null;
+    const chips = echelonChips(shown, places, show);
     const scan = h('div', { class: 'scan' }, btn('Recalibrer le scanner', () => {
       if (!AN.Profile.pay(prof, scanCost)) { AN.Audio.play('ui_err'); AN.HUD.toast('Il faut 3 Étincelles et 2 Sables vitreux pour recalibrer.'); return; }
       prof.scans++;
@@ -211,6 +211,45 @@
         ['carte', 'liste'].map((v) => h('button', { type: 'button', role: 'tab', class: 'seg' + ((state.view || 'carte') === v ? ' on' : ''), 'aria-selected': (state.view || 'carte') === v ? 'true' : 'false',
           onclick: () => { AN.Audio.play('tab'); state.view = v; show('destinations'); } }, v === 'carte' ? 'Carte' : 'Liste'))),
       destinationsBody(prof, show, list));
+  };
+
+  /** Les échelons d'expédition, et les lieux ancrés quand il y en a (1.10). */
+  function echelonChips(shown, places, show) {
+    if (shown.length <= 1 && !places.length) return null;
+    return h('div', { class: 'echelons', role: 'tablist' }, shown.map((x) => h('button', {
+      class: 'echelon' + (x.e.id === state.scale ? ' on' : '') + (x.open ? '' : ' locked'), type: 'button', disabled: !x.open,
+      title: x.open ? x.e.desc || '' : 'Requiert une Archive de rang ' + D.RANKS[x.e.rank].name,
+      onclick: () => { AN.Audio.play('tab'); state.scale = x.e.id; state.world = null; show('destinations'); },
+    }, x.e.plural, x.open ? null : h('small', null, D.RANKS[x.e.rank].name))),
+    places.length ? h('button', { class: 'echelon places' + (state.scale === 'lieux' ? ' on' : ''), type: 'button', title: 'Ce que vous avez ramené : on y retourne sans limite',
+      onclick: () => { AN.Audio.play('tab'); state.scale = 'lieux'; state.world = null; show('destinations'); } }, 'Lieux ancrés', h('small', null, String(places.length))) : null);
+  }
+
+  /** Lieux ancrés (1.10) : les mondes, astres et galaxies qu'on a ramenés. */
+  function placesPage(prof, show, ech, places) {
+    const rk = AN.Profile.rank(prof).index;
+    const shown = ech.filter((x) => x.open || rk + 1 >= x.e.rank);
+    const pick = (pl) => { state.world = AN.Places.world(prof, pl); state.openSlot = null; AN.Audio.play('ui_ok'); show('preparation'); };
+    const order = ['monde', 'orbite', 'systeme', 'galaxie', 'amas', 'toile'];
+    const sorted = places.slice().sort((a, b) => order.indexOf(a.scale) - order.indexOf(b.scale));
+    return page('destinations', 'Destinations', 'Les lieux ancrés sont ce que vous avez ramené. L’Artefact s’y téléporte sans limite ; ils ne sont jamais détruits.', null,
+      echelonChips(shown, places, show),
+      h('p', { class: 'note place-note' }, 'On y récolte et l’on y capture ; on peut y tomber, et perdre l’équipement non lié. Au retour, pas d’effondrement : le lieu reste tel que vous l’avez laissé. Les gisements repoussent en ' + D.PLACES.regrow + ' minutes, les créatures reviennent en ' + D.PLACES.respawn + ', les gardiens en ' + D.PLACES.guardian + '. On ne rapporte pas de territoire d’un lieu ancré.'),
+      h('div', { class: 'world-grid' }, sorted.map((pl) => {
+        const w = AN.Places.world(prof, pl);
+        const v = AN.Places.visit(prof, pl.id);
+        const card = worldCard(w, prof, () => pick(pl));
+        card.insertBefore(h('p', { class: 'muted small' }, D.ECHELONS[pl.scale].name + ' · rapporté de ' + (pl.from || '?') + (v ? ' · ' + v.count + ' visite' + (v.count > 1 ? 's' : '') : ' · jamais visité')), card.children[1] || null);
+        return card;
+      })));
+  }
+  UI.openPlace = function (placeId) {
+    const prof = AN.Game.profile;
+    const pl = AN.Places.find(prof, placeId);
+    if (!pl) return;
+    state.scale = 'lieux';
+    state.world = AN.Places.world(prof, pl);
+    UI.console('preparation');
   };
 
   /** Carte interactive (par défaut) ou liste de fiches. */
@@ -306,9 +345,9 @@
     const found = target ? AN.Search.scanWorld(w, target) : null;
     return h('article', { class: 'world-card' + (state.world === w ? ' picked' : '') + (w.rescue ? ' rescue' : '') + (found && found.total ? ' hit' : '') },
       swatch,
-      h('h3', null, w.code, w.found ? h('span', { class: 'tag found' }, 'Balayage') : null),
+      h('h3', null, w.place ? w.placeName : w.code, w.found ? h('span', { class: 'tag found' }, 'Balayage') : null, w.place ? h('span', { class: 'tag found' }, 'Ancré') : null, w.nation && !w.place ? h('span', { class: 'tag nation' }, 'Nation') : null),
       target ? h('p', { class: found.total ? 'search-hit' : 'search-miss' }, h('b', null, 'Recherche. '), AN.Search.summary(w, target)) : null,
-      h('p', { class: 'region' }, w.region),
+      h('p', { class: 'region' }, w.place ? w.placeWhy || w.code : w.region),
       w.rescue ? h('p', { class: 'warn' }, 'Mission de sauvetage : ' + lostHere.map((c) => AN.Profile.displayName(c)).join(', ') + '. Ce monde s’effondrera dans ' + Math.max(0, w.rescue.until - prof.expeditions) + ' expédition(s).') : null,
       h('dl', { class: 'facts' },
         row('Type', s.type),
@@ -327,7 +366,7 @@
         row('Caveaux', !s.vaults || !s.vaults.length ? 'Aucun détecté' : s.vaults[0] === '?' ? 'Scellés, nature inconnue' : h('span', { class: 'tags' }, s.vaults.map((k) => h('span', { class: 'tag', title: D.KEYS[k].barrier + ' : nécessite un compagnon doté de « ' + D.KEYS[k].name + ' »' }, h('i', { style: { background: D.KEYS[k].color } }), D.KEYS[k].name)))),
         s.structures && s.structures.length ? row('Structure', s.structures[0] === '?' ? 'Signal d’une construction' : s.structures.join(', ')) : null,
         s.events && s.events.length ? row('Événement', s.events[0] === '?' ? 'Perturbation probable' : s.events.join(', ') + ' (probable)') : null),
-      btn('Préparer l’expédition', onPick, 'primary block'));
+      btn(w.place ? 'S’y rendre' : 'Préparer l’expédition', onPick, 'primary block'));
   }
 
   function drawSwatch(cv, w) {
@@ -436,13 +475,14 @@
           else {
             if (used + cost > slots) { AN.Audio.play('ui_err'); AN.HUD.toast('Plus assez de liens. Améliorez les Liens de l’Artefact ou retirez un compagnon.'); return; }
             prof.companions.push(c.uid);
+            if (AN.Base.isGuard(prof, c.uid)) { AN.Base.toggleGuard(prof, c.uid); AN.HUD.toast(P.displayName(c) + ' quitte la garde de l’hexagone pour vous suivre.', 3); }
           }
           AN.Audio.play(on ? 'ui' : 'bond');
           redraw();
         } },
         AN.Icons.creature(c, 44),
         h('b', null, P.displayName(c)),
-        h('small', null, (c.injured ? 'Blessée · ' : rebel ? 'Rebelle · ' : '') + info.join(' · ')),
+        h('small', null, (c.injured ? 'Blessée · ' : rebel ? 'Rebelle · ' : AN.Base.isGuard(prof, c.uid) ? 'Garde l’hexagone · ' : '') + info.join(' · ')),
         cost > 1 ? h('span', { class: 'link-cost' }, cost + ' liens') : null);
     });
     // clés réunies par la troupe, utiles aux caveaux annoncés
@@ -466,10 +506,13 @@
       ? h('p', { class: 'warn small' }, 'L’Ancrage de l’Artefact ne retient pas encore un ' + D.TIERS[bossDef.tier].name.toLowerCase() + ' : vous pourrez affronter ' + bossDef.name + ', pas le capturer.') : null;
     const go = btn('Ouvrir le passage', () => {
       UI.closeAll();
-      AN.Archive.exit();
-      AN.Audio.play('portal');
-      AN.Game.transition(() => AN.Expedition.start(prof, w), 0.6);
       state.world = null;
+      // l'hexagone de l'Artefact se détache, puis le passage s'ouvre (1.9)
+      AN.Base.depart(() => {
+        AN.Archive.exit();
+        AN.Audio.play('portal');
+        AN.Game.transition(() => AN.Expedition.start(prof, w), 0.6);
+      });
     }, 'primary big');
     const pips = h('span', { class: 'link-pips', 'aria-label': used + ' liens utilisés sur ' + slots }, Array.from({ length: slots }, (_, i) => h('i', { class: i < used ? 'on' : '' })));
     return h('div', { class: 'page prep' },
@@ -486,6 +529,7 @@
           compTiles.length ? h('div', { class: 'comp-grid' }, compTiles) : h('p', { class: 'muted small' }, 'Aucune créature capturée pour l’instant.'),
           keyNote),
         callTiles ? h('section', null, h('h4', null, 'Appel stratégique ', h('small', { class: 'muted' }, 'touche ' + AN.Input.label('KeyG') + ', une fois par expédition')), callTiles) : null,
+        baseSummary(prof, show),
         h('div', { class: 'prep-bar' },
           h('div', { class: 'prep-risk' }, anchorNote,
             h('p', null, risk > 0 ? h('span', null, 'Valeur engagée : ', h('b', null, U.fmt(risk)), '. Perdue si vous tombez.') : 'Vous n’emportez que de l’équipement lié : seul le butin peut être perdu.')),
@@ -608,49 +652,94 @@
       essences);
   };
 
-  /* ---------- Constructions ---------- */
+  /* ---------- Constructions (refondues en 1.9 : sur les territoires) ---------- */
+  /** Nom court d'un territoire, pour les listes. */
+  const terrName = (t) => D.BIOME[t.biome].name + (t.zoneName ? ' (' + t.zoneName + ')' : '');
+  const bonusLine = (id) => {
+    const def = D.STRUCTURES[id];
+    if (!def.bonus) return null;
+    const where = def.kind === 'build' ? 'paysage ' + def.bonus.tags.map((g) => D.TAG_NAMES && D.TAG_NAMES[g] ? D.TAG_NAMES[g] : g).join(', ') : 'son paysage d’origine';
+    return h('p', { class: 'muted small' }, 'Bonus (' + where + ') : ' + def.bonus.text.replace(/^[^:]+ : /, '') + '.');
+  };
+
+  /** Choisir le territoire d'une structure. onPick(uid). */
+  UI.pickTerritory = function (prof, id, onPick, except) {
+    const St = AN.Structures;
+    const list = prof.territories.slice().sort((a, b) => (St.suits(id, b) - St.suits(id, a)) || (St.room(prof, b, except) > 0) - (St.room(prof, a, except) > 0) || St.room(prof, b, except) - St.room(prof, a, except));
+    const def = D.STRUCTURES[id];
+    const el = h('div', { class: 'panel small pick-terr' },
+      h('header', null, h('h2', null, 'Où bâtir : ' + def.name), btn('Annuler', () => UI.close(), 'ghost')),
+      h('p', { class: 'muted' }, 'Un territoire accueille un bâtiment, plus un par tranche de quatre cases. ' + (def.bonus ? 'Un paysage favorable ajoute un bonus.' : '')),
+      list.length ? h('ul', { class: 'rows terr-pick' }, list.map((t) => {
+        const room = St.room(prof, t, except);
+        const here = except && except.terr === t.uid;
+        const good = St.suits(id, t);
+        return h('li', { class: room > 0 && !here ? '' : 'disabled' },
+          h('button', { type: 'button', class: 'row-btn', disabled: room <= 0 || here, onclick: () => { UI.close(); onPick(t.uid); } },
+            AN.Mosaic ? AN.Mosaic.shape(t, 34) : null,
+            h('span', { class: 'grow' }, h('b', null, terrName(t)), h('small', null, (D.QUALITY_NAMES[t.quality] || 'Territoire') + ', ' + AN.Shapes.cellsOf(t).length + ' case' + (AN.Shapes.cellsOf(t).length > 1 ? 's' : '') + ' · ' + (here ? 'il s’y trouve déjà' : room > 0 ? room + ' place' + (room > 1 ? 's' : '') + ' libre' + (room > 1 ? 's' : '') : 'complet'))),
+            good ? h('em', { class: 'cyan' }, 'paysage favorable') : null));
+      })) : h('p', { class: 'muted' }, 'L’Archive n’a encore aucun territoire.'));
+    UI.open(el);
+  };
+
   RENDER.constructions = function (prof, show) {
     const St = AN.Structures;
     const P = AN.Profile;
     const mult = St.costMult(prof);
     const list = St.list(prof).filter((s) => D.STRUCTURES[s.id]);
-    const used = St.usedSlots(prof).size, total = D.STRUCT_SLOTS.length;
     const active = new Set(St.active(prof).map((s) => s.uid));
     const err = (m) => { if (m) { AN.Audio.play('ui_err'); AN.HUD.toast(m, 4); return true; } AN.Audio.play('build'); return false; };
-    const after = () => { const A = AN.Archive.state(); if (A) AN.HUD.refreshArchive(A); show('constructions'); };
+    const after = () => { const A = AN.Archive.state(); if (A) { AN.Archive.rebuildCreatures(); AN.HUD.refreshArchive(A); } show('constructions'); };
+    const total = prof.territories.reduce((s, t) => s + St.capacity(t), 0);
+    const used = list.filter((s) => St.placed(prof, s)).length;
+    const where = (s) => {
+      const t = St.terrOf(prof, s);
+      if (!t) return 'Rangé';
+      return 'Sur ' + terrName(t) + (St.hasBonus(prof, s) ? ' · paysage favorable' : '');
+    };
+    const pick = (id, fn, except) => {
+      if (!prof.territories.length) { err('Il faut d’abord un territoire dans l’Archive pour y bâtir.'); return; }
+      UI.pickTerritory(prof, id, (uid) => { if (!err(fn(uid))) { St.rise(St.lastBuilt); after(); } }, except);
+    };
     // bâtiments
     const builds = D.BUILD_STRUCTURES.map((id) => {
       const def = D.STRUCTURES[id];
       const cur = St.built(prof, id);
-      const stored = !cur && list.find((s) => s.id === id && s.slot == null);
+      const stored = !cur && list.find((s) => s.id === id && !St.placed(prof, s));
       const lv = cur ? cur.level || 1 : stored ? stored.level || 1 : 0;
       const next = def.levels[lv];
       const cost = next ? P.scaledCost(next.cost, mult) : null;
-      const can = next && P.canPay(prof, cost) && (cur || St.freeSlot(prof) != null);
+      const can = next && P.canPay(prof, cost) && (cur || total > used);
+      const s = cur || stored;
       return h('article', { class: 'build-card' + (cur ? ' on' : '') },
-        h('div', { class: 'build-head' }, AN.StructArt.icon(id, 44), h('div', null, h('b', null, def.name), h('small', null, cur ? 'Niveau ' + lv + ' sur ' + def.levels.length : stored ? 'Rangé (niveau ' + lv + ')' : 'Pas encore bâti'))),
+        h('div', { class: 'build-head' }, AN.StructArt.icon(id, 44), h('div', null, h('b', null, def.name), h('small', null, cur ? 'Niveau ' + lv + ' sur ' + def.levels.length + ' · ' + where(cur) : stored ? 'Rangé (niveau ' + lv + ')' : 'Pas encore bâti'))),
         h('p', null, def.desc),
-        cur || stored ? h('p', { class: 'effect' }, def.levels[lv - 1].text) : null,
+        s ? h('p', { class: 'effect' }, St.textOf(s, prof)) : null,
         next ? h('p', { class: 'muted small' }, (lv ? 'Niveau ' + (lv + 1) + ' : ' : 'Effet : ') + next.text) : h('p', { class: 'muted small' }, 'Niveau maximal.'),
+        bonusLine(id),
         h('div', { class: 'actions' },
-          stored ? btn('Reposer', () => { if (!err(St.place(prof, stored))) after(); }, 'primary small') : null,
-          next && !stored ? [UI.costList(cost, prof), btn(lv ? 'Améliorer' : 'Bâtir', () => { if (!err(St.build(prof, id))) after(); }, can ? 'primary small' : 'small', { disabled: !can })] : null));
+          stored ? btn('Reposer', () => pick(id, (uid) => St.place(prof, stored, uid), stored), 'primary small') : null,
+          cur ? btn('Déplacer', () => pick(id, (uid) => St.move(prof, cur, uid), cur), 'ghost small') : null,
+          cur ? btn('Ranger', () => { St.store(prof, cur); after(); }, 'ghost small', { title: 'Le bâtiment quitte son territoire et cesse d’agir, sans rien perdre.' }) : null,
+          next && !stored ? [UI.costList(cost, prof), btn(lv ? 'Améliorer' : 'Bâtir', () => (cur ? (err(St.build(prof, id)) || after()) : pick(id, (uid) => St.build(prof, id, uid))), can ? 'primary small' : 'small', { disabled: !can })] : null));
     });
     // structures rapportées
     const found = list.filter((s) => D.STRUCTURES[s.id].kind === 'found');
     const foundCards = found.map((s) => {
       const def = D.STRUCTURES[s.id];
-      const placed = s.slot != null;
+      const placed = St.placed(prof, s);
       const on = active.has(s.uid);
       const cost = P.scaledCost(def.rebuild, mult);
-      const can = !placed && (s.built || P.canPay(prof, cost)) && St.freeSlot(prof) != null;
+      const can = !placed && (s.built || P.canPay(prof, cost)) && total > used;
       return h('article', { class: 'build-card' + (on ? ' on' : placed ? '' : ' idle') },
-        h('div', { class: 'build-head' }, AN.StructArt.icon(s.id, 44), h('div', null, h('b', null, def.name), h('small', null, 'Rapportée de ' + ((s.origin && s.origin.world) || '?') + (s.origin && s.origin.zone ? ', ' + s.origin.zone : '')))),
+        h('div', { class: 'build-head' }, AN.StructArt.icon(s.id, 44), h('div', null, h('b', null, def.name), h('small', null, (placed ? where(s) + ' · ' : '') + 'Rapportée de ' + ((s.origin && s.origin.world) || '?') + (s.origin && s.origin.zone ? ', ' + s.origin.zone : '')))),
         h('p', null, def.desc),
-        h('p', { class: on ? 'effect' : 'muted small' }, def.text + (placed && !on ? ' (une structure identique agit déjà)' : '')),
+        h('p', { class: on ? 'effect' : 'muted small' }, St.textOf(s, prof) + (placed && !on ? ' (une structure identique agit déjà)' : '')),
+        bonusLine(s.id),
         h('div', { class: 'actions' },
-          placed ? btn('Ranger', () => { St.store(prof, s); after(); }, 'ghost small', { title: 'Libère l’emplacement ; la structure cesse d’agir.' })
-            : [s.built ? null : UI.costList(cost, prof), btn(s.built ? 'Reposer' : 'Reconstruire', () => { if (!err(St.place(prof, s))) after(); }, can ? 'primary small' : 'small', { disabled: !can })],
+          placed ? [btn('Déplacer', () => pick(s.id, (uid) => St.move(prof, s, uid), s), 'ghost small'), btn('Ranger', () => { St.store(prof, s); after(); }, 'ghost small', { title: 'Elle quitte son territoire et cesse d’agir.' })]
+            : [s.built ? null : UI.costList(cost, prof), btn(s.built ? 'Reposer' : 'Reconstruire', () => pick(s.id, (uid) => St.place(prof, s, uid), s), can ? 'primary small' : 'small', { disabled: !can })],
           btn('Recycler', () => UI.confirm('Recycler ' + def.name + ' ? Elle disparaît ; la moitié de son coût vous revient.', () => { const back = St.recycle(prof, s); AN.HUD.toast('Recyclée : ' + Object.entries(back).map(([k, n]) => n + ' ' + D.RESOURCES[k].name).join(', ') + '.'); after(); }, 'Recycler'), 'ghost small')));
     });
     const pw = St.powers(prof);
@@ -659,20 +748,29 @@
     if (pw.offline) sum.push('+' + pw.offline + ' h hors ligne');
     if (pw.collect) sum.push('ramassage automatique ' + Math.round(pw.collect * 100) + ' %');
     if (pw.craftCost) sum.push('fabrication −' + Math.round(pw.craftCost * 100) + ' %');
+    if (pw.buildCost) sum.push('constructions −' + Math.round(pw.buildCost * 100) + ' %');
     if (pw.breed) sum.push('reproduction +' + Math.round(pw.breed * 100) + ' %');
+    if (pw.feed) sum.push('faim −' + Math.round(pw.feed * 100) + ' %');
     if (pw.heal) sum.push('guérison +' + pw.heal);
     if (pw.dest) sum.push('+' + pw.dest + ' destination' + (pw.dest > 1 ? 's' : ''));
     if (pw.scan) sum.push('scanner +' + Math.round(pw.scan * 100) + ' %');
+    if (pw.sweep) sum.push('balayage −' + Math.round(Math.min(0.9, pw.sweep) * 100) + ' %');
     if (pw.xp) sum.push('expérience +' + Math.round(pw.xp * 100) + ' %');
+    if (pw.lore) sum.push('fragments de récit plus fréquents');
     if (pw.transfer) sum.push('transfert −' + Math.round(pw.transfer * 100) + ' %');
     if (pw.cargo) sum.push('soute +' + pw.cargo);
     if (pw.prod) sum.push('production +' + Math.round(pw.prod * 100) + ' %');
     if (pw.links) sum.push('liens +' + pw.links);
+    if (pw.guards) sum.push('points de garde +' + pw.guards);
+    if (pw.defSlots) sum.push('modules de l’hexagone +' + pw.defSlots);
+    if (pw.astres) sum.push('astres retenus +' + pw.astres);
+    if (pw.mood) sum.push('humeur des peuples +' + pw.mood);
     if (pw.consMax) sum.push('consommables +' + pw.consMax);
-    if (pw.regen) sum.push('régénération ' + String(pw.regen).replace('.', ',') + ' PV/s');
+    if (pw.regen) sum.push('régénération ' + String(Math.round(pw.regen * 10) / 10).replace('.', ',') + ' PV/s');
     if (pw.hp) sum.push('PV +' + pw.hp);
-    return page('constructions', 'Constructions', 'Autour de l’Artefact, l’Archive a de la place pour ' + total + ' structures. Les bâtiments se construisent ici ; les structures des mondes se démontent, voyagent dans la soute, puis se reconstruisent ici.', null,
-      h('div', { class: 'slots-line', title: used + ' emplacements occupés sur ' + total }, Array.from({ length: total }, (_, i) => h('i', { class: i < used ? 'on' : '' })), h('small', { class: 'muted' }, ' ' + used + ' / ' + total)),
+    const shown = Math.min(total, 40);
+    return page('constructions', 'Constructions', 'Les bâtiments se dressent sur les territoires de l’Archive, et les suivent quand on les agence. Un territoire en accueille un, plus un par tranche de quatre cases ; un paysage favorable ajoute un bonus. Les structures des mondes se démontent, voyagent dans la soute, puis se reconstruisent ici.', null,
+      h('div', { class: 'slots-line', title: used + ' places occupées sur ' + total }, Array.from({ length: shown }, (_, i) => h('i', { class: i < used ? 'on' : '' })), h('small', { class: 'muted' }, ' ' + used + ' / ' + total + ' places sur les territoires')),
       sum.length ? h('p', { class: 'note' }, h('b', null, 'Effets en cours : '), sum.join(', ') + '.') : null,
       h('section', null, h('h4', null, 'Bâtiments'), h('div', { class: 'build-grid' }, builds)),
       h('section', null, h('h4', null, 'Structures rapportées des mondes (' + found.length + ')'),
@@ -688,17 +786,86 @@
     const lv = s.level || 1;
     const next = def.kind === 'build' ? def.levels[lv] : null;
     const cost = next ? AN.Profile.scaledCost(next.cost, St.costMult(prof)) : null;
+    const t = St.terrOf(prof, s);
+    const refresh = () => { const A = AN.Archive.state(); if (A) AN.HUD.refreshArchive(A); };
     const el = h('div', { class: 'panel small structure-panel' },
       h('header', null, h('h2', null, def.name), btn('Fermer', () => UI.close(), 'ghost')),
       h('div', { class: 'build-head' }, AN.StructArt.icon(s.id, 64), h('p', null, def.desc)),
-      h('p', { class: on ? 'effect' : 'muted' }, St.textOf(s) + (on ? '' : ' (une structure identique agit déjà)')),
+      h('p', { class: on ? 'effect' : 'muted' }, St.textOf(s, prof) + (on ? '' : ' (une structure identique agit déjà)')),
+      t ? h('p', { class: 'muted small' }, 'Sur ' + terrName(t) + '.' + (def.bonus && !St.hasBonus(prof, s) ? ' Ailleurs, dans un paysage favorable : ' + def.bonus.text.replace(/^[^:]+ : /, '') + '.' : '')) : null,
       s.origin ? h('p', { class: 'muted small' }, 'Rapportée de ' + s.origin.world + ', ' + s.origin.zone + '.') : null,
       next ? h('div', null, h('p', null, 'Niveau ' + (lv + 1) + ' : ' + next.text), UI.costList(cost, prof)) : null,
       h('div', { class: 'actions' },
-        btn('Ranger', () => { St.store(prof, s); UI.close(); }, 'ghost', { title: 'Libère l’emplacement' }),
+        btn('Ranger', () => { St.store(prof, s); UI.close(); refresh(); }, 'ghost', { title: 'Le bâtiment quitte son territoire' }),
+        btn('Déplacer', () => UI.pickTerritory(prof, s.id, (uid) => { const m = St.move(prof, s, uid); if (m) { AN.Audio.play('ui_err'); AN.HUD.toast(m); return; } AN.Audio.play('build'); UI.close(); refresh(); }, s), 'ghost'),
         btn('Constructions', () => { UI.close(); UI.console('constructions'); }, 'ghost'),
         next ? btn('Améliorer', () => { const m = St.build(prof, s.id); if (m) { AN.Audio.play('ui_err'); AN.HUD.toast(m); return; } AN.Audio.play('build'); UI.close(); UI.structurePanel(s); }, AN.Profile.canPay(prof, cost) ? 'primary' : '', { disabled: !AN.Profile.canPay(prof, cost) }) : null));
     UI.open(el);
+  };
+
+  /* ---------- L'hexagone (1.9) : gardes et modules de défense ---------- */
+  function baseSummary(prof, show) {
+    const B = AN.Base;
+    B.cleanGuards(prof);
+    const guards = B.of(prof).guards.map((u) => AN.Profile.findCreature(prof, u)).filter(Boolean);
+    const mods = B.installed(prof);
+    return h('section', null, h('h4', null, 'L’hexagone ', h('small', { class: 'muted' }, 'il se pose dans le monde et vous attend')),
+      h('p', { class: 'small' }, (guards.length ? 'Gardes : ' + guards.map((c) => AN.Profile.displayName(c)).join(', ') : 'Aucun garde') + ' · ' + (mods.length ? 'Défenses : ' + mods.map((id) => D.DEFENSES[id].name).join(', ') : 'aucune défense') + '.'),
+      btn('Organiser l’hexagone', () => show('hexagone'), 'ghost small'));
+  }
+
+  RENDER.hexagone = function (prof, show) {
+    const B = AN.Base;
+    const P = AN.Profile;
+    B.cleanGuards(prof);
+    const err = (m) => { if (m) { AN.Audio.play('ui_err'); AN.HUD.toast(m, 4); return true; } return false; };
+    const redo = () => { const A = AN.Archive.state(); if (A) AN.Archive.rebuildCreatures(); show('hexagone'); };
+    const pts = B.guardPoints(prof), usedPts = B.guardsUsed(prof);
+    const slots = B.defSlots(prof), inst = B.installed(prof);
+    // gardes
+    const cands = prof.collection.filter((c) => !c.lost && D.CREATURE[c.species] && D.CREATURE[c.species].tier < 5);
+    const guardTiles = cands.map((c) => {
+      const on = B.isGuard(prof, c.uid);
+      const why = B.whyNot(prof, c);
+      const comp = prof.companions.includes(c.uid);
+      const cost = B.guardCost(c);
+      return h('button', { type: 'button', class: 'comp-tile' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', disabled: !!why && !on, title: why || null,
+        onclick: () => {
+          if (err(B.toggleGuard(prof, c.uid))) return;
+          AN.Audio.play(on ? 'ui' : 'bond');
+          if (!on && comp) AN.HUD.toast(P.displayName(c) + ' ne vous accompagnera plus : elle garde l’hexagone.', 3);
+          redo();
+        } },
+        AN.Icons.creature(c, 44),
+        h('b', null, P.displayName(c)),
+        h('small', null, (why ? why + ' · ' : comp ? 'Compagnon · ' : '') + 'niv. ' + c.level + ' · ' + D.TIERS[D.CREATURE[c.species].tier].name),
+        cost > 1 ? h('span', { class: 'link-cost' }, cost + ' points') : null);
+    });
+    // modules
+    const modCards = D.DEFENSE_IDS.map((id) => {
+      const def = D.DEFENSES[id];
+      const lv = B.level(prof, id);
+      const next = def.levels[lv];
+      const cost = next ? B.defenseCost(prof, id) : null;
+      const can = next && P.canPay(prof, cost);
+      const on = inst.includes(id);
+      return h('article', { class: 'build-card' + (on ? ' on' : '') },
+        h('div', { class: 'build-head' }, AN.StructArt.defenseIcon(id, 44), h('div', null, h('b', null, def.name), h('small', null, lv ? 'Niveau ' + lv + ' sur ' + def.levels.length + (on ? ' · installé' : ' · rangé') : 'Pas encore bâti'))),
+        h('p', null, def.desc),
+        lv ? h('p', { class: 'effect' }, def.levels[lv - 1].text) : null,
+        next ? h('p', { class: 'muted small' }, (lv ? 'Niveau ' + (lv + 1) + ' : ' : 'Effet : ') + next.text) : h('p', { class: 'muted small' }, 'Niveau maximal.'),
+        h('div', { class: 'actions' },
+          lv ? btn(on ? 'Retirer' : 'Installer', () => { if (!err(B.toggleInstall(prof, id))) { AN.Audio.play('equip'); AN.Save.write(prof); redo(); } }, on ? 'ghost small' : 'small', { disabled: !on && inst.length >= slots }) : null,
+          next ? [UI.costList(cost, prof), btn(lv ? 'Améliorer' : 'Bâtir', () => { if (!err(B.buildDefense(prof, id))) { AN.Audio.play('build'); redo(); } }, can ? 'primary small' : 'small', { disabled: !can })] : null));
+    });
+    const st = B.stats(prof, 4);
+    return page('hexagone', 'L’hexagone', 'Au départ, l’hexagone de l’Artefact se détache de l’Archive et se pose dans le monde visité. On y lance le transfert ; il repart avec le butin. S’il tombe sous les coups, l’Artefact rentre seul avec la soute et ses défenses, et vous devez sortir par une plaque blanche ou par l’extraction d’urgence.', null,
+      h('p', { class: 'note' }, 'Vigueur de l’hexagone : ' + st.maxHp + ' dans un monde de menace 4' + (st.armor ? ', ' + Math.round(st.armor * 100) + ' % des coups absorbés' : '') + (st.shield ? ', bouclier de ' + st.shield : '') + '. Il se répare lentement quand on le laisse en paix. Les modules ne se perdent jamais.'),
+      h('section', null, h('h4', null, 'Gardes ', h('span', { class: 'link-pips' }, Array.from({ length: pts }, (_, i) => h('i', { class: i < usedPts ? 'on' : '' }))), h('small', { class: 'muted' }, usedPts + ' / ' + pts + ' points')),
+        h('p', { class: 'muted small' }, 'Ils restent sur l’hexagone et le défendent, pendant l’exploration et le transfert. Un garde coûte autant de points que de liens. À terre, il revient blessé ; s’il est encore au sol quand l’hexagone repart, il est perdu (en sursis après une chute, sinon il ne reste de lui qu’une essence).'),
+        guardTiles.length ? h('div', { class: 'comp-grid' }, guardTiles) : h('p', { class: 'muted small' }, 'Aucune créature capturée pour l’instant.')),
+      h('section', null, h('h4', null, 'Défenses ', h('small', { class: 'muted' }, inst.length + ' / ' + slots + ' installées')),
+        h('div', { class: 'build-grid' }, modCards)));
   };
 
   /* ---------- Vue d'ensemble de l'Archive ---------- */
@@ -754,7 +921,7 @@
         }, 'ghost small'), h('small', { class: 'muted' }, 'Le ramassage à pied ne perd rien.')) : null),
       (prof.cosmos && prof.cosmos.astres.length) ? h('section', null, h('h4', null, 'Astres de l’Archive (' + prof.cosmos.astres.length + ')'),
         h('ul', { class: 'rows' }, prof.cosmos.astres.map((a) => h('li', null, h('span', { class: 'swatch round', style: { background: D.BIOME[a.biome].ground[1] } }),
-          h('span', { class: 'grow' }, a.name, h('small', null, D.ASTRES[a.biome].desc + ' Venu de ' + a.world + ', ' + a.zoneName + '.')))))) : null,
+          h('span', { class: 'grow' }, AN.Names.astre(a), h('small', null, U.cap(AN.Names.astreKind(a)) + '. ' + D.ASTRES[a.biome].desc + ' Venu de ' + a.world + ', ' + a.zoneName + '.')))))) : null,
       h('section', null, h('h4', null, 'Territoires (' + prof.territories.length + ')'),
         prof.territories.length ? h('ul', { class: 'rows terr-rows' }, prof.territories.map((t) => {
           const { mult, why } = AN.Production.territoryMult(prof, t, syns, powers);
@@ -780,6 +947,8 @@
     if (n.astres) p.push(n.astres + ' astres');
     if (n.stellaires) p.push(n.stellaires + ' entité' + (n.stellaires > 1 ? 's' : '') + ' stellaire' + (n.stellaires > 1 ? 's' : ''));
     if (n.galactiques) p.push(n.galactiques + ' organisme' + (n.galactiques > 1 ? 's' : '') + ' galactique' + (n.galactiques > 1 ? 's' : ''));
+    if (n.amas) p.push(n.amas + ' entité' + (n.amas > 1 ? 's' : '') + ' d’amas');
+    if (n.toiles) p.push(n.toiles + ' entité' + (n.toiles > 1 ? 's' : '') + ' de la Toile');
     return p.length ? p.join(', ') : 'Point de départ';
   }
 
@@ -799,6 +968,7 @@
           stat('Sauvés', m.sauves), stat('Partis par leurs propres moyens', m.evades), stat('Emmenés de force', m.contraints),
           stat('Laissés dans des mondes détruits', m.abandonnes), stat('Tués alors qu’ils ne se battaient pas', m.massacres),
           stat('Combattus', m.combattus), stat('Arches emportées', m.pillages), stat('Fidèles qui vous vénèrent', m.adores))),
+      AN.UI.nationsSection ? AN.UI.nationsSection(prof) : null,
       h('section', null, h('h4', null, 'Installés dans l’Archive (' + sts.length + ')'),
         sts.length ? h('ul', { class: 'rows' }, sts.map((st) => {
           const P = D.PEOPLE[st.people];
@@ -821,10 +991,11 @@
     const caught = Object.values(prof.bestiary).filter((b) => b.captured).length;
     const rk = AN.Profile.rank(prof).index;
     // Les échelons supérieurs ne se révèlent qu'à l'approche de l'échelle correspondante.
-    const tierOpen = (t) => t <= 3 || D.CREATURES.some((c) => c.tier === t && prof.bestiary[c.id]) || rk + 1 >= [0, 0, 0, 0, 5, 6, 7, 8][t];
-    const tiers = [0, 1, 2, 3, 4, 5, 6, 7].filter(tierOpen);
-    const hidden = [4, 5, 6, 7].filter((t) => !tierOpen(t)).length;
-    const TITLES = ['Créatures mineures', 'Prédateurs', 'Gardiens de zone', 'Ultra-boss régionaux', 'Souverains du monde', 'Cataclysmes planétaires', 'Entités stellaires', 'Organismes galactiques'];
+    const tierOpen = (t) => t <= 3 || D.CREATURES.some((c) => c.tier === t && prof.bestiary[c.id]) || rk + 1 >= [0, 0, 0, 0, 5, 6, 7, 8, 9, 10, 11][t];
+    const all = D.TIERS.map((x) => x.id);
+    const tiers = all.filter(tierOpen);
+    const hidden = all.filter((t) => t >= 4 && !tierOpen(t)).length;
+    const TITLES = ['Créatures mineures', 'Prédateurs', 'Gardiens de zone', 'Ultra-boss régionaux', 'Souverains du monde', 'Cataclysmes planétaires', 'Entités stellaires', 'Organismes galactiques', 'Entités d’amas', 'Entités de la Toile', 'Entités du Pli'];
     return page('bestiaire', 'Bestiaire', seen + ' espèces observées, ' + caught + ' capturées.', null,
       tiers.map((t) => h('section', null, h('h4', null, TITLES[t]),
         h('div', { class: 'beast-grid' }, D.CREATURES.filter((c) => c.tier === t).map((c) => {
@@ -838,8 +1009,8 @@
             h('small', { class: 'muted' }, (b.captured ? 'Capturée ×' + b.captured : 'Jamais capturée') + (b.killed ? ', vaincue ×' + b.killed : '')),
             c.tier <= 2 && c.biomes.length ? btn('Chercher', () => UI.seek('creature', c.id), 'ghost tiny seek', { title: 'Indiquer quels mondes abritent ' + c.name }) : null);
         })))),
-      h('section', null, h('h4', null, 'Échelons supérieurs'),
-        h('div', { class: 'beast-grid' }, [...new Array(hidden).fill('???'), ...D.HIGHER_TIERS.map(() => '???')].map((n) => h('div', { class: 'beast locked' }, h('div', { class: 'void-sil' }), h('b', null, n), h('small', null, 'Non détecté'))))));
+      hidden + D.HIGHER_TIERS.length ? h('section', null, h('h4', null, 'Échelons supérieurs'),
+        h('div', { class: 'beast-grid' }, [...new Array(hidden).fill('???'), ...D.HIGHER_TIERS.map(() => '???')].map((n) => h('div', { class: 'beast locked' }, h('div', { class: 'void-sil' }), h('b', null, n), h('small', null, 'Non détecté'))))) : null);
   };
 
   /* ---------- Journal ---------- */

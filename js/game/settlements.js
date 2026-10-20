@@ -34,6 +34,7 @@
     else t -= 10;
     if (conflictsWith(p, st).length) t -= 15;
     if (!st.village) t -= 8;
+    if (AN.Structures) t += AN.Structures.powers(p).mood; // temple (1.9)
     return U.clamp(t, 0, 100);
   };
   S.moodWhy = function (p, st) {
