@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 1.13.1 — Les gardes restent à leur poste
+
+- **Correction : les gardes partaient vers le joueur.** Quand la bête qu’ils visaient était cachée derrière un obstacle, les gardes de l’hexagone (et, depuis la 1.13, ceux des villes) suivaient le chemin qui mène au joueur au lieu d’aller vers elle : ils s’éloignaient de leur poste, puis y revenaient, sans fin. Ils vont désormais droit vers la bête et longent les obstacles. Le même défaut touchait les compagnons et les mercenaires qui visaient une bête loin de vous, et les bêtes qui s’en prenaient aux gardes ou aux habitants d’une ville.
+
+**Changements de règles à noter.**
+- Aucun. Les créatures sauvages qui vous poursuivent continuent de contourner les obstacles pour vous rejoindre, comme avant.
+
 ## 1.13.0 — Les nations, sans leurs limites
 
 - **Les gardes défendent leur ville.** Dans une nation amie, les gardes, les archers et le champion s’en prennent aux bêtes qui attaquent près de leurs murs (ils épargnent celles qui sont affaiblies, qu’on puisse les capturer). Les bêtes se retournent contre eux.

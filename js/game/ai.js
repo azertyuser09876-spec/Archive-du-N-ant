@@ -16,10 +16,18 @@
     let dx = tx - e.x, dy = ty - e.y;
     const d = Math.hypot(dx, dy) || 1;
     dx /= d; dy /= d;
-    const flow = e.flowTo || X.flow; // vers l'hexagone, le champ de flux qui y mène (1.9)
-    if (useFlow && flow && d > 70 && !Z.los(X.zone, e.x, e.y, tx, ty)) {
-      const f = AN.Physics.flowDir(X.zone, flow, e.x, e.y);
+    if (useFlow && d > 70 && !Z.los(X.zone, e.x, e.y, tx, ty)) {
+      // le champ de flux mène au joueur (e.flowTo : à l'hexagone, 1.9). Il ne sert qu'à rejoindre ce qui s'y trouve :
+      // un garde qui vise une bête loin du joueur la rejoint directement (1.13.1 : il partait vers le joueur)
+      const p = X.player;
+      const flow = e.flowTo || (Math.abs(tx - p.x) + Math.abs(ty - p.y) < 260 ? X.flow : null);
+      const f = flow ? AN.Physics.flowDir(X.zone, flow, e.x, e.y) : null;
       if (f) { dx = f.x; dy = f.y; }
+      else if (Z.isSolid(Z.tileAt(X.zone, e.x + dx * 36, e.y + dy * 36))) {
+        // un obstacle devant : on le longe plutôt que de s'y écraser
+        const a = Math.atan2(dy, dx) + (e.seed % 2 > 1 ? 1 : -1) * 1.2;
+        dx = Math.cos(a); dy = Math.sin(a);
+      }
     }
     e.dvx = dx * speed; e.dvy = dy * speed;
   }

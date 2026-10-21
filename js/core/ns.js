@@ -4,7 +4,7 @@
 (function () {
   'use strict';
   const AN = (window.AN = window.AN || {});
-  AN.VERSION = '1.13.0';
+  AN.VERSION = '1.13.1';
   AN.Data = AN.Data || {};
 
   const U = (AN.Util = {});
