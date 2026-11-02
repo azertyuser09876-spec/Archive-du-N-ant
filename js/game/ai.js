@@ -61,6 +61,9 @@
   function attack(X, e, target, dt) {
     const A = e.atk;
     e.flowTo = target.kind === 'base' && X.base ? X.base.flow : null;
+    e._seen = target; e._seenT = 0.5; // elle la regarde (corps vivants, 1.18)
+    // le bestiaire vivant (1.17) : son propre jeu d'attaques, composé à partir de sa graine
+    if (AN.Kits && AN.Kits.attack(X, e, target, dt, { steer: (x, y, sp) => steerTo(X, e, x, y, sp, true) })) return;
     const d = U.dist(e.x, e.y, target.x, target.y);
     const team = e.team === 'ally' || e.team === 'civil' ? 'player' : 'wild'; // les gardes d'une ville (1.13) frappent les bêtes
     const sp = e.speed * (e.slowT > 0 ? 1 - e.slowAmt : 1);
@@ -205,6 +208,7 @@
 
   AI.wild = function (X, e, dt) {
     e.flowTo = null;
+    if (e.act && AN.Kits.run(X, e, dt)) return; // une attaque en cours va à son terme (1.17)
     if (e.fearT > 0 && X.player.alive) { flee(X, e, X.player, e.speed * 1.1); return; }
     const tgt = pickTarget(X, e);
     if (!tgt) { wander(X, e, dt, e.speed * 0.35); return; }
@@ -283,7 +287,7 @@
     if (mode === 'attack' && e.state !== 'attack' && e.team === 'wild' && !e.def.npc && (e.cryT || 0) <= X.time) { e.cryT = X.time + 6; AN.Audio.cry(e, 'aggro'); }
     e.state = mode;
     switch (mode) {
-      case 'flee': flee(X, e, tgt, sp * (e.weak ? 0.78 : 1)); break;
+      case 'flee': flee(X, e, tgt, sp * (e.weak ? 0.78 : 1)); if (d < e.r + 46 && AN.Kits) AN.Kits.reflex(X, e); break; // serrée de près : son réflexe (1.17)
       case 'attack': attack(X, e, tgt, dt); break;
       case 'return': steerTo(X, e, e.home.x, e.home.y, sp * 0.7, false); break;
       default: wander(X, e, dt, sp * 0.35);
@@ -304,7 +308,8 @@
   /** Compagnon : suit le joueur et attaque ce qui le menace, en épargnant les créatures affaiblies. */
   AI.ally = function (X, e, dt) {
     const p = X.player;
-    if (e.downed) { e.dvx = e.dvy = 0; return; }
+    if (e.downed) { e.dvx = e.dvy = 0; e.act = null; return; }
+    if (e.act && AN.Kits.run(X, e, dt)) return; // une attaque en cours va à son terme (1.17)
     // Une créature méfiante se laisse parfois distraire.
     if (e.loyalty != null && e.loyalty < 50 && !e.temp) {
       if (e.distractT > 0) { e.distractT -= dt; wander(X, e, dt, e.speed * 0.4, 120); return; }
@@ -341,6 +346,7 @@
 
   AI.update = function (X, e, dt) {
     if (!e.alive) return;
+    if (!e.col && AN.Motion) { AN.Motion.update(e, dt); e._moAI = 1; } // son mouvement, pour le dessin (1.17)
     if (e.fixed) { e.flash -= dt; e.anim += dt; return; }
     if (e.ridden) { e.flash -= dt; e.attackAnim = Math.max(0, (e.attackAnim || 0) - dt * 3); return; }
     if (e.captive) { e.anim += dt * 0.5; return; }
@@ -348,6 +354,9 @@
     if (e.rider) { AN.Colossus.riderUpdate(X, e, dt); return; } // une créature qui vit sur le dos d'un colosse (1.16.2)
     if (e.col) { e.stunT -= dt; e.slowT -= dt; e.aggroT -= dt; AN.Colossus.update(X, e, dt); return; } // un colosse se meut lui-même (1.16)
     e.atkCd -= dt; e.flash -= dt; e.stunT -= dt; e.slowT -= dt; e.aggroT -= dt;
+    if (e.shellT > 0) e.shellT -= dt;
+    if (e.reflexT > 0) e.reflexT -= dt;
+    if (e.stunT > 0 && e.act) e.act = null; // étourdie : son geste s'interrompt
     if (e.fearT > 0) e.fearT -= dt;
     if (e.frozenT > 0) e.frozenT -= dt;
     e.attackAnim = Math.max(0, (e.attackAnim || 0) - dt * 3);

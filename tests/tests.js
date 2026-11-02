@@ -1732,7 +1732,7 @@
       const e = { def, tier: def.tier, x: 1500, y: 1500, r: def.r, maxHp: def.hp, hp: 0, dmgMul: 1, pal: {}, anim: 0, flash: 0 };
       AN.Boss.init(e, { arena: zone.arena, zoneIndex: 9, guardian: true });
       const col = Co.setup(X, e, zone);
-      eq(Math.round(col.L), Math.round(D.COLOSSUS_LENGTH[def.tier] * (D.COLOSSI[id].size || 1)), id + ' : taille');
+      eq(Math.round(col.L), Math.round(D.COLOSSUS_LENGTH[def.tier] * (D.COLOSSI[id].size || 1) * (Co.isMap(def) ? D.COLOSSUS_MAP_SCALE : 1)), id + ' : taille');
       assert(col.A <= 1100, id + ' : coups à taille bornée');
       assert(col.deck.decor.length >= 2, id + ' : un paysage sur son dos');
       assert(col.deck.nodes.length >= 2, id + ' : des gisements');
@@ -1796,7 +1796,24 @@
       assert(Math.abs(col.x - (zone.w * Z.T) / 2) <= 160 && Math.abs(col.y - (zone.h * Z.T) / 2) <= 160, id + ' : au centre');
       const pad = col.deck.pad, pc = pad && col.caps[pad.cap];
       assert(pc && pc.flat && pc.grip, id + ' : plateforme sur une surface plate');
-      col.deck.decor.forEach((d) => assert(!(d.cap === pad.cap && Math.abs(d.t - 0.5) < 0.22 && Math.abs(d.off) < 0.45), id + ' : plateforme dégagée'));
+      const pp = Co.capPoint(col, pc, pad.t, pad.off);
+      col.deck.decor.forEach((d) => { if (d.cap !== pad.cap) return; const q = Co.capPoint(col, pc, d.t, d.off); assert(Math.hypot(q.x - pp.x, q.y - pp.y) > 110, id + ' : plateforme dégagée'); });
+      // son dos est un biome (1.16.4) : à l'échelle d'une zone, avec son sol, ses reliefs, d'un seul tenant
+      const B = col.back;
+      assert(B && B.cap === pad.cap && B.biome === zone.biome, id + ' : un dos-biome');
+      assert(B.w * 32 >= 1800 && B.h * 32 >= 1800, id + ' : un dos à l’échelle d’une zone (' + B.w * 32 + ' × ' + B.h * 32 + ' px)');
+      assert(B.walls > 0, id + ' : des reliefs');
+      assert(zone.w * Z.T >= col.L * 1.2, id + ' : la zone le contient tout entier');
+      eq(Co.backCell(col, pad.cap, pad.t, pad.off), Z.FLOOR, id + ' : la plateforme sur un sol libre');
+      col.seals.forEach((s) => { const an = col.anchors[s.at]; if (an.cap === B.cap) eq(Co.backCell(col, an.cap, an.t, an.off), Z.FLOOR, id + ' : sceau ' + s.at + ' sur un sol libre'); });
+      // d'un seul tenant : depuis la plateforme, on atteint chaque case libre du dos
+      const walk = (g) => g === Z.FLOOR || g === Z.HAZARD;
+      let start = -1;
+      for (let k = 0; k < B.grid.length && start < 0; k++) if (walk(B.grid[k])) start = k;
+      const seenB = new Uint8Array(B.grid.length), st = [start]; seenB[start] = 1;
+      while (st.length) { const k = st.pop(), x = k % B.w, y = (k / B.w) | 0; [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= B.w || ny >= B.h) return; const n = ny * B.w + nx; if (!seenB[n] && walk(B.grid[n])) { seenB[n] = 1; st.push(n); } }); }
+      let lost = 0; for (let k = 0; k < B.grid.length; k++) if (walk(B.grid[k]) && !seenB[k]) lost++;
+      eq(lost, 0, id + ' : son dos d’un seul tenant');
       // chaque sceau, même du bas, s'atteint à pied depuis la plateforme
       const seen = new Set([pad.cap]), stack = [pc];
       while (stack.length) { const c = stack.pop(); col.caps.forEach((o) => { if (o.grip && !seen.has(o.i) && (o.a === c.a || o.a === c.b || o.b === c.a || o.b === c.b)) { seen.add(o.i); stack.push(o); } }); }
@@ -1852,6 +1869,122 @@
       eq(Mt.absorb({ mount: null, player: p }, 10, null, {}), 10, 'à pied : rien ne change');
     } finally { AN.Combat = C0; }
     return 'partage ' + Mt.share;
+  });
+
+  /* ---------- 1.17 : bestiaire vivant ---------- */
+  test('Bestiaire vivant : à chaque espèce ses gestes, uniques (1.17)', () => {
+    const K = AN.Kits;
+    let n = 0;
+    const sigs = new Set();
+    D.CREATURES.forEach((c) => {
+      const kit = K.of(c);
+      if (c.npc || (D.COLOSSI[c.id] && c.tier >= 3)) { eq(kit, null, c.id + ' : les colosses et les habitants ont les leurs'); return; }
+      assert(kit, c.id + ' : un jeu de gestes');
+      assert(!sigs.has(kit.sig), c.id + ' : gestes uniques (' + kit.sig + ')');
+      sigs.add(kit.sig);
+      if (c.attack || c.phases) assert(kit.primary, c.id + ' : une attaque');
+      else assert(kit.reflex && !kit.primary, c.id + ' : un réflexe, pas d’attaque');
+      assert(kit.name && kit.name.length > 4, c.id + ' : un nom');
+      [kit.primary, kit.second].forEach((sp) => {
+        if (!sp) return;
+        assert(K.FORMS[sp.form] && K.FORMS[sp.form].fam === sp.fam, c.id + ' : forme ' + sp.form);
+        assert(sp.dmg > 0 && Number.isFinite(sp.dmg), c.id + ' : dégâts');
+        assert(sp.windup >= 0.1 && sp.windup <= 1.1 && sp.cd > sp.windup, c.id + ' : rythme');
+        // un coup ne dépasse pas ce que l'ancienne attaque infligeait en un usage (le budget est réparti)
+        const base = c.attack ? (c.attack.dmg || 6) * (c.attack.count || 1) : null;
+        if (base) assert(sp.dmg <= base * 1.35 + 0.5, c.id + ' : ' + sp.form + ' ' + sp.dmg + ' pour un budget de ' + base);
+      });
+      if (c.attack) eq(kit.primary.fam, { bite: 'melee', charge: 'rush', slam: 'ground', shoot: 'missile', spit: 'bile', zap: 'storm' }[c.attack.type], c.id + ' : famille de son attaque');
+      if (kit.second) assert(kit.second.fam !== kit.primary.fam, c.id + ' : une seconde attaque d’une autre famille');
+      n++;
+    });
+    // les mêmes d'une partie à l'autre
+    const before = D.CREATURES.map((c) => (c.kit ? c.kit.sig : '-')).join('\n');
+    K.reset();
+    const after = D.CREATURES.map((c) => { const k = K.of(c); return k ? k.sig : '-'; }).join('\n');
+    eq(after === before, true, 'gestes reproductibles');
+    // toutes les formes servent
+    const forms = new Set();
+    D.CREATURES.forEach((c) => { const k = c.kit; if (k) [k.primary, k.second, k.reflex].forEach((x) => x && forms.add(x.form)); });
+    assert(forms.size >= 30, forms.size + ' formes utilisées');
+    // les gardiens jouent leur signature dans chaque phase
+    D.CREATURES.filter((c) => c.tier === 2 && c.phases).forEach((c) => c.phases.forEach((ph) => assert(ph.patterns.some((pt) => pt.type === 'signature'), c.id + ' : signature')));
+    return n + ' espèces, ' + forms.size + ' formes';
+  });
+  test('Bestiaire vivant : un mouvement propre, borné (1.17)', () => {
+    const Mo = AN.Motion;
+    const profs = new Set();
+    D.CREATURES.forEach((c) => { const P = Mo.profile(c); Object.values(P).forEach((v) => assert(Number.isFinite(v), c.id + ' : profil')); profs.add([P.gait, P.bob, P.sway].map((v) => v.toFixed(3)).join(',')); });
+    assert(profs.size > D.CREATURES.length * 0.95, 'des allures différentes');
+    // une pose, à chaque façon de se déplacer et à chaque geste, reste dans ses bornes
+    let n = 0;
+    D.CREATURES.slice(0, 120).forEach((c) => {
+      const k = AN.Kits.of(c);
+      const e = { def: c, r: c.r, x: 0, y: 0, face: 0, speed: c.speed, anim: 3.7, flash: 0 };
+      Mo.update(e, 0.016); e.x = 3; Mo.update(e, 0.016);
+      const phases = k && k.primary ? ['windup', 'active', 'recover'] : [null];
+      phases.forEach((ph) => {
+        e.act = ph ? { spec: k.primary, phase: ph, t: 0.1, air: 0.5 } : null;
+        const P = Mo.pose(e, 1.3);
+        ['dx', 'dy', 'fw', 'yaw', 'sx', 'sy', 'lift'].forEach((key) => assert(Number.isFinite(P[key]), c.id + ' : ' + key));
+        assert(P.sx >= 0.6 && P.sx <= 1.5 && P.sy >= 0.6 && P.sy <= 1.5, c.id + ' : étirement borné');
+        assert(Math.abs(P.dy) <= c.r * 2 && Math.abs(P.fw) <= c.r, c.id + ' : déplacement borné');
+        n++;
+      });
+    });
+    // sans suivi (icônes, Archive) : aucune pose
+    const P0 = Mo.pose({ def: D.CREATURES[0], r: 10 }, 1);
+    eq(P0.sx + P0.sy + P0.dx + P0.dy + P0.yaw, 2, 'pose neutre');
+    return n + ' poses';
+  });
+  test('Corps vivants : pieds plantés, chaînes, colonne, bornés (1.18)', () => {
+    const Rig = AN.Rig, Mo = AN.Motion;
+    const fin = (q) => Number.isFinite(q.x) && Number.isFinite(q.y);
+    let legs = 0, chains = 0, spines = 0, species = 0;
+    D.CREATURES.filter((c) => !c.colossus && Rig.spec(c)).forEach((c) => {
+      const S = Rig.spec(c);
+      species++;
+      // au repos, sans état (icônes, Archive) : la pose de repos
+      const e0 = { def: c, r: c.r, x: 0, y: 0, face: 0 };
+      if (S.legs) S.rest.forEach((rp, i) => { const f = Rig.foot(e0, i); eq(f.x, rp[0], c.id + ' : pied au repos'); eq(f.y, rp[1], c.id + ' : pied au repos'); });
+      // elle marche en tournant, s'arrête, puis est projetée au loin
+      const e = { def: c, r: c.r, x: 0, y: 0, face: 0, speed: c.speed, anim: 0, flash: 0, vx: 0, vy: 0 };
+      const steps = [];
+      for (let f = 0; f < 150; f++) {
+        const sp = f < 110 ? 80 : 0;
+        e.face += 0.9 / 60; e.vx = Math.cos(e.face) * sp; e.vy = Math.sin(e.face) * sp;
+        e.x += e.vx / 60; e.y += e.vy / 60;
+        Mo.update(e, 1 / 60); Rig.update(e, 1 / 60);
+        if (S.legs) e.rig.legs.forEach((l, i) => { if (l.mv && l.mv.t < 0.02) steps[i] = (steps[i] || 0) + 1; });
+      }
+      if (S.legs) {
+        assert(steps.filter(Boolean).length === S.hips.length, c.id + ' : chaque patte fait des pas');
+        S.hips.forEach((h, i) => {
+          const f = Rig.foot(e, i);
+          assert(fin(f) && Math.hypot(f.x - h[0], f.y - h[1]) < S.legs.len * 1.8 + 0.5, c.id + ' : pied ' + i + ' près de sa hanche');
+          legs++;
+        });
+      }
+      for (const key in S.chains) {
+        const C = S.chains[key], pts = e.rig.chains[key];
+        assert(pts && pts.length === C.n + 1, c.id + ' : chaîne ' + key);
+        for (let i = 1; i < pts.length; i++) assert(fin(pts[i]) && Math.abs(Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y) - C.seg * c.r) < 0.01 * c.r + 0.01, c.id + ' : maillon de longueur fixe');
+        chains++;
+      }
+      if (S.spine) {
+        const sp = Rig.spine(e);
+        eq(sp.length, S.spine.n + 1, c.id + ' : anneaux');
+        sp.forEach((q) => assert(fin(q) && Math.hypot(q.x, q.y) < (S.spine.n + 2) * S.spine.seg * 1.5, c.id + ' : anneau près du corps'));
+        spines++;
+      }
+      // projetée à 5000 px : elle retombe sur ses pieds
+      e.x += 5000; Mo.update(e, 1 / 60); Rig.update(e, 1 / 60);
+      if (S.legs) S.hips.forEach((h, i) => { const f = Rig.foot(e, i); assert(Math.hypot(f.x - h[0], f.y - h[1]) < S.legs.len * 1.8 + 0.5, c.id + ' : pied rattrapé'); });
+      const look = Rig.look(e);
+      assert(Number.isFinite(look) && Math.abs(look) <= Math.max(S.look || 0, 1) + 0.01, c.id + ' : regard borné');
+    });
+    assert(species > 120, 'la plupart des espèces ont des membres');
+    return species + ' espèces · ' + legs + ' pattes · ' + chains + ' chaînes · ' + spines + ' colonnes';
   });
 
   /* ---------- affichage ---------- */

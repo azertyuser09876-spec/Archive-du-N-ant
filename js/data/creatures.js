@@ -16,10 +16,10 @@
     { id: 0, name: 'Créature mineure', weight: 1 },
     { id: 1, name: 'Prédateur', weight: 2 },
     { id: 2, name: 'Gardien de zone', weight: 4 },
-    { id: 3, name: 'Ultra-boss régional', weight: 8 },
+    { id: 3, name: 'Colosse régional', weight: 8 }, // les maîtres sont des colosses (1.16.5 : « Ultra-boss régional »)
   ];
   // Échelons supérieurs, non disponibles : affichés comme des silhouettes.
-  D.HIGHER_TIERS = ['Souverain du monde', 'Cataclysme planétaire', 'Entité stellaire', 'Organisme galactique', 'Entité dimensionnelle', 'Structure inconnue'];
+  D.HIGHER_TIERS = ['Colosse du monde', 'Colosse planétaire', 'Colosse stellaire', 'Colosse galactique', 'Entité dimensionnelle', 'Structure inconnue'];
 
   D.CREATURES = [
     /* ===================== CRÉATURES MINEURES ===================== */
@@ -347,7 +347,7 @@
       ],
       drops: { seve: 20, essence: 2, noyau: 1 }, roles: [],
       global: { name: 'Racines de l’Archive', desc: '+25 % de production pour tous les territoires', stat: { prod: 0.25 } },
-      desc: 'Une forêt entière qui marche. Les arbres de sa canopée ont leurs propres saisons.' },
+      desc: 'Une forêt entière qui marche sur deux jambes de racines. Les arbres de son dos ont leurs propres saisons, et des bêtes y vivent sans savoir qu’elles voyagent.' },
     { id: 'pyroclaste', name: 'Pyroclaste, l’Avaleur de Cendres', tier: 3, biomes: ['riviere_lave', 'foret_calcinee', 'cite_carbonisee', 'desert_osseux', 'desert_verre'],
       r: 100, hp: 2800, speed: 70, temper: 'agressif', move: 'slither', traits: ['glow'],
       art: { shape: 'serpent', body: '#2a1f1f', accent: '#ff641a', eye: '#ffd25a', eyes: 2, segs: 14, spikes: 10, glow: '#ff641a' },
@@ -359,7 +359,7 @@
       ],
       drops: { braise: 20, obsidienne: 6, essence: 2, noyau: 1 }, roles: [],
       global: { name: 'Foyer éternel', desc: '−25 % sur les coûts de l’Atelier', stat: { craftCost: 0.25 } },
-      desc: 'Il avale les villes en flammes pour en garder la chaleur.' },
+      desc: 'Un serpent de braises qui avale les villes en flammes pour en garder la chaleur. Sur son échine, la cendre ne refroidit jamais.' },
     { id: 'thalassor', name: 'Thalassor, baleine des nues', tier: 3, biomes: ['ocean_suspendu', 'abysses_lumineuses', 'marais_electrique', 'toundra_givree', 'cavernes_cristallines'],
       r: 110, hp: 3000, speed: 50, temper: 'agressif', move: 'drift', traits: ['glow'],
       art: { shape: 'whale', body: '#5f8aa8', accent: '#e8ffff', eye: '#1c2230', eyes: 2, glow: '#7fe0ff', pattern: 'stripes' },
@@ -371,7 +371,7 @@
       ],
       drops: { perle: 8, ecaille: 12, essence: 2, noyau: 1 }, roles: [],
       global: { name: 'Marée d’Archive', desc: '+3 de capacité de soute', stat: { cargo: 3 } },
-      desc: 'Elle nage entre les nuages depuis si longtemps que des îles poussent sur son dos.' },
+      desc: 'Une baleine qui nage entre les nuages depuis si longtemps que des coraux et des herbes poussent sur son dos.' },
     { id: 'engrenage', name: 'L’Engrenage Primordial', tier: 3, biomes: ['ruines_mecaniques', 'steppes_orageuses', 'entrailles_vivantes', 'fosses_acides', 'lisiere_neant'],
       r: 95, hp: 2800, armor: 0.2, speed: 40, temper: 'agressif', move: 'walk', traits: ['glow'],
       art: { shape: 'gearring', body: '#5a5048', accent: '#ffb347', eye: '#ffffff', eyes: 1, glow: '#ffb347' },
@@ -383,7 +383,7 @@
       ],
       drops: { rouage: 10, neant: 3, essence: 2, noyau: 1 }, roles: [],
       global: { name: 'Mécanique du monde', desc: 'Effondrement 20 % plus lent pendant les extractions', stat: { stability: 0.2 } },
-      desc: 'Une roue dentée de la taille d’une ville, qui tourne toujours dans le même sens.' },
+      desc: 'Une roue dentée de la taille d’une ville, qui tourne toujours dans le même sens. Sur ses bras, des rouages morts rouillent comme des ruines.' },
   ];
 
   D.CREATURE = {};

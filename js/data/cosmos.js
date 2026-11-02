@@ -50,10 +50,10 @@
 
   /* =================== Rangs supérieurs de créatures =================== */
   D.TIERS.push(
-    { id: 4, name: 'Souverain du monde', weight: 0, anchor: 1 },
-    { id: 5, name: 'Cataclysme planétaire', weight: 0, anchor: 2 },
-    { id: 6, name: 'Entité stellaire', weight: 0, anchor: 3 },
-    { id: 7, name: 'Organisme galactique', weight: 0, anchor: 4 },
+    { id: 4, name: 'Colosse du monde', weight: 0, anchor: 1 },
+    { id: 5, name: 'Colosse planétaire', weight: 0, anchor: 2 },
+    { id: 6, name: 'Colosse stellaire', weight: 0, anchor: 3 },
+    { id: 7, name: 'Colosse galactique', weight: 0, anchor: 4 },
   );
   // Ce qui reste au-delà : jamais rencontré, seulement pressenti.
   D.HIGHER_TIERS = ['Entité dimensionnelle', 'Structure inconnue'];
@@ -237,7 +237,7 @@
       ],
       drops: { magma: 12, noyau: 2, essence: 3 }, roles: [],
       global: { name: 'Épaules du monde', desc: '+30 PV maximum et +10 % de production', stat: { hp: 30, prod: 0.1 } },
-      desc: 'Il porte des continents sur son dos. Quand il se lève, le monde change de forme.' },
+      desc: 'Un géant qui porte un continent sur son dos, forêts et ruines comprises. Quand il se lève, le monde change de forme.' },
     { id: 'leviathan_tellurique', name: 'Léviathan tellurique', tier: 4, scale: 'monde', biomes: ['cratere_souverain'],
       r: 120, hp: 3500, speed: 70, temper: 'agressif', move: 'slither', traits: ['glow'],
       art: { shape: 'serpent', body: '#3a2a26', accent: '#ff5a1f', eye: '#ffd25a', eyes: 2, segs: 18, spikes: 14, glow: '#ff5a1f' },
@@ -249,7 +249,7 @@
       ],
       drops: { magma: 14, obsidienne: 8, noyau: 2, essence: 3 }, roles: [],
       global: { name: 'Fleuves de magma', desc: '−20 % sur les coûts de l’Atelier', stat: { craftCost: 0.2 } },
-      desc: 'Il nage dans le manteau du monde. Les volcans sont ses respirations.' },
+      desc: 'Un serpent de cristal qui nage dans le manteau du monde. Les volcans sont ses respirations, les cristaux de son échine ses souvenirs.' },
     { id: 'tortue_monde', name: 'Tortue-Monde', tier: 4, scale: 'monde', biomes: ['cratere_souverain'],
       r: 140, hp: 4000, armor: 0.25, speed: 22, temper: 'agressif', move: 'walk', traits: [],
       art: { shape: 'turtle', body: '#5f6a4a', accent: '#d8cdb5', eye: '#1c2230', eyes: 2, city: true },
@@ -261,7 +261,7 @@
       ],
       drops: { magma: 10, rouage: 8, noyau: 2, essence: 3 }, roles: [],
       global: { name: 'Cité portée', desc: '+4 places de soute', stat: { cargo: 4 } },
-      desc: 'Une ville entière vit sur sa carapace. Ses habitants ne savent pas qu’ils voyagent.' },
+      desc: 'Une tortue grande comme un pays. Des prairies, des rochers et des arbres couvrent sa carapace ; ceux qui y vivent ne savent pas qu’ils voyagent.' },
 
     /* ---------------- Orbite ---------------- */
     { id: 'poussiere_vive', name: 'Poussière vive', tier: 0, scale: 'orbite', biomes: ['mer_regolithe', 'ceinture_asteroides'],
@@ -327,7 +327,7 @@
       ],
       drops: { ether: 10, regolithe: 20, noyau: 2, essence: 3 }, roles: [],
       global: { name: 'Chant orbital', desc: '+20 % de dégâts des compagnons', stat: { compDmg: 0.2 } },
-      desc: 'Elle avale des lunes entières. Celles qui restent sur son dos sont ses favorites.' },
+      desc: 'Une baleine d’orbite qui avale des lunes entières. Celles qui restent sur son dos sont ses favorites ; des coraux d’étoiles y poussent.' },
     { id: 'serpent_annulaire', name: 'Serpent annulaire', tier: 5, scale: 'orbite', biomes: ['anneau_glace', 'ceinture_asteroides', 'epave_orbitale', 'mer_regolithe'],
       r: 125, hp: 4300, speed: 85, temper: 'agressif', move: 'slither', traits: ['glow'],
       art: { shape: 'serpent', body: '#2e3448', accent: '#c8f2ff', eye: '#ffffff', eyes: 2, segs: 24, spikes: 18, glow: '#9fe8ff' },
@@ -339,7 +339,7 @@
       ],
       drops: { ether: 12, givre: 20, noyau: 2, essence: 3 }, roles: [],
       global: { name: 'Anneau protecteur', desc: 'Effondrement 25 % plus lent pendant les extractions', stat: { stability: 0.25 } },
-      desc: 'Il fait le tour d’une planète en mordant sa propre queue. Personne ne sait depuis quand.' },
+      desc: 'Un serpent de glace qui fait le tour d’une planète en mordant sa propre queue. Personne ne sait depuis quand.' },
     { id: 'titan_lune', name: 'Titan-Lune', tier: 5, scale: 'orbite', biomes: ['mer_regolithe', 'ceinture_asteroides', 'anneau_glace', 'epave_orbitale'],
       r: 140, hp: 4600, armor: 0.2, speed: 32, temper: 'agressif', move: 'walk', traits: [],
       art: { shape: 'golem', body: '#a8a29a', accent: '#e8e2d6', eye: '#1c2230', eyes: 2, craters: true },
@@ -351,7 +351,7 @@
       ],
       drops: { regolithe: 30, ether: 8, noyau: 2, essence: 3 }, roles: [],
       global: { name: 'Marée haute', desc: '+20 % de production pour tous les territoires', stat: { prod: 0.2 } },
-      desc: 'Une lune qui s’est levée un jour, et qui a décidé de marcher.' },
+      desc: 'Une lune qui s’est levée un jour et a décidé de marcher. Ses cratères abritent des cristaux, et ceux qui les gardent.' },
 
     /* ---------------- Système ---------------- */
     { id: 'flammeche', name: 'Flammèche', tier: 0, scale: 'systeme', biomes: ['couronne_solaire', 'ceinture_fer'],
@@ -412,7 +412,7 @@
       ],
       drops: { plasma: 14, ferrite: 20, noyau: 3, essence: 4 }, roles: [],
       global: { name: 'Lumière perpétuelle', desc: 'Vous régénérez 1,5 PV par seconde en expédition', stat: { regen: 1.5 } },
-      desc: 'Une étoile qui a ouvert un œil. Elle regarde l’Artefact comme on regarde une autre étoile.' },
+      desc: 'Une étoile qui a ouvert un œil : un cœur ardent entouré de rayons qui tournent. Elle regarde l’Artefact comme on regarde une autre étoile.' },
     { id: 'phenix_plasma', name: 'Phénix de plasma', tier: 6, scale: 'systeme', biomes: ['couronne_solaire', 'geante_gazeuse', 'queue_comete', 'ceinture_fer'],
       r: 135, hp: 4800, speed: 95, temper: 'agressif', move: 'fly', traits: ['glow'],
       art: { shape: 'moth', body: '#ff7a3a', accent: '#ffd23a', eye: '#fff6d0', eyes: 2, glow: '#ff7a3a', wings: 2, phoenix: true },
@@ -424,7 +424,7 @@
       ],
       drops: { plasma: 16, braise: 30, noyau: 3, essence: 4 }, roles: [],
       global: { name: 'Renaissance', desc: '+20 % de dégâts à distance et au corps à corps', stat: { rangedDmg: 0.2, meleeDmg: 0.2 } },
-      desc: 'Il meurt à chaque éruption, et renaît dans la suivante. Il a perdu le compte.' },
+      desc: 'Un oiseau de plasma aux ailes immenses, qui meurt à chaque éruption et renaît dans la suivante. Il a perdu le compte.' },
 
     /* ---------------- Galaxie ---------------- */
     { id: 'scintille', name: 'Scintille', tier: 0, scale: 'galaxie', biomes: ['bras_etoiles', 'nebuleuse', 'coeur_galactique'],
@@ -480,7 +480,7 @@
       ],
       drops: { matiere_noire: 3, poussiere: 30, noyau: 3, essence: 5 }, roles: [],
       global: { name: 'Mille regards', desc: 'Capture 25 % plus rapide et carte toujours révélée', stat: { capture: 0.25, reveal: 1 } },
-      desc: 'Des milliards d’étoiles qui ont décidé, un jour, d’être une seule chose.' },
+      desc: 'Des milliards d’étoiles qui ont décidé, un jour, d’être une seule chose : une araignée grande comme un pays. Son dos est la zone entière ; on y arrive par la plateforme de l’Artefact.' },
     { id: 'spirale_mere', name: 'Spirale-mère', tier: 7, scale: 'galaxie', biomes: ['coeur_galactique', 'bras_etoiles', 'nebuleuse', 'halo_sombre'],
       r: 160, hp: 5800, speed: 28, temper: 'agressif', move: 'drift', traits: ['glow'],
       art: { shape: 'spiral', body: '#3a3060', accent: '#fff0c0', eye: '#ffffff', eyes: 1, glow: '#fff0c0' },
@@ -492,7 +492,7 @@
       ],
       drops: { matiere_noire: 3, plasma: 16, noyau: 3, essence: 5 }, roles: [],
       global: { name: 'Gravité première', desc: '+25 % de production et +10 % de vitesse', stat: { prod: 0.25, speed: 0.1 } },
-      desc: 'Elle tourne. Tout ce qui l’entoure tourne avec elle, et finit par lui ressembler.' },
+      desc: 'Une roue d’étoiles qui tourne si lentement qu’on vit sur son moyeu comme sur une plaine. Tout ce qui l’entoure tourne avec elle, et finit par lui ressembler.' },
   ];
   C.forEach((c) => {
     c.index = D.CREATURES.length;

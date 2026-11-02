@@ -56,19 +56,28 @@
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
   }
   /** n yeux disposés en travers, centrés sur (x, 0). */
-  function eyes(ctx, x, n, spread, size, pal) {
+  function eyes(ctx, x, n, spread, size, pal, oy = 0) {
     if (!n) return;
     for (let i = 0; i < n; i++) {
-      const y = n === 1 ? 0 : (i / (n - 1) - 0.5) * spread;
+      const y = (n === 1 ? 0 : (i / (n - 1) - 0.5) * spread) + oy;
       const xx = x - (n > 2 ? Math.abs(y) * 0.3 : 0);
       circ(ctx, xx, y, size, pal.eye);
       circ(ctx, xx + size * 0.3, y - size * 0.3, size * 0.32, 'rgba(255,255,255,0.8)');
     }
   }
+  /** Une nageoire caudale au bout d'une chaîne (points en rayons) : deux lobes en travers de son dernier segment. */
+  function fin(ctx, pts, r, span, fill, stroke, lw) {
+    if (!pts || pts.length < 2) return;
+    const a = pts[pts.length - 2], b = pts[pts.length - 1];
+    const dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1, ux = dx / dl, uy = dy / dl;
+    const P = (al, ac) => [(b.x + ux * al - uy * ac) * r, (b.y + uy * al + ux * ac) * r];
+    poly(ctx, [[a.x * r, a.y * r], P(0.3, -span), P(0.08, 0), P(0.3, span)], fill, stroke, lw);
+  }
   function seeded(i, k) { return ((Math.sin(i * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1; }
 
   /* ---------- formes ---------- */
   const S = {};
+  Art.fin = fin;
 
   S.fungus = (ctx, e, t, pal, A, r, lw) => {
     const hop = 1 + 0.1 * Math.sin(e.anim * 2);
@@ -89,81 +98,69 @@
 
   S.blob = (ctx, e, t, pal, A, r, lw) => {
     const sq = Math.sin(t * 4 + e.seed) * 0.07 + Math.sin(e.anim * 2) * 0.06;
-    if (A.legs) {
-      for (let i = 0; i < A.legs; i++) {
-        const side = i % 2 ? 1 : -1;
-        const sw = Math.sin(e.anim * 2 + i * Math.PI) * r * 0.3;
-        ell(ctx, sw, side * r * 0.85, r * 0.3, r * 0.22, 0, pal.dark);
-      }
-    }
+    if (A.legs) AN.Rig.drawLegs(ctx, e, r, lw, pal); // de petites pattes plantées (1.18)
     ell(ctx, 0, 0, r * (1 + sq), r * (1 - sq), 0, pal.body, pal.dark, lw);
     ell(ctx, -r * 0.2, -r * 0.25, r * 0.45, r * 0.3, -0.4, U.rgba(pal.light, 0.7));
     if (A.pattern === 'spots') for (let i = 0; i < 5; i++) circ(ctx, (seeded(e.def.index, i) - 0.6) * r * 1.2, (seeded(i, e.def.index) - 0.5) * r * 1.3, r * 0.13, pal.accent);
     if (A.pattern === 'flakes') for (let i = 0; i < 4; i++) { const a = i * 1.7; line(ctx, Math.cos(a) * r * 0.2 - r * 0.2, Math.sin(a) * r * 0.5, Math.cos(a) * r * 0.5 - r * 0.2, Math.sin(a) * r * 0.75, pal.accent, lw * 0.7); }
     if (A.pattern === 'cracks') { ctx.strokeStyle = pal.adark; ctx.lineWidth = lw * 0.7; ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.2); ctx.lineTo(-r * 0.1, 0.1 * r); ctx.lineTo(r * 0.2, -r * 0.4); ctx.moveTo(-r * 0.1, 0.1 * r); ctx.lineTo(-r * 0.2, r * 0.6); ctx.stroke(); }
-    eyes(ctx, r * 0.5, A.eyes, r * 0.55, r * 0.14, pal);
+    // ses yeux suivent son regard
+    const lk = AN.Rig.look(e) * 0.5;
+    eyes(ctx, r * 0.5, A.eyes, r * 0.55, r * 0.14, pal, Math.sin(lk) * r * 0.25);
   };
 
   S.insect = (ctx, e, t, pal, A, r, lw) => {
-    const legs = A.legs || 3;
-    for (let i = 0; i < legs; i++) {
-      const bx = r * (0.25 - i * 0.28);
-      const sw = Math.sin(e.anim * 2.4 + i * 1.7) * 0.35;
-      for (const side of [-1, 1]) {
-        const a = side * (Math.PI / 2 + (i - (legs - 1) / 2) * 0.5 + sw * side);
-        const kx = bx + Math.cos(a) * r * 0.7, ky = Math.sin(a) * r * 0.7;
-        line(ctx, bx, 0, kx, ky, pal.dark, lw * 0.9);
-        line(ctx, kx, ky, kx + Math.cos(a - side * 0.6) * r * 0.45, ky + Math.sin(a - side * 0.6) * r * 0.45, pal.dark, lw * 0.8);
-      }
-    }
+    const RG = AN.Rig, g = RG.act(e);
+    RG.drawLegs(ctx, e, r, lw, pal); // pattes articulées, en trépied (1.18)
     if (A.mantis) {
+      // les ravisseuses : repliées, levées à la préparation, détendues à la frappe
       for (const side of [-1, 1]) {
-        const sw = Math.sin(t * 3 + side) * 0.15;
-        poly(ctx, [[r * 0.35, side * r * 0.2], [r * 1.25, side * r * (0.55 + sw)], [r * 1.05, side * r * (0.3 + sw)], [r * 0.45, side * r * 0.05]], pal.accent, pal.dark, lw * 0.6);
+        const sw = Math.sin(t * 3 + side) * 0.12 * (1 - g.w), up = g.w * 0.35 - g.s * 0.25, out = 1 + g.s * 0.45 - g.w * 0.2;
+        poly(ctx, [[r * 0.35, side * r * 0.2], [r * (0.35 + 0.9 * out), side * r * (0.55 + sw + up)], [r * (0.35 + 0.7 * out), side * r * (0.3 + sw + up * 0.6)], [r * 0.45, side * r * 0.05]], pal.accent, pal.dark, lw * 0.6);
       }
     }
     if (A.wings) {
-      const flap = 0.6 + Math.abs(Math.sin(t * 28 + e.seed)) * 0.4;
+      const fl = RG.flap(e, t, 3), open = 1 - fl.fold;
       ctx.globalAlpha *= 0.55;
-      for (const side of [-1, 1]) ell(ctx, -r * 0.1, side * r * 0.55 * flap, r * 0.6, r * 0.32 * flap, side * 0.5, '#ffffff', pal.dark, lw * 0.5);
+      for (const side of [-1, 1]) {
+        const f = (0.6 + Math.abs(fl.v) * 0.4) * open + 0.3 * fl.fold;
+        ell(ctx, -r * (0.1 + fl.fold * 0.35), side * r * (0.55 * f), r * 0.6, r * 0.32 * f, side * (0.5 * open + 0.12), '#ffffff', pal.dark, lw * 0.5);
+      }
       ctx.globalAlpha /= 0.55;
     }
     ell(ctx, -r * 0.55, 0, r * 0.62, r * 0.46, 0, pal.body, pal.dark, lw);
     if (A.pattern === 'stripes') for (let k = 0; k < 3; k++) { ctx.strokeStyle = pal.accent; ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.arc(-r * 0.55 + (k - 1) * r * 0.28, 0, r * 0.4, -1.1, 1.1); ctx.stroke(); }
-    ell(ctx, 0, 0, r * 0.34, r * 0.3, 0, pal.body, pal.dark, lw);
-    circ(ctx, r * 0.5, 0, r * 0.3, pal.body, pal.dark, lw);
-    line(ctx, r * 0.7, -r * 0.1, r * 1.1, -r * 0.4 + Math.sin(t * 5) * r * 0.05, pal.dark, lw * 0.6);
-    line(ctx, r * 0.7, r * 0.1, r * 1.1, r * 0.4 - Math.sin(t * 5) * r * 0.05, pal.dark, lw * 0.6);
     if (A.spikes) for (let k = 0; k < A.spikes; k++) poly(ctx, [[-r * (0.3 + k * 0.3), -r * 0.35], [-r * (0.45 + k * 0.3), -r * 0.75], [-r * (0.6 + k * 0.3), -r * 0.35]], pal.accent);
+    ell(ctx, 0, 0, r * 0.34, r * 0.3, 0, pal.body, pal.dark, lw);
+    // la tête tourne vers ce qu'elle regarde ; ses antennes traînent derrière ses gestes
+    RG.head(ctx, e, r * 0.25);
+    ctx.translate(r * (0.12 * g.s - 0.06 * g.w), 0);
+    RG.drawChain(ctx, e, 'antL', r, lw, pal.dark);
+    RG.drawChain(ctx, e, 'antR', r, lw, pal.dark);
+    circ(ctx, r * 0.5, 0, r * 0.3, pal.body, pal.dark, lw);
     if (A.crown) for (let k = -2; k <= 2; k++) poly(ctx, [[r * 0.4, k * r * 0.1], [r * 0.25, k * r * 0.16 - r * 0.32], [r * 0.6, k * r * 0.12]], pal.accent, pal.dark, lw * 0.5);
     eyes(ctx, r * 0.62, A.eyes, r * 0.34, r * 0.09, pal);
+    ctx.restore();
   };
 
   S.moth = (ctx, e, t, pal, A, r, lw) => {
-    const flap = 0.55 + Math.abs(Math.sin(t * 14 + e.seed)) * 0.45;
+    const RG = AN.Rig, fl = RG.flap(e, t), open = 1 - fl.fold * 0.6;
+    const flap = (0.55 + Math.abs(fl.v) * 0.45) * open + fl.raise * 0.25;
     for (const side of [-1, 1]) {
       ell(ctx, r * 0.05, side * r * 0.75 * flap, r * 0.7, r * 0.6 * flap, side * 0.3, U.rgba(pal.body, 0.85), pal.dark, lw * 0.6);
       ell(ctx, -r * 0.55, side * r * 0.5 * flap, r * 0.45, r * 0.38 * flap, -side * 0.4, U.rgba(pal.accent, 0.85), pal.dark, lw * 0.5);
       circ(ctx, r * 0.1, side * r * 0.8 * flap, r * 0.18, pal.accent);
     }
     ell(ctx, -r * 0.1, 0, r * 0.65, r * 0.2, 0, pal.dark);
+    RG.head(ctx, e, r * 0.35);
+    RG.drawChain(ctx, e, 'antL', r, lw, pal.dark);
+    RG.drawChain(ctx, e, 'antR', r, lw, pal.dark);
     circ(ctx, r * 0.45, 0, r * 0.18, pal.dark);
-    line(ctx, r * 0.55, -r * 0.08, r * 0.9, -r * 0.35, pal.dark, lw * 0.5);
-    line(ctx, r * 0.55, r * 0.08, r * 0.9, r * 0.35, pal.dark, lw * 0.5);
+    ctx.restore();
   };
 
   S.construct = (ctx, e, t, pal, A, r, lw) => {
-    const legs = A.legs || 2;
-    for (let i = 0; i < legs; i++) {
-      const bx = r * (0.3 - (i / Math.max(1, legs - 1)) * 0.6);
-      const sw = Math.sin(e.anim * 2 + i * 2) * r * 0.2;
-      for (const side of [-1, 1]) {
-        const kx = bx + sw * side, ky = side * r * 0.95;
-        line(ctx, bx, side * r * 0.4, kx, ky, pal.dark, lw * 1.4);
-        line(ctx, kx, ky, kx + r * 0.25, ky + side * r * 0.3, pal.dark, lw * 1.2);
-        circ(ctx, kx, ky, r * 0.09, pal.accent);
-      }
-    }
+    AN.Rig.drawLegs(ctx, e, r, lw, pal); // jambes mécaniques, pieds plantés (1.18)
     const big = A.big ? 1.1 : 1;
     ctx.beginPath();
     ctx.roundRect(-r * 0.8 * big, -r * 0.65 * big, r * 1.6 * big, r * 1.3 * big, r * 0.25);
@@ -172,10 +169,11 @@
     ctx.fillRect(-r * 0.6, -r * 0.5, r * 0.9, r * 0.18);
     for (const [x, y] of [[-0.6, 0.45], [0.55, 0.45], [-0.6, -0.45], [0.55, -0.45]]) circ(ctx, x * r * big, y * r * big, r * 0.07, pal.dark);
     if (A.big) { line(ctx, -r * 0.8, 0, r * 0.2, 0, pal.dark, lw); circ(ctx, -r * 0.35, 0, r * 0.2, pal.accent, pal.dark, lw * 0.6); }
-    // lentille
-    circ(ctx, r * 0.55, 0, r * 0.3, pal.dark);
-    circ(ctx, r * 0.6, 0, r * 0.18, pal.eye);
-    circ(ctx, r * 0.66, -r * 0.06, r * 0.06, '#ffffff');
+    // lentille : une tourelle qui suit son regard
+    const lk = U.clamp(AN.Rig.look(e), -0.6, 0.6), ly = Math.sin(lk) * r * 0.32;
+    circ(ctx, r * 0.55, ly, r * 0.3, pal.dark);
+    circ(ctx, r * 0.6, ly * 1.1, r * 0.18, pal.eye);
+    circ(ctx, r * 0.66, ly * 1.1 - r * 0.06, r * 0.06, '#ffffff');
   };
 
   S.drone = (ctx, e, t, pal, A, r, lw) => {
@@ -191,16 +189,9 @@
   };
 
   S.jelly = (ctx, e, t, pal, A, r, lw) => {
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 6; i++) {
-      const y0 = (i / 5 - 0.5) * r * 1.2;
-      ctx.strokeStyle = U.rgba(pal.accent, 0.8);
-      ctx.lineWidth = lw * 0.8;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.3, y0);
-      for (let k = 1; k <= 5; k++) ctx.lineTo(-r * 0.3 - k * r * 0.32, y0 + Math.sin(t * 4 + k * 0.9 + i) * r * 0.18);
-      ctx.stroke();
-    }
+    // ses filaments traînent derrière elle et ondulent (1.18)
+    const col = U.rgba(pal.accent, 0.8);
+    for (let i = 0; i < 6; i++) AN.Rig.drawChain(ctx, e, 't' + i, r, lw, col);
     const p = 1 + Math.sin(t * 3 + e.seed) * 0.07;
     circ(ctx, 0, 0, r * p, U.rgba(pal.body, 0.75), pal.dark, lw * 0.6);
     circ(ctx, r * 0.1, 0, r * 0.55 * p, U.rgba(pal.light, 0.8));
@@ -208,13 +199,9 @@
   };
 
   S.quad = (ctx, e, t, pal, A, r, lw) => {
-    const step = e.anim * 2.2;
-    const legs = [[0.45, -0.45, 0], [0.45, 0.45, Math.PI], [-0.45, -0.45, Math.PI], [-0.45, 0.45, 0]];
-    legs.forEach(([x, y, ph]) => ell(ctx, r * x + Math.sin(step + ph) * r * 0.22, r * y * 1.15, r * 0.24, r * 0.16, 0, pal.dark));
-    if (A.tail) {
-      ctx.strokeStyle = pal.body; ctx.lineWidth = r * 0.25; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(-r * 0.7, 0); ctx.quadraticCurveTo(-r * 1.2, Math.sin(t * 3 + e.seed) * r * 0.5, -r * 1.55, Math.sin(t * 3 + e.seed + 1) * r * 0.4); ctx.stroke();
-    }
+    const RG = AN.Rig, g = RG.act(e);
+    RG.drawLegs(ctx, e, r, lw, pal); // pattes à pieds plantés, en diagonales (1.18)
+    if (A.tail) { const C = RG.spec(e.def).chains.tail; RG.drawChain(ctx, e, 'tail', r, lw, pal.dark, C.w0 + 0.08, C.w1 + 0.06); RG.drawChain(ctx, e, 'tail', r, lw, pal.body); }
     if (A.fluffy) {
       for (let i = 0; i < 9; i++) { const a = (i / 9) * TAU; circ(ctx, Math.cos(a) * r * 0.55 - r * 0.05, Math.sin(a) * r * 0.38, r * 0.34, pal.body, pal.dark, lw * 0.5); }
       ell(ctx, -r * 0.05, 0, r * 0.7, r * 0.45, 0, pal.body);
@@ -224,39 +211,53 @@
     if (A.pattern === 'stripes') for (let k = -1; k <= 1; k++) line(ctx, k * r * 0.3, -r * 0.42, k * r * 0.3 - r * 0.1, r * 0.42, pal.accent, r * 0.1);
     if (A.pattern === 'spots') for (let k = 0; k < 5; k++) circ(ctx, (seeded(e.def.index, k) - 0.5) * r * 1.2, (seeded(k, 2) - 0.5) * r * 0.6, r * 0.09, pal.accent);
     if (A.spikes) for (let k = 0; k < A.spikes; k++) { const x = r * (0.4 - k * 0.25); poly(ctx, [[x, -r * 0.08], [x - r * 0.18, -r * 0.08], [x - r * 0.1, -r * 0.42]], pal.accent); poly(ctx, [[x, r * 0.08], [x - r * 0.18, r * 0.08], [x - r * 0.1, r * 0.42]], pal.accent); }
-    if (A.ears) for (const side of [-1, 1]) poly(ctx, [[r * 0.72, side * r * 0.12], [r * 0.55, side * r * 0.62], [r * 0.95, side * r * 0.3]], pal.body, pal.dark, lw * 0.7);
+    // la tête : elle regarde, se baisse avant de mordre, se tend à la morsure
+    RG.head(ctx, e, r * 0.6);
+    ctx.translate(r * (0.2 * g.s - 0.12 * g.w), 0);
+    if (A.ears) for (const side of [-1, 1]) poly(ctx, [[r * 0.72, side * r * 0.12], [r * 0.55, side * r * (0.62 - g.w * 0.15)], [r * 0.95, side * r * 0.3]], pal.body, pal.dark, lw * 0.7);
     circ(ctx, r * 0.85, 0, r * 0.38, pal.body, pal.dark, lw);
     if (A.ears) poly(ctx, [[r * 1.12, -r * 0.12], [r * 1.42, 0], [r * 1.12, r * 0.12]], pal.dark);
     if (A.tusks) { ctx.strokeStyle = '#fbfaf2'; ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.arc(r * 1.25, -r * 0.35, r * 0.3, 2.2, 4.4, true); ctx.stroke(); ctx.beginPath(); ctx.arc(r * 1.25, r * 0.35, r * 0.3, -2.2, -4.4, false); ctx.stroke(); }
     eyes(ctx, r * 1.02, A.eyes, r * 0.36, r * 0.085, pal);
+    ctx.restore();
   };
 
   S.worm = (ctx, e, t, pal, A, r, lw) => {
-    const n = A.segs || 4;
+    const n = A.segs || 4, pts = AN.Rig.spine(e); // ses anneaux suivent la trace de sa tête (1.18)
     for (let i = n; i >= 0; i--) {
-      const x = -i * r * 0.62;
-      const y = Math.sin(e.anim * 1.6 - i * 0.9 + t * 2) * r * 0.3;
-      const rr = r * (0.75 - i * (0.35 / n));
-      circ(ctx, x, y, rr, i % 2 ? pal.body : U.shade(pal.body, -0.08), pal.dark, lw * 0.8);
-      if (i % 2 === 0 && i > 0) line(ctx, x, y - rr * 0.8, x, y + rr * 0.8, pal.accent, lw * 0.6);
+      const { x, y } = pts[i] || { x: -i * 0.62, y: 0 };
+      const rr = r * (0.75 - i * (0.35 / n)), X0 = x * r, Y0 = y * r;
+      const q = pts[i - 1] || pts[i + 1] || { x: x + 1, y }, a = Math.atan2(q.y - y, q.x - x) * (pts[i - 1] ? 1 : -1);
+      circ(ctx, X0, Y0, rr, i % 2 ? pal.body : U.shade(pal.body, -0.08), pal.dark, lw * 0.8);
+      if (i % 2 === 0 && i > 0) line(ctx, X0 - Math.sin(a) * rr * 0.8, Y0 + Math.cos(a) * rr * 0.8, X0 + Math.sin(a) * rr * 0.8, Y0 - Math.cos(a) * rr * 0.8, pal.accent, lw * 0.6);
     }
+    AN.Rig.head(ctx, e, 0, 0.6);
     eyes(ctx, r * 0.3, A.eyes, r * 0.5, r * 0.11, pal);
+    ctx.restore();
   };
 
   S.serpent = (ctx, e, t, pal, A, r, lw) => {
-    const n = A.segs || 7;
-    const pts = [];
-    for (let i = 0; i <= n; i++) pts.push([-i * r * 0.55, Math.sin(e.anim * 1.4 - i * 0.7 + t * 1.5) * r * 0.42 * Math.min(1, i / 2)]);
+    const RG = AN.Rig, g = RG.act(e), n = A.segs || 7;
+    const pts = RG.spine(e); // le corps suit la trace de la tête, une onde le parcourt (1.18)
     for (let i = n; i >= 1; i--) {
       const rr = r * (0.62 - (i / n) * 0.42);
-      const [x, y] = pts[i];
+      const P = pts[i] || { x: -i * 0.55, y: 0 }, x = P.x * r, y = P.y * r;
       circ(ctx, x, y, rr, pal.body, pal.dark, lw * 0.7);
       if (A.spikes && i % 2 === 1 && i <= A.spikes * 2) poly(ctx, [[x - rr * 0.4, y - rr * 0.6], [x - rr * 0.1, y - rr * 1.5], [x + rr * 0.3, y - rr * 0.6]], pal.accent, pal.dark, lw * 0.4);
       if (i % 3 === 0) circ(ctx, x, y, rr * 0.4, pal.accent);
     }
+    // la tête : elle se rétracte (le cou en S), puis se détend pour frapper ; la gueule s'ouvre
+    RG.head(ctx, e, -r * 0.2);
+    ctx.translate(r * (0.3 * g.s - 0.25 * g.w), 0);
+    const jaw = Math.max(g.w * 0.5, g.s * 0.8);
+    if (jaw > 0.05) for (const side of [-1, 1]) poly(ctx, [[r * 0.15, side * r * 0.2], [r * 0.8, side * r * (0.12 + jaw * 0.4)], [r * 0.2, side * r * 0.05]], pal.adark);
     poly(ctx, [[r * 0.75, 0], [r * 0.15, -r * 0.55], [-r * 0.25, -r * 0.35], [-r * 0.25, r * 0.35], [r * 0.15, r * 0.55]], pal.body, pal.dark, lw);
     line(ctx, r * 0.6, 0, r * 0.05, 0, pal.adark, lw * 0.5);
     eyes(ctx, r * 0.25, A.eyes || 2, r * 0.55, r * 0.11, pal);
+    // la langue, quand elle goûte l'air
+    const tongue = Math.sin(t * 7 + (e.seed || 0));
+    if (tongue > 0.6 && !g.w && !g.s) { ctx.strokeStyle = '#d0485a'; ctx.lineWidth = Math.max(1, lw * 0.4); ctx.beginPath(); ctx.moveTo(r * 0.75, 0); ctx.lineTo(r * 1.05, 0); ctx.lineTo(r * 1.18, -r * 0.08); ctx.moveTo(r * 1.05, 0); ctx.lineTo(r * 1.18, r * 0.08); ctx.stroke(); }
+    ctx.restore();
   };
 
   S.cell = (ctx, e, t, pal, A, r, lw) => {
@@ -315,8 +316,10 @@
   };
 
   S.fish = (ctx, e, t, pal, A, r, lw) => {
-    const sw = Math.sin(t * 6 + e.seed) * 0.35;
-    poly(ctx, [[-r * 0.85, 0], [-r * 1.5, -r * (0.55 + sw * 0.4)], [-r * 1.35, 0], [-r * 1.5, r * (0.55 - sw * 0.4)]], pal.accent, pal.dark, lw * 0.7);
+    const RG = AN.Rig, sw = Math.sin(t * 6 + e.seed) * 0.35;
+    // la queue suit les virages et bat (1.18)
+    const tp = RG.drawChain(ctx, e, 'tail', r, lw, pal.body, 0.22, 0.1);
+    fin(ctx, tp, r, 0.55, pal.accent, pal.dark, lw * 0.7);
     for (const side of [-1, 1]) poly(ctx, [[r * 0.1, side * r * 0.35], [-r * 0.35, side * r * (0.95 + sw * side * 0.2)], [-r * 0.4, side * r * 0.3]], pal.accent, pal.dark, lw * 0.5);
     ctx.beginPath();
     ctx.moveTo(r * 1.0, 0);
@@ -335,6 +338,9 @@
   };
 
   S.wraith = (ctx, e, t, pal, A, r, lw) => {
+    // des lambeaux qui traînent derrière elle (1.18)
+    const rag = U.rgba(pal.body, 0.45);
+    for (const k of ['w0', 'w1', 'w2']) AN.Rig.drawChain(ctx, e, k, r, lw, rag);
     for (let g = 2; g >= 0; g--) {
       ctx.globalAlpha *= g ? 0.25 : 1;
       ctx.beginPath();
@@ -350,21 +356,21 @@
       ctx.strokeStyle = pal.accent; ctx.lineWidth = lw * 0.8; ctx.stroke();
       ctx.globalAlpha /= g ? 0.25 : 1;
     }
-    line(ctx, r * 0.25, -r * 0.3, r * 0.35, r * 0.3, pal.eye, r * 0.16);
+    const ly = Math.sin(AN.Rig.look(e)) * r * 0.25;
+    line(ctx, r * 0.25, -r * 0.3 + ly, r * 0.35, r * 0.3 + ly, pal.eye, r * 0.16);
   };
 
   S.hydra = (ctx, e, t, pal, A, r, lw) => {
-    const heads = A.heads || 3;
+    const RG = AN.Rig, g = RG.act(e), heads = A.heads || 3;
+    // les cous : des chaînes souples qui regardent la cible ; elles se rétractent, puis frappent (1.18)
+    const reach = 1 + 0.45 * g.s - 0.2 * g.w;
     for (let h = 0; h < heads; h++) {
-      const spread = (h / (heads - 1) - 0.5) * 1.3;
-      let px = r * 0.3, py = 0;
-      for (let k = 1; k <= 4; k++) {
-        const a = spread + Math.sin(t * 2 + h * 2 + k * 0.6) * 0.18;
-        const nx = px + Math.cos(a) * r * 0.32, ny = py + Math.sin(a) * r * 0.32;
-        circ(ctx, nx, ny, r * (0.2 - k * 0.012), pal.body, pal.dark, lw * 0.6);
-        px = nx; py = ny;
-      }
-      const a = spread;
+      const pts = RG.chain(e, 'n' + h);
+      if (pts.length < 2) continue;
+      const ax = pts[0].x, ay = pts[0].y, ph = h * 0.7;
+      const P = pts.map((q, k) => ({ x: (ax + (q.x - ax) * (reach + (g.s ? Math.sin(ph) * 0.1 : 0))) * r, y: (ay + (q.y - ay) * reach) * r, k }));
+      for (let k = 1; k < P.length; k++) circ(ctx, P[k].x, P[k].y, r * (0.2 - k * 0.012), pal.body, pal.dark, lw * 0.6);
+      const L = P[P.length - 1], B = P[P.length - 2], a = Math.atan2(L.y - B.y, L.x - B.x), px = L.x, py = L.y;
       poly(ctx, [[px + Math.cos(a) * r * 0.35, py + Math.sin(a) * r * 0.35], [px + Math.cos(a + 1.8) * r * 0.22, py + Math.sin(a + 1.8) * r * 0.22], [px - Math.cos(a) * r * 0.12, py - Math.sin(a) * r * 0.12], [px + Math.cos(a - 1.8) * r * 0.22, py + Math.sin(a - 1.8) * r * 0.22]], pal.accent, pal.dark, lw * 0.7);
       circ(ctx, px + Math.cos(a) * r * 0.12, py + Math.sin(a) * r * 0.12, r * 0.06, pal.eye);
     }
@@ -373,8 +379,10 @@
   };
 
   S.whale = (ctx, e, t, pal, A, r, lw) => {
-    const sw = Math.sin(t * 2 + e.seed) * 0.3;
-    poly(ctx, [[-r * 0.95, 0], [-r * 1.5, -r * (0.6 + sw * 0.3)], [-r * 1.3, 0], [-r * 1.5, r * (0.6 - sw * 0.3)]], pal.body, pal.dark, lw);
+    const RG = AN.Rig, sw = Math.sin(t * 2 + e.seed) * 0.3;
+    // la nageoire caudale suit le corps, lentement (1.18)
+    const tp = RG.drawChain(ctx, e, 'tail', r, lw, pal.body, 0.34, 0.16);
+    fin(ctx, tp, r, 0.62, pal.body, pal.dark, lw);
     for (const side of [-1, 1]) ell(ctx, r * 0.15, side * r * 0.6, r * 0.38, r * 0.14, side * (0.6 + sw * 0.4), pal.body, pal.dark, lw * 0.7);
     ell(ctx, 0, 0, r * 1.05, r * 0.55, 0, pal.body, pal.dark, lw);
     ell(ctx, r * 0.1, 0, r * 0.8, r * 0.25, 0, U.rgba(pal.accent, 0.45));
@@ -388,11 +396,14 @@
   };
 
   S.golem = (ctx, e, t, pal, A, r, lw) => {
-    const sw = Math.sin(e.anim * 1.6) * 0.25;
+    const g = AN.Rig.act(e), sw = Math.sin(e.anim * 1.6) * 0.25;
+    // les poings : ils balancent à la marche ; l'un recule à la préparation, puis frappe (1.18)
     for (const side of [-1, 1]) {
-      const ax = r * 0.15 + Math.sin(e.anim * 1.6 + (side > 0 ? 0 : Math.PI)) * r * 0.25;
-      circ(ctx, ax, side * r * 0.95, r * 0.36, pal.body, pal.dark, lw);
-      circ(ctx, ax + r * 0.2, side * r * 1.05, r * 0.2, pal.dark);
+      const lead = side > 0 ? 1 : 0.35;
+      const ax = r * 0.15 + Math.sin(e.anim * 1.6 + (side > 0 ? 0 : Math.PI)) * r * 0.25 * (1 - g.w) - r * 0.45 * g.w * lead + r * 0.75 * g.s * lead;
+      const ay = side * r * (0.95 - g.s * lead * 0.3);
+      circ(ctx, ax, ay, r * 0.36, pal.body, pal.dark, lw);
+      circ(ctx, ax + r * 0.2, ay + side * r * 0.1, r * 0.2, pal.dark);
     }
     const pts = [];
     for (let i = 0; i < 9; i++) { const a = (i / 9) * TAU; const rr = r * (0.82 + seeded(e.def.index, i) * 0.18); pts.push([Math.cos(a) * rr, Math.sin(a) * rr * 0.92]); }
@@ -404,7 +415,9 @@
       for (let k = 0; k < 9; k++) { const a = (k / 9) * TAU; circ(ctx, Math.cos(a) * r * 0.42 - r * 0.15, Math.sin(a) * r * 0.42, r * 0.32, U.shade(pal.accent, -0.35 + seeded(k, 1) * 0.3), pal.dark, lw * 0.5); }
       circ(ctx, -r * 0.15, 0, r * 0.35, U.shade(pal.accent, -0.2));
     }
+    AN.Rig.head(ctx, e, 0, 0.4);
     eyes(ctx, r * 0.62, A.eyes, r * 0.45, r * 0.1, pal);
+    ctx.restore();
   };
 
   S.eye = (ctx, e, t, pal, A, r, lw, look) => {
@@ -457,7 +470,9 @@
     const lw = Math.max(1, r * 0.09);
     const fn = S[A.shape] || S.blob;
     ctx.save();
-    if (!NO_ROTATE[A.shape]) ctx.rotate(e.face || 0);
+    const po = e._pose; // le mouvement procédural (bestiaire vivant, 1.17) : étirement le long du regard, rotation ajoutée
+    if (!NO_ROTATE[A.shape]) { ctx.rotate((e.face || 0) + (po ? po.yaw : 0)); if (po) ctx.scale(po.sx, po.sy); }
+    else if (po) { const f = e.face || 0; ctx.rotate(f); ctx.scale(po.sx, po.sy); ctx.rotate(-f); }
     ctx.lineJoin = 'round';
     fn(ctx, e, t, pal, A, r, lw, e.face || 0);
     ctx.restore();
@@ -467,17 +482,30 @@
   Art.draw = function (ctx, e, t, opts = {}) {
     const def = e.def;
     const flying = def.move === 'fly' || def.move === 'drift' || def.move === 'blink';
-    const bob = flying ? Math.sin(t * 3 + (e.seed || 0)) * e.r * 0.15 - e.r * 0.25 : 0;
+    // le temps du dessin : les créatures que l'IA ne fait pas vivre (Archive, hexagone) bougent quand même (1.18)
+    const dt = e._drawT != null ? U.clamp(t - e._drawT, 0, 0.1) : 0;
+    e._drawT = t;
+    if (dt > 0 && !e._moAI && AN.Motion && !e.col) AN.Motion.update(e, dt);
+    const po = (e._pose = e.mo && AN.Motion ? AN.Motion.pose(e, t) : null); // le mouvement procédural (1.17)
+    const bob = flying ? (po ? -e.r * 0.25 : Math.sin(t * 3 + (e.seed || 0)) * e.r * 0.15 - e.r * 0.25) : 0;
+    // corps vivants (1.18) : les membres vivent dans le monde ; le repère du dessin, pour les y retrouver
+    if (AN.Rig && !e.hidden) {
+      const f = e.face || 0, flat = NO_ROTATE[def.art.shape];
+      e._xf = { x: e.x + (po ? po.dx + Math.cos(f) * po.fw : 0), y: e.y + bob + (po ? po.dy + Math.sin(f) * po.fw : 0), a: flat ? 0 : f + (po ? po.yaw : 0), sx: po && !flat ? po.sx : 1, sy: po && !flat ? po.sy : 1, m: e.mirror ? -1 : 1 };
+      if (dt > 0) AN.Rig.update(e, dt);
+    }
     ctx.save();
     ctx.translate(e.x, e.y);
-    // ombre (un reflet du Relieur n'en a pas, 1.10)
+    // ombre (un reflet du Relieur n'en a pas, 1.10) ; elle rétrécit quand la créature s'élève
     if (!e.noShadow) {
-      ctx.fillStyle = 'rgba(10,12,20,0.22)';
+      const sk = po ? U.clamp(1 - po.lift / (e.r * 3), 0.55, 1) : 1;
+      ctx.fillStyle = 'rgba(10,12,20,' + (0.22 * sk) + ')';
       ctx.beginPath();
-      ctx.ellipse(flying ? e.r * 0.2 : e.r * 0.08, e.r * (flying ? 0.75 : 0.45), e.r * (flying ? 0.7 : 0.95), e.r * (flying ? 0.32 : 0.5), 0, 0, TAU);
+      ctx.ellipse(flying ? e.r * 0.2 : e.r * 0.08, e.r * (flying ? 0.75 : 0.45), e.r * (flying ? 0.7 : 0.95) * sk, e.r * (flying ? 0.32 : 0.5) * sk, 0, 0, TAU);
       ctx.fill();
     }
     ctx.translate(0, bob);
+    if (po) { const f = e.face || 0; ctx.translate(po.dx + Math.cos(f) * po.fw, po.dy + Math.sin(f) * po.fw); }
     if (e.mirror) ctx.scale(-1, 1);
     if (e.hidden) {
       // créature enfouie : seulement un remous

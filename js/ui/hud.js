@@ -341,8 +341,8 @@
       const parts = [];
       if (n.territories) parts.push(Math.min(c.territories, n.territories) + '/' + n.territories + ' territoires');
       if (n.guardians) parts.push(Math.min(c.guardians, n.guardians) + '/' + n.guardians + ' gardien' + (n.guardians > 1 ? 's' : ''));
-      if (n.ultras) parts.push(Math.min(c.ultras, n.ultras) + '/' + n.ultras + ' ultra-boss');
-      if (n.souverains) parts.push(Math.min(c.souverains, n.souverains) + '/' + n.souverains + ' souverain');
+      if (n.ultras) parts.push(Math.min(c.ultras, n.ultras) + '/' + n.ultras + (n.ultras > 1 ? ' colosses régionaux' : ' colosse régional'));
+      if (n.souverains) parts.push(Math.min(c.souverains, n.souverains) + '/' + n.souverains + ' colosse' + (n.souverains > 1 ? 's' : '') + ' du monde');
       if (n.cataclysmes) parts.push(Math.min(c.cataclysmes, n.cataclysmes) + '/' + n.cataclysmes + ' cataclysme');
       if (n.astres) parts.push(Math.min(c.astres, n.astres) + '/' + n.astres + ' astres');
       if (n.stellaires) parts.push(Math.min(c.stellaires, n.stellaires) + '/' + n.stellaires + ' entité stellaire');

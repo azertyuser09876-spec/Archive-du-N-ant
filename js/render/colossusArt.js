@@ -111,7 +111,8 @@
       const tone = PART_TONE[c.part] != null ? PART_TONE[c.part] : 0.1;
       ctx.fillStyle = tone >= 0 ? U.mix(pal.body, pal.dark, tone) : U.mix(pal.body, pal.light, -tone);
       ctx.beginPath(); capPath(ctx, ax, ay, c.ra, bx, by, c.rb); ctx.fill();
-      ctx.strokeStyle = U.shade(pal.dark, -0.25); ctx.lineWidth = Math.max(2.5, col.L * 0.0045); ctx.stroke();
+      ctx.strokeStyle = U.shade(pal.dark, -0.25); ctx.lineWidth = Math.max(2.5, Math.min(col.L, 2600) * 0.0045); ctx.stroke();
+      if (col.back && col.back.cap === Object.getPrototypeOf(c).i) { drawBack(ctx, X, col); ctx.globalAlpha = 1; continue; } // son dos est un biome (1.16.4)
       // lumière sur le dessus
       ctx.fillStyle = U.rgba(pal.light, 0.35);
       ctx.beginPath(); capPath(ctx, ax - c.ra * 0.2, ay - c.ra * 0.25, c.ra * 0.55, bx - c.rb * 0.2, by - c.rb * 0.25, c.rb * 0.55); ctx.fill();
@@ -135,6 +136,130 @@
     }
   }
 
+  /* ---------- le dos-biome d'un colosse-carte (1.16.4) ---------- */
+  // Le terrain de son dos est peint comme le sol d'une zone (AN.Terrain), par morceaux de 16 × 16 cases
+  // dessinés dans le repère de sa capsule ; de loin, une miniature. Les morceaux se font à la demande.
+  const BT = 32, CH = 16, KEEP = 44;
+  const backArt = (col) => col.backArt || (col.backArt = { chunks: new Map(), lru: [], thumb: null });
+  function backPaintGrid(col) {
+    const B = col.back;
+    if (!B.paint) { const F = AN.ZoneGen.FLOOR, g = new Uint8Array(B.grid.length); for (let i = 0; i < g.length; i++) g[i] = B.grid[i] === 255 ? F : B.grid[i]; B.paint = g; }
+    return B.paint;
+  }
+  /** La forme de son dos, dans le repère local décalé de (ox, oy) ; k : part du rayon. */
+  function backShape(ctx, col, ox, oy, k) {
+    const B = col.back, c = col.caps[B.cap];
+    ctx.beginPath();
+    if (c.disc) { ctx.arc(1 - ox, -oy, c.ra * k, 0, TAU); return; }
+    const A = col.n[c.a], Bn = col.n[c.b], len = Math.hypot(Bn.x - A.x, Bn.y - A.y);
+    capPath(ctx, -ox, -oy, c.ra * k, len - ox, -oy, c.rb * k);
+  }
+  function makeChunk(col, ci, cj) {
+    const B = col.back, n = CH + 2, F = AN.ZoneGen.FLOOR, pg = backPaintGrid(col);
+    const grid = new Uint8Array(n * n), shade = new Float32Array(n * n);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const gi = ci * CH + x - 1, gj = cj * CH + y - 1, k = y * n + x;
+      if (gi < 0 || gj < 0 || gi >= B.w || gj >= B.h) { grid[k] = F; shade[k] = 0.5; continue; }
+      grid[k] = pg[gj * B.w + gi]; shade[k] = B.shade[gj * B.w + gi];
+    }
+    const ox = (ci * CH - 1) * BT, oy = (cj * CH - 1) * BT;
+    const decor = B.decor.filter((d) => d.x >= ox - 8 && d.x < ox + n * BT + 8 && d.y >= oy - 8 && d.y < oy + n * BT + 8).map((d) => Object.assign({}, d, { x: d.x - ox, y: d.y - oy }));
+    const cv = AN.Terrain.renderZone({ w: n, h: n, T: BT, grid, bmap: new Uint8Array(n * n), shade, biome: B.biome, mix: null, decor, plates: [] }, AN.hash(col.id + ':dos:' + ci + ':' + cj));
+    const ctx = cv.getContext('2d');
+    // le paysage s'arrête au bord de son dos ; une ombre douce le borde
+    ctx.globalCompositeOperation = 'destination-in'; ctx.fillStyle = '#000';
+    backShape(ctx, col, B.u0 + ox, B.v0 + oy, 0.92); ctx.fill();
+    ctx.globalCompositeOperation = 'source-atop'; ctx.strokeStyle = 'rgba(10,12,20,0.3)'; ctx.lineWidth = 40;
+    backShape(ctx, col, B.u0 + ox, B.v0 + oy, 0.92); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    // on ne garde que le morceau (sans sa marge) : moins de mémoire
+    const out = AN.Terrain.canvas(CH * BT, CH * BT);
+    out.getContext('2d').drawImage(cv, BT, BT, CH * BT, CH * BT, 0, 0, CH * BT, CH * BT);
+    return out;
+  }
+  function backThumb(col) {
+    const B = col.back, A = backArt(col);
+    if (A.thumb) return A.thumb;
+    const S = 4, cv = AN.Terrain.thumb({ w: B.w, h: B.h, grid: backPaintGrid(col), shade: B.shade, bmap: new Uint8Array(B.w * B.h), biome: B.biome, mix: null }, S);
+    const ctx = cv.getContext('2d');
+    ctx.save(); ctx.scale(S / BT, S / BT);
+    ctx.globalCompositeOperation = 'destination-in'; ctx.fillStyle = '#000';
+    backShape(ctx, col, B.u0, B.v0, 0.92); ctx.fill();
+    ctx.restore();
+    return (A.thumb = cv);
+  }
+  /** Le repère dessiné de son dos : origine au premier nœud, axe vers le second, échelle de la perspective. */
+  function backFrame(col) {
+    const B = col.back, c = col.caps[B.cap], A = col.n[c.a], Bn = col.n[c.b], pa = P(col, A), pb = P(col, Bn);
+    if (c.disc) return { x: pa.x, y: pa.y, th: 0, s: pa.s };
+    const gl = Math.hypot(Bn.x - A.x, Bn.y - A.y) || 1;
+    return { x: pa.x, y: pa.y, th: Math.atan2(pb.y - pa.y, pb.x - pa.x), s: Math.hypot(pb.x - pa.x, pb.y - pa.y) / gl };
+  }
+  /** Peint les morceaux visibles (dans la vue v, en coordonnées du monde) ; ctx est déjà dans le repère du dos. */
+  function paintBack(ctx, col, Fr, v, art, thumb) {
+    const B = col.back, TS = thumb.width / B.w, c = Math.cos(-Fr.th), sn = Math.sin(-Fr.th);
+    let u0 = 1e9, u1 = -1e9, w0 = 1e9, w1 = -1e9;
+    [[v.x0, v.y0], [v.x1, v.y0], [v.x0, v.y1], [v.x1, v.y1]].forEach(([x, y]) => {
+      const dx = (x - Fr.x) / Fr.s, dy = (y - Fr.y) / Fr.s, u = dx * c - dy * sn, w = dx * sn + dy * c;
+      u0 = Math.min(u0, u); u1 = Math.max(u1, u); w0 = Math.min(w0, w); w1 = Math.max(w1, w);
+    });
+    const span = CH * BT;
+    const i0 = Math.max(0, Math.floor((u0 - B.u0) / span)), i1 = Math.min(Math.ceil(B.w / CH) - 1, Math.floor((u1 - B.u0) / span));
+    const j0 = Math.max(0, Math.floor((w0 - B.v0) / span)), j1 = Math.min(Math.ceil(B.h / CH) - 1, Math.floor((w1 - B.v0) / span));
+    let made = 0, missing = false;
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const key = i + ',' + j;
+      let cv = art.chunks.get(key);
+      if (!cv) {
+        if (made >= 2) { // deux par image au plus : la miniature tient la place en attendant
+          const cw = Math.min(CH, B.w - i * CH), chh = Math.min(CH, B.h - j * CH);
+          ctx.drawImage(thumb, i * CH * TS, j * CH * TS, cw * TS, chh * TS, B.u0 + i * span, B.v0 + j * span, cw * BT, chh * BT);
+          missing = true;
+          continue;
+        }
+        cv = makeChunk(col, i, j); made++;
+        art.chunks.set(key, cv);
+      }
+      const li = art.lru.indexOf(key); if (li >= 0) art.lru.splice(li, 1); art.lru.push(key);
+      ctx.drawImage(cv, B.u0 + i * span, B.v0 + j * span);
+    }
+    while (art.lru.length > KEEP) art.chunks.delete(art.lru.shift());
+    return missing;
+  }
+  const LAYER_PAD = 140; // marge de l'image en cache, en px d'écran
+  function drawBack(ctx, X, col) {
+    const B = col.back, cam = X.cam, Fr = backFrame(col), art = backArt(col), z = cam.zoom;
+    const thumb = backThumb(col);
+    const zoomStable = art.lastZoom != null && Math.abs(art.lastZoom - z) <= z * 1e-4;
+    art.lastZoom = z;
+    const direct = (v) => { ctx.save(); ctx.translate(Fr.x, Fr.y); ctx.rotate(Fr.th); ctx.scale(Fr.s, Fr.s); const m = v ? paintBack(ctx, col, Fr, v, art, thumb) : (ctx.drawImage(thumb, B.u0, B.v0, B.w * BT, B.h * BT), false); ctx.restore(); return m; };
+    // de loin : la miniature ; pendant un zoom : directement ; sinon, une image du dos à l'échelle de l'écran,
+    // repeinte seulement quand la vue sort de sa marge, que le dos tourne, ou qu'un morceau vient d'être peint
+    if (z * Fr.s < 0.4) { direct(null); return; }
+    if (!zoomStable) { direct(cam.view(40)); return; }
+    let L = art.layer;
+    const vNow = cam.view(0);
+    if (L) {
+      const dx = Fr.x - L.fx, dy = Fr.y - L.fy;
+      const fits = vNow.x0 - dx >= L.x0 && vNow.y0 - dy >= L.y0 && vNow.x1 - dx <= L.x0 + L.w && vNow.y1 - dy <= L.y0 + L.h;
+      const same = Math.abs(L.zoom - z) <= z * 1e-4 && Math.abs(L.th - Fr.th) < 0.0015 && Math.abs(L.s - Fr.s) < 0.0015;
+      if (!fits || !same || (L.missing && ++L.age > 2)) L = null;
+    }
+    if (!L) {
+      const dpr = cam.dpr || 1, v = cam.view(LAYER_PAD / z);
+      const W = Math.ceil((v.x1 - v.x0) * z * dpr), H = Math.ceil((v.y1 - v.y0) * z * dpr);
+      const cv = art.layer && art.layer.cv.width === W && art.layer.cv.height === H ? art.layer.cv : AN.Terrain.canvas(W, H);
+      const lc = cv.getContext('2d');
+      lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, W, H);
+      lc.setTransform(z * dpr, 0, 0, z * dpr, -v.x0 * z * dpr, -v.y0 * z * dpr);
+      lc.translate(Fr.x, Fr.y); lc.rotate(Fr.th); lc.scale(Fr.s, Fr.s);
+      lc.imageSmoothingEnabled = true;
+      const missing = paintBack(lc, col, Fr, v, art, thumb);
+      L = art.layer = { cv, x0: v.x0, y0: v.y0, w: v.x1 - v.x0, h: v.y1 - v.y0, fx: Fr.x, fy: Fr.y, th: Fr.th, s: Fr.s, zoom: z, missing, age: 0 };
+    }
+    ctx.drawImage(L.cv, L.x0 + (Fr.x - L.fx), L.y0 + (Fr.y - L.fy), L.w, L.h);
+  }
+
   /* ---------- l'écosystème de son dos (1.16.2) ---------- */
   function drawDeck(ctx, X, e, col, t, low, pal) {
     const zb = (X.zone && AN.Data.BIOME[X.zone.biome]) || {};
@@ -144,6 +269,7 @@
       const c = col.caps[d.cap];
       if (!c || hiddenCap(col, c) || isLow(col, c) !== low) continue;
       const q = AN.Colossus.capPoint(col, c, d.t, d.off);
+      if (!X.cam.visible(q.x, q.y, 90)) continue;
       item(ctx, d.kind, q.x, q.y, q.s * d.s * big, d.seed, t, pal, g1, acc);
     }
     // la plateforme de l'Artefact, sur un colosse-carte (1.16.3)
@@ -163,7 +289,7 @@
       for (let k = 0; k < 4; k++) { const a = k * 1.7 + n.t * 9; ctx.beginPath(); ctx.ellipse(q.x + Math.cos(a) * 7 * s, q.y + Math.sin(a) * 5 * s, 6 * s, 4.5 * s, a, 0, TAU); ctx.fill(); ctx.stroke(); }
     }
     for (const r of col.deck.riders) {
-      if (!r.alive || !r.rider || r.rider.low !== low) continue;
+      if (!r.alive || !r.rider || r.rider.low !== low || !X.cam.visible(r.x, r.y, r.r * 3 + 40)) continue;
       const s = r.riderS || 1;
       ctx.save(); ctx.translate(r.x, r.y); ctx.scale(s, s); ctx.translate(-r.x, -r.y);
       AN.Art.draw(ctx, r, t);

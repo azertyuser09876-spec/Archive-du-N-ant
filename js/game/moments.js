@@ -72,7 +72,7 @@
   Mo.capture = function (X, e) {
     const b = X.base;
     const toBase = !!(b && b.state === 'ok' && X.zi === b.zi && U.dist(b.x, b.y, e.x, e.y) < 2600);
-    const g = Object.assign({}, e, { alive: true, weak: false, capture: 0, flash: 0, hidden: false });
+    const g = Object.assign({}, e, { alive: true, weak: false, capture: 0, flash: 0, hidden: false, rig: null, _drawT: null });
     X.flights = X.flights || [];
     X.flights.push({ g, x0: e.x, y0: e.y, tx: toBase ? b.x : e.x + (X.player.x - e.x) * 0.25, ty: toBase ? b.y - 60 : e.y - 760, base: toBase, t: 0, dur: toBase ? Math.min(1.6, 0.8 + U.dist(b.x, b.y, e.x, e.y) / 1400) : 1.1 });
   };

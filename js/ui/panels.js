@@ -702,6 +702,7 @@
         h('div', { class: 'card-info' },
           h('p', { class: 'species' }, d.name + (v.name ? ', variante ' + v.name : '') + ' · ' + D.TIERS[d.tier].name),
           h('p', null, d.desc),
+          AN.Kits && AN.Kits.of(d) ? h('p', { class: 'kit-line' }, h('b', null, 'Gestes. '), AN.Kits.of(d).name + '.') : null, // son jeu d'attaques (1.17)
           bars, h('p', { class: 'muted' }, mood.join(' ')), tags, facts,
           h('label', { class: 'field' }, h('span', null, 'Surnom'), nameInput),
           h('label', { class: 'field' }, h('span', null, 'Habitat'), homeSelect),

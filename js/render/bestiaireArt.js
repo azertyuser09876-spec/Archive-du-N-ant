@@ -118,13 +118,14 @@
 
   /** Cerf (vu de dessus) : bois ramifiés, qui portent des chapeaux de champignon ou des cristaux. */
   S.stag = (ctx, e, t, pal, A, r, lw) => {
-    const step = (e.anim || 0) * 2.4;
-    const legs = [[0.42, -0.4, 0], [0.42, 0.4, Math.PI], [-0.45, -0.38, Math.PI], [-0.45, 0.38, 0]];
-    legs.forEach(([x, y, ph]) => ell(ctx, r * x + Math.sin(step + ph) * r * 0.2, r * y * 1.2, r * 0.2, r * 0.11, 0, pal.dark));
+    const g = AN.Rig.act(e);
+    AN.Rig.drawLegs(ctx, e, r, lw, pal); // sabots plantés, en diagonales (1.18)
     ell(ctx, -r * 0.62, 0, r * 0.14, r * 0.1, 0, pal.light); // queue
     ell(ctx, -r * 0.05, 0, r * 0.7, r * 0.42, 0, pal.body, pal.dark, lw);
     for (let k = 0; k < 4; k++) circ(ctx, -r * 0.35 + k * r * 0.17, (k % 2 ? 1 : -1) * r * 0.12, r * 0.05, U.rgba(pal.light, 0.8));
-    // cou et tête
+    // cou et tête : elle tourne la tête (les bois avec), la baisse avant de charger
+    AN.Rig.head(ctx, e, r * 0.45);
+    ctx.translate(r * (0.12 * g.s - 0.1 * g.w), 0);
     ell(ctx, r * 0.68, 0, r * 0.3, r * 0.22, 0, pal.body, pal.dark, lw * 0.8);
     ell(ctx, r * 0.95, 0, r * 0.12, r * 0.09, 0, pal.dark);
     // bois : de la tête vers les côtés, en couronne ; ils portent des chapeaux de champignon ou des cristaux
@@ -155,6 +156,7 @@
     }
     ctx.lineCap = 'butt';
     eyes(ctx, r * 0.78, 0, r * 0.22, r * 0.07, pal, 2);
+    ctx.restore();
   };
 
   /** Sablier : deux ampoules de verre, le sable qui passe ; on le croirait arrêté. */
@@ -225,17 +227,11 @@
   /** Galaxie-méduse : une ombrelle d'étoiles en spirale, et derrière elle, de longs filaments de gaz. */
   S.medusa = (ctx, e, t, pal, A, r, lw) => {
     const n = A.tentacles || 7;
-    ctx.lineCap = 'round';
+    // les filaments : des chaînes souples qui traînent derrière ses déplacements (1.18)
     for (let k = 0; k < n; k++) {
-      const x0 = (k / (n - 1) - 0.5) * r * 1.3;
-      const len = r * (1.3 + ((k * 13) % 7) / 7);
-      ctx.strokeStyle = U.rgba(k % 2 ? pal.accent : pal.light, 0.6); ctx.lineWidth = lw * (0.9 - (k % 3) * 0.2);
-      ctx.beginPath(); ctx.moveTo(x0, r * 0.2);
-      for (let s = 1; s <= 6; s++) { const f = s / 6; ctx.lineTo(x0 + Math.sin(t * 2 + k + f * 4) * r * 0.18 * f, r * 0.2 + len * f); }
-      ctx.stroke();
-      for (let s = 2; s <= 6; s += 2) circ(ctx, x0 + Math.sin(t * 2 + k + (s / 6) * 4) * r * 0.18 * (s / 6), r * 0.2 + len * (s / 6), r * 0.04, '#fff0c0');
+      const pts = AN.Rig.drawChain(ctx, e, 't' + k, r, lw, U.rgba(k % 2 ? pal.accent : pal.light, 0.6), 0.1 - (k % 3) * 0.02, 0.03);
+      for (let s = 2; s < pts.length; s += 2) circ(ctx, pts[s].x * r, pts[s].y * r, r * 0.04, '#fff0c0');
     }
-    ctx.lineCap = 'butt';
     // ombrelle
     ctx.beginPath(); ctx.ellipse(0, 0, r * 0.95, r * 0.7, 0, Math.PI, 0); ctx.quadraticCurveTo(0, r * 0.45, -r * 0.95, 0); ctx.closePath();
     ctx.fillStyle = U.rgba(pal.body, 0.92); ctx.fill(); ctx.strokeStyle = pal.dark; ctx.lineWidth = lw; ctx.stroke();

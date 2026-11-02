@@ -29,6 +29,10 @@
   D.COLOSSUS_LENGTH = [0, 0, 0, 1100, 1350, 1600, 1800, 2000, 2200, 2400, 2600];
   /** À partir de ce rang, le colosse est la carte (1.16.3) : la zone du cœur, c'est lui, et le vide tout autour. */
   D.COLOSSUS_MAP_TIER = 7;
+  /** La forme de chaque plan, telle que le bestiaire la nomme (1.16.5). */
+  D.COLOSSUS_PLAN_NAME = { bipede: 'bipède', quadrupede: 'quadrupède', serpent: 'serpent', volant: 'volant', roue: 'roue', araignee: 'araignée' };
+  /** Un colosse-carte est trois fois plus grand (1.16.4) : son dos a la taille d'une zone, c'est un biome. */
+  D.COLOSSUS_MAP_SCALE = 3;
   /** Part de la vigueur du maître répartie entre ses sceaux. */
   D.COLOSSUS_SEAL_SHARE = 0.24;
   /** Dégâts de base d'un coup de corps, par rang (multipliés par la force du monde). */
@@ -54,8 +58,8 @@
       plan: 'volant', size: 1, look: 'nageoires',
       seals: [{ at: 'ventre', kind: 'bas' }, { at: 'dos', kind: 'haut' }, { at: 'queue', kind: 'haut' }],
       attacks: ['plongeon', 'bourrasque', 'pluie'], signature: 'pluie',
-      hints: ['Son ombre annonce son plongeon. Au ras du sol, son ventre est à portée de tir.', 'Quand il rase le sol, sa queue et ses nageoires passent à portée de main (E).'],
-      secret: 'Il plonge sur vous au ras du sol : son ventre se tire alors, et l’on peut s’agripper à sa queue pour atteindre son dos.',
+      hints: ['Son ombre annonce son plongeon. Au ras du sol, son ventre est à portée de tir.', 'Quand elle rase le sol, sa queue et ses nageoires passent à portée de main (E).'],
+      secret: 'Elle plonge sur vous au ras du sol : son ventre se tire alors, et l’on peut s’agripper à sa queue pour atteindre son dos.',
     },
     engrenage: {
       plan: 'roue', size: 1, look: 'engrenages', arms: 4,
@@ -94,7 +98,7 @@
       seals: [{ at: 'ventre', kind: 'bas' }, { at: 'aile_g', kind: 'haut' }, { at: 'dos', kind: 'haut' }, { at: 'nuque', kind: 'haut' }],
       attacks: ['plongeon', 'bourrasque', 'souffle'], signature: 'aspiration',
       hints: ['Quand elle ouvre la gueule, elle aspire tout ce qui flotte : éloignez-vous de sa tête.', 'Ses passages au ras du sol sont le seul moment où l’atteindre.'],
-      secret: 'Elle rase le sol à chaque plongeon : son ventre se tire alors, et ses nageoires se saisissent. Sur son dos, elle se roule pour vous jeter dans le vide.',
+      secret: 'Elle rase le sol à chaque plongeon : son ventre se tire alors, et ses nageoires se saisissent. Sur son dos, elle se secoue pour vous faire lâcher prise.',
     },
     serpent_annulaire: {
       plan: 'serpent', size: 1.05, look: 'glace', burrow: false,
@@ -132,15 +136,15 @@
       plan: 'araignee', size: 1, look: 'etoiles', legs: 8,
       seals: [{ at: 'patte_1', kind: 'bas' }, { at: 'patte_4', kind: 'bas' }, { at: 'patte_6', kind: 'bas' }, { at: 'corps', kind: 'haut' }],
       attacks: ['empalement', 'toile', 'onde'], signature: 'dispersion',
-      hints: ['Elle se disperse et se recompose ailleurs. Ses pattes plantées se figent un instant.', 'Chaque patte brisée l’abaisse : son corps finit à portée.'],
-      secret: 'Ses pattes se plantent pour frapper et s’y figent : leurs sceaux se découvrent. Chaque patte brisée abaisse son corps, jusqu’à ce qu’on puisse y monter.',
+      hints: ['Ses pattes partent du bord de son dos : suivez-en une jusqu’au pied, où brille son sceau.', 'La plateforme de l’Artefact est un abri : ceux qui vivent sur elle n’y montent pas.'],
+      secret: 'On arrive sur son dos. Trois de ses pieds portent ses sceaux : on les rejoint en suivant la patte, de la cuisse au genou puis au tibia. Le dernier est sur son dos, près de la plateforme.',
     },
     spirale_mere: {
       plan: 'roue', size: 1.05, look: 'spirale', arms: 5,
       seals: [{ at: 'bras_1', kind: 'bas' }, { at: 'bras_2', kind: 'bas' }, { at: 'bras_4', kind: 'bas' }, { at: 'moyeu', kind: 'haut' }],
       attacks: ['tourbillon', 'onde', 'roulement'], signature: 'attraction',
-      hints: ['En tournant, elle attire tout vers son cœur. Elle doit pourtant s’arrêter.', 'À l’arrêt, ses bras touchent le sol.'],
-      secret: 'Elle vous attire en tournant, mais s’arrête pour se recharger : ses bras posés se tirent et se gravissent jusqu’au cœur.',
+      hints: ['Ses bras sont des routes : sortez du moyeu par son bord et suivez-en un jusqu’à son extrémité.', 'Quand elle tourne plus vite, tenez bon (E).'],
+      secret: 'Son moyeu est une plaine où l’on arrive. Trois de ses bras portent leur sceau à leur extrémité ; le cœur du moyeu porte le dernier.',
     },
 
     /* ---------- au-delà (rangs 8 à 10) ---------- */
@@ -148,22 +152,22 @@
       plan: 'bipede', size: 1.1, look: 'etoiles',
       seals: [{ at: 'main_d', kind: 'bas' }, { at: 'pied_g', kind: 'bas' }, { at: 'dos', kind: 'haut' }, { at: 'tete', kind: 'haut' }, { at: 'epaule_g', kind: 'haut' }],
       attacks: ['pietinement', 'balayage', 'houlette'], signature: 'houlette',
-      hints: ['Sa houlette vous ramène à lui. Quand il la plante, elle reste en terre.', 'Son bras planté est un chemin vers ses épaules.'],
-      secret: 'Il plante sa houlette pour vous ramener : sa main reste au sol, son sceau se découvre, et son bras mène aux épaules, au dos et à la tête.',
+      hints: ['Son bras mène à sa main, sa jambe à son pied : leurs sceaux y brillent.', 'Épuisé, ses galaxies s’égaillent autour de lui : tirez dessus pour les ramener.'],
+      secret: 'On arrive sur son dos. Sa main droite et son pied gauche portent ses sceaux du bas, au bout du bras et de la jambe ; son dos, sa tête et son épaule gauche, les autres.',
     },
     tisserand: {
       plan: 'araignee', size: 1.1, look: 'fils', legs: 8,
       seals: [{ at: 'patte_2', kind: 'bas' }, { at: 'patte_3', kind: 'bas' }, { at: 'patte_6', kind: 'bas' }, { at: 'patte_7', kind: 'bas' }, { at: 'corps', kind: 'haut' }],
       attacks: ['empalement', 'toile', 'onde'], signature: 'toile',
-      hints: ['Il tisse des fils qui ralentissent. Ses pattes se figent un instant quand elles frappent.', 'Brisez ses pattes : il s’affaisse, et son corps devient accessible.'],
-      secret: 'Ses pattes se figent après avoir frappé : brisez leurs sceaux, il s’affaisse, et son corps se gravit.',
+      hints: ['Ses pattes partent du bord de son dos : suivez-en une jusqu’au pied, où brille son sceau.', 'Épuisé, il tend sa trame autour de vous : reliez ses nœuds dans l’ordre.'],
+      secret: 'On arrive sur son dos. Quatre de ses pieds portent ses sceaux : on les rejoint en suivant la patte depuis le bord du dos. Le dernier est sur son dos ; ses fils ralentissent.',
     },
     relieur: {
       plan: 'roue', size: 1.05, look: 'pages', arms: 6,
       seals: [{ at: 'bras_1', kind: 'bas' }, { at: 'bras_3', kind: 'bas' }, { at: 'bras_5', kind: 'bas' }, { at: 'bras_6', kind: 'bas' }, { at: 'moyeu', kind: 'haut' }],
       attacks: ['tourbillon', 'onde', 'roulement'], signature: 'inversion',
-      hints: ['Ses pages tournent, puis repartent dans l’autre sens. Elles se referment parfois pour se relire.', 'Refermé, il pose ses pages : on monte jusqu’à la reliure.'],
-      secret: 'Il se referme régulièrement pour se relire : ses pages posées se découvrent, et mènent à la reliure.',
+      hints: ['Ses pages sont des routes : sortez du moyeu par son bord et suivez-en une jusqu’à son extrémité.', 'Quand ses pages repartent dans l’autre sens, tenez bon (E).'],
+      secret: 'Son moyeu est un pays où l’on arrive. Quatre de ses pages portent leur sceau à leur extrémité ; la reliure, au cœur du moyeu, le dernier. Il n’a nulle part où cacher ses reflets.',
     },
   };
 

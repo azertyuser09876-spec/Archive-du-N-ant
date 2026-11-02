@@ -44,9 +44,9 @@
 
   /* =================== Rangs de créatures =================== */
   D.TIERS.push(
-    { id: 8, name: 'Entité d’amas', weight: 0, anchor: 5 },
-    { id: 9, name: 'Entité de la Toile', weight: 0, anchor: 6 },
-    { id: 10, name: 'Entité du Pli', weight: 0, anchor: 7 },
+    { id: 8, name: 'Colosse d’amas', weight: 0, anchor: 5 },
+    { id: 9, name: 'Colosse de la Toile', weight: 0, anchor: 6 },
+    { id: 10, name: 'Colosse du Pli', weight: 0, anchor: 7 },
   );
   // il n'y a plus de rang de créature seulement pressenti
   D.HIGHER_TIERS = [];
@@ -226,7 +226,7 @@
       ],
       drops: { onde: 20, matiere_noire: 3, noyau: 3, essence: 6 }, roles: [],
       global: { name: 'Houlette', desc: '+20 % de production et +1 lien de compagnon', stat: { prod: 0.2, links: 1 } },
-      desc: 'Il garde des galaxies comme on garde des bêtes. Il les compte. Il en manque toujours une.' },
+      desc: 'Un berger grand comme un amas, qui garde des galaxies comme on garde des bêtes. Sur ses épaules s’étend un pays d’étoiles. Il compte ses galaxies ; il en manque toujours une.' },
 
     /* ---------------- Toile ---------------- */
     { id: 'fileuse', name: 'Fileuse', tier: 0, scale: 'toile', biomes: TOILE,
@@ -282,7 +282,7 @@
       ],
       drops: { fil: 24, matiere_noire: 3, noyau: 4, essence: 7 }, roles: [],
       global: { name: 'Trame', desc: 'Capture 20 % plus rapide et +15 % de vitesse', stat: { capture: 0.2, speed: 0.15 } },
-      desc: 'Il a tendu la structure de l’univers. Il la retend chaque fois qu’elle cède. Il ne se souvient plus pour qui.' },
+      desc: 'Il a tendu la structure de l’univers, et la retend chaque fois qu’elle cède : une araignée immense, dont le dos est une contrée de fils et de cristaux. Il ne se souvient plus pour qui.' },
 
     /* ---------------- Pli ---------------- */
     { id: 'cocotte', name: 'Cocotte de papier', tier: 0, scale: 'pli', biomes: PLI,
@@ -338,7 +338,7 @@
       ],
       drops: { blanc: 8, encre: 20, noyau: 4, essence: 8 }, roles: [],
       global: { name: 'Reliure', desc: '+30 PV, +20 % de production et carte toujours révélée', stat: { hp: 30, prod: 0.2, reveal: 1 } },
-      desc: 'Il assemble les feuillets. Il a les mêmes gestes que vous quand vous rangez l’Archive.' },
+      desc: 'Il assemble les feuillets du Pli : une reliure immense, dont le moyeu est un pays de pages et de ruines. Il a les mêmes gestes que vous quand vous rangez l’Archive.' },
   ];
   C.forEach((c) => {
     c.index = D.CREATURES.length;

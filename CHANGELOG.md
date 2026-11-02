@@ -1,5 +1,142 @@
 # Journal des versions
 
+## 1.18.0 — Corps vivants
+
+Les créatures ne bougent plus d’un bloc : chaque forme qui a des membres les anime, un par un, de façon procédurale.
+
+- **Des pieds plantés.**
+  - Chaque pied reste posé au sol tant que le corps ne s’en éloigne pas trop, puis fait un pas en arc vers sa place, un peu en avant si la créature avance.
+  - Les pattes marchent par groupes, en alternance : les diagonales d’un quadrupède, le trépied d’un insecte, d’une araignée, d’un crabe ou d’un scorpion.
+  - Le genou se place tout seul (cinématique inverse à deux segments) : vers l’extérieur pour un insecte, sous le corps pour un mammifère. Au-delà de sa longueur, la patte se tend.
+  - Pieds rentrés quand elle saute, bondit, tournoie ou se roule en boule ; projetée au loin, elle retombe sur ses pieds.
+  - Concerne les quadrupèdes, les cerfs, les insectes, les crabes, les scorpions, les constructions mécaniques, les galets à pattes et les pattes avant des grenouilles.
+- **Des chaînes souples.** Queues, tentacules, antennes, cornes d’escargot, cous d’hydre, filaments des méduses et des galaxies-méduses, lambeaux des spectres, chevelure des comètes.
+  - Elles suivent leur attache avec retard, gardent leur longueur, reviennent à leur place et ondulent.
+  - Elles traînent derrière un virage et s’incurvent dans le sens du mouvement.
+- **Les serpents et les vers suivent leur trace.** Leur corps passe exactement là où leur tête est passée ; une onde le parcourt, plus vive quand ils avancent.
+- **Des têtes qui regardent.**
+  - La tête se tourne vers ce que la créature attaque, dans ses limites ; la chouette tourne la sienne bien plus loin que les autres.
+  - Au repos, elle regarde autour d’elle : le corps suit d’un tiers, la tête fait le reste. Les bois du cerf, les antennes de l’insecte tournent avec elle ; la lentille d’une construction suit son regard comme une tourelle, les yeux d’un crabe ou d’une grenouille aussi.
+- **Des ailes qui ont leur rythme.**
+  - Le battement suit le tempérament de l’espèce : vif en vol, plus lent au ralenti.
+  - Au sol, les ailes se replient. Avant de frapper, elles s’ouvrent grand.
+  - Concerne les oiseaux, les papillons de nuit, les insectes ailés et les raies (dont les nageoires ondulent).
+- **Le geste de chaque membre à l’attaque.**
+  - Le quadrupède baisse la tête puis mord en avant ; le serpent se rétracte, ouvre la gueule et frappe.
+  - Les cous de l’hydre se replient puis se détendent ; l’oiseau ouvre le bec, puis pique ; la grenouille lance sa langue.
+  - Les pinces du crabe et du scorpion s’ouvrent puis claquent ; la queue du scorpion se ramasse et le dard frappe par-dessus la tête.
+  - Les ravisseuses de la mante se lèvent puis se détendent ; le golem recule un poing, puis cogne.
+- **Petites vies.** Le serpent goûte l’air de sa langue ; l’escargot rentre ses cornes quand on le frappe ; la queue d’un oiseau s’évase dans les virages.
+- **Partout.** Dans les expéditions, sur le dos des colosses, dans l’Archive et dans l’hexagone : les créatures que l’IA ne mène pas (celles de l’Archive) prennent leur mouvement du dessin lui-même. Les icônes et la galerie montrent la pose de repos.
+- **Nouveau test (108 au total)** : pour chaque espèce qui a des membres, sur une marche en courbe, un arrêt et une projection au loin :
+  - chaque patte fait des pas, et chaque pied reste près de sa hanche ;
+  - chaque maillon de chaîne garde sa longueur ;
+  - les anneaux d’une colonne restent près du corps ;
+  - le regard reste borné ;
+  - sans état, la pose de repos.
+
+**Changements de règles à noter.**
+- **Aucun.** Tout est affaire de dessin : ni la taille des créatures, ni leurs coups, ni leurs déplacements ne changent.
+- **Performances** : environ 0,4 ms par image pour 70 créatures animées à l’écran (pieds, chaînes, colonnes), sans image perdue.
+
+## 1.17.0 — Le bestiaire vivant
+
+Chaque créature a désormais ses propres gestes : des attaques composées pour elle seule, et un mouvement procédural.
+
+- **Des attaques uniques.** Avant, les 77 espèces qui attaquaient se partageaient six attaques (morsure, tir, crachat, décharge, charge, impact), et les 71 autres n’avaient rien. Désormais, chaque espèce compose les siennes à partir de sa graine :
+  - **une famille**, d’après ce qu’elle faisait avant : mêlée, ruée, sol, projectiles, humeurs ou orage ;
+  - **une forme parmi 33** :
+    - mêlée : croc bondissant, griffes en croissant, dard venimeux, bond écrasant, toupie, étreinte ;
+    - ruée : charge, charge en zigzag, aller-retour, roulade brûlante, percée et onde ;
+    - sol : onde de choc, faille, double frappe, éruption, cratère ;
+    - projectiles : salve, éventail, tirs courbes, tir ondulant, boomerang, éclat qui se brise, orbe traqueur, mortier ;
+    - humeurs : crachat, chapelet de flaques, nappe, brume, bulle qui éclate ;
+    - orage : arc électrique (qui rebondit), faisceau, nova, piliers de foudre, orbe chargé ;
+  - **ses paramètres** : nombre de coups, angle, portée, délais, vitesse, taille.
+  Aucune espèce n’a la même combinaison qu’une autre : 186 jeux différents.
+- **Une seconde attaque** pour les prédateurs et pour une créature mineure sur trois, plus rare, d’une autre famille choisie selon sa façon de se déplacer : une volante tire ou foudroie, une marcheuse charge ou frappe le sol…
+- **Un réflexe** pour celles qui n’attaquent pas, et pour quelques autres. Frappées ou serrées de près, elles éblouissent (vous ralentit), repoussent, lâchent un nuage, esquivent, ou se roulent en boule (bien moins de dégâts).
+- **Les gardiens ont leur attaque signature**, la forme que leur graine leur a donnée, insérée dans chacune de leurs phases.
+- **Chaque attaque se prépare et se voit venir.**
+  - La créature se ramasse avant un bond ou une charge, se gonfle avant une onde, recule avant de mordre, prend son élan avant de tirer ; certaines tremblent d’impatience.
+  - Beaucoup tracent leur coup au sol : le cône des griffes et de la toupie, la ligne d’une charge ou d’un dard, le cercle d’une onde, d’un mortier, d’une éruption, d’un pilier.
+- **Un mouvement procédural pour toutes.**
+  - Chaque espèce a son tempérament de mouvement, tiré de sa graine : allure, rebond, écrasement à chaque pas, balancement, inclinaison dans les virages, battement d’ailes, respiration, regards au repos.
+  - Sauteuses, volantes, flottantes, rampantes et marcheuses ne bougent pas de la même façon : arc et écrasement à l’atterrissage, battement, dérive, ondulation, pas.
+  - La frappe a son geste : étirée en avant, tournoyante pour la toupie, en l’air pour un bond, reculant à chaque tir d’une salve. Le coup reçu la fait reculer, l’étourdissement chanceler. Son ombre rétrécit quand elle s’élève.
+- **Partout.** Vos compagnons utilisent les mêmes gestes ; les habitants du dos des colosses aussi, sans quitter leur place.
+- **Projectiles nouveaux** : courbes, ondulants, boomerangs, traqueurs, qui se brisent en éclats ou laissent une flaque à l’arrivée.
+- **Dans l’interface** : le bestiaire et la fiche des créatures capturées nomment leurs gestes (« Gestes. Salve de 4 ; puis bond écrasant (180 px) »). Un conseil, « Leurs gestes », s’affiche la première fois qu’une créature prépare son coup.
+- **Nouveaux tests (107 au total)** :
+  - à chaque espèce ses gestes, uniques, de la famille de son ancienne attaque, reproductibles d’une partie à l’autre ;
+  - des coups bornés par l’ancien budget ;
+  - la signature dans chaque phase des gardiens ;
+  - des allures différentes, et des poses bornées pour chaque geste.
+
+**Changements de règles à noter.**
+- **Dégâts** :
+  - chaque attaque reprend le budget de l’ancienne, ce qu’elle infligeait en un usage, réparti entre ses coups ; un coup ne dépasse jamais 1,35 fois l’ancien usage ;
+  - le rythme suit l’ancien délai (×0,9 à ×1,25), plus le temps de préparation ;
+  - la seconde attaque dispose de 80 % du budget, et revient toutes les 3,5 à 6 fois l’ancien délai.
+- **Réflexes** : de 4 à 8 s entre deux. En boule : −60 à −85 % de dégâts pendant 1,5 à 2,5 s. L’éblouissement vous ralentit de 35 à 60 % pendant 1 à 1,6 s.
+- **Gardiens** : leur signature dispose d’un budget de 1,4 fois la moyenne des dégâts de leurs motifs.
+- **Inchangé** : les colosses gardent leurs propres attaques, et les habitants des nations leurs armes.
+- Sauvegarde : le format reste le **6** ; les gestes se déduisent de la graine de chaque espèce.
+
+## 1.16.5 — Les colosses, nommés pour ce qu’ils sont
+
+Les textes des colosses dataient d’avant qu’ils deviennent des colosses.
+
+- **Leurs descriptions** décrivent désormais ce qu’on rencontre :
+  - leur forme (une forêt sur deux jambes de racines, un serpent de braises, une roue d’étoiles, une araignée grande comme un pays…) ;
+  - ce qui pousse et vit sur leur dos ;
+  - pour les colosses-cartes, que leur dos est la zone entière.
+  La Tortue-Monde ne porte plus « une ville entière », qu’on n’y voyait pas.
+- **Les indices de l’Artefact et la faiblesse des colosses-cartes** (Myriade, Spirale-mère, Berger d’amas, Tisserand, Relieur) parlaient encore de leur combat au sol : pattes qui se figent, dispersion, bras posés à l’arrêt. Ils disent maintenant où sont leurs sceaux, comment les rejoindre depuis leur dos, et ce que demande leur forme de capture.
+- **Les rangs portent des noms de colosses** : colosse régional, du monde, planétaire, stellaire, galactique, d’amas, de la Toile, du Pli. Avant : « ultra-boss régional », « souverain du monde », « organisme galactique »… On les retrouve dans le bestiaire, sur leur entrée en scène, dans la collection, la soute et les objectifs de rang.
+- **Le bestiaire donne leur forme et leur taille** : « Colosse araignée, 6 000 px, colosse-carte : son dos est la zone entière. »
+- Thalassor, une baleine, est désormais nommée au féminin partout.
+- En entrant dans le cœur d’un monde cosmique, le message ne répète plus le nom (« Noyau galactique : Noyau galactique »).
+
+**Changements de règles à noter.** Aucun : seuls les textes changent. Sauvegarde : format **6**.
+
+## 1.16.4 — Des colosses-biomes
+
+Les colosses-cartes n’étaient pas assez grands : leur dos doit être un biome, comme celui d’une tortue-monde.
+
+- **Trois fois plus grands.** La Myriade, la Spirale-mère, le Berger d’amas, le Tisserand et le Relieur mesurent désormais de 6 000 à 8 200 px. Leur dos fait la taille d’une zone entière, de 2 600 à 4 100 px de long. Leur zone grandit avec eux : ils y tiennent tout entiers, avec le vide autour.
+- **Leur dos est un biome**, celui de leur cœur de région, peint comme le sol d’une zone :
+  - son sol nuancé et son menu décor (herbes, cailloux, éclats…) ;
+  - des massifs de relief qui arrêtent le pas : on glisse le long, dans quelque sens que le colosse soit tourné. Ils forment des îlots séparés, et un liseré libre fait le tour du dos : on passe toujours entre eux, et l’on rejoint chaque membre ;
+  - des mares du danger du biome (magma, glace coupante…), qui brûlent et ralentissent comme au sol ;
+  - par-dessus, ce qui pousse selon le colosse (étoiles, fils, stèles…), ses gisements, et ses habitants, désormais en groupes de deux à quatre de la même espèce, chacun son coin, de 26 à 32 en tout.
+- **On marche sur tout son dos**, jusqu’à ses bords arrondis. Là où il recouvre d’autres parties (les attaches de ses pattes), c’est lui qui vous porte, reliefs compris ; ses membres commencent à son bord. Ses membres sont désormais des routes de plusieurs milliers de pixels vers ses sceaux du bas : on y court (1,4 fois la vitesse de marche), et la prise ne s’y use plus. Seules ses secousses la font perdre.
+- **Rien ne tourne sous vos pieds** : le colosse ne pivote plus en dérivant, et une roue-monde tourne à peine. Sur son dos, la caméra est réglée comme au sol d’une zone.
+- **La perspective reste à l’échelle de la vue** : un géant de cette taille se dessine avec une hauteur et une parallaxe plus douces.
+- **Ses attaques viennent à vous** :
+  - ses ondes naissent sous vos pieds, annoncées par un cercle ;
+  - son souffle ne porte pas d’un bout à l’autre de son dos : il ne souffle que si vous êtes à moins de 1 300 px de sa tête ;
+  - ses pluies, ses fils et son rugissement ne changent pas.
+- La plateforme se pose à l’écart du sceau de son dos, qui ne la recouvre plus. Les nœuds de la trame du Tisserand apparaissent autour de vous, à moins de 800 px.
+- **Les performances sont tenues** : le terrain du dos est peint par morceaux, à la demande, puis gardé en une image à l’échelle de l’écran. De loin, une miniature suffit.
+- Tests (105) : le test des colosses-cartes vérifie aussi :
+  - un dos à l’échelle d’une zone, avec des reliefs ;
+  - la plateforme et les sceaux sur un sol libre ;
+  - un dos d’un seul tenant ;
+  - une zone qui le contient tout entier.
+
+**Changements de règles à noter.**
+- **Taille des colosses-cartes** : trois fois la taille de leur rang (`D.COLOSSUS_MAP_SCALE`). Leurs coups gardent leur mesure (bornée à 1 100 px).
+- **Dos-biome** :
+  - reliefs : de 7 à 18 % du dos selon l’ouverture du biome, en îlots séparés d’au moins deux cases ;
+  - mares : selon la part de danger du biome ;
+  - toujours dégagés : la plateforme (7 cases), les sceaux du dos (4 cases), les attaches des membres (5 cases) et un liseré au bord du dos.
+- **Sur les membres d’un colosse-carte** : 1,4 fois la vitesse de marche (0,8 en 1.16.3).
+- **Prise sur un colosse-carte** : elle ne s’use plus en marchant ni à l’arrêt, même sur ses membres ; tenir pendant une secousse coûte toujours 5 % par seconde, et elle remonte sur une surface plate.
+- **Habitants d’un colosse-carte** : 12 + 2 × le rang (40 au plus), en groupes de 2 à 4.
+- **Onde d’un colosse-carte** : centrée à moins de 220 px de vous. **Souffle** : seulement à moins de 1 300 px de sa tête.
+- Sauvegarde : le format reste le **6** ; le dos est tiré de la graine du monde.
+
 ## 1.16.3 — Des colosses-cartes
 
 Les plus grands maîtres deviennent la carte elle-même ; les montures ne rendent plus invulnérable.

@@ -213,7 +213,7 @@
     const parts = [];
     let done = 0, tot = 0;
     const add = (k, label) => { if (!n[k]) return; parts.push(Math.min(c[k] || 0, n[k]) + '/' + n[k] + ' ' + label); done += Math.min(c[k] || 0, n[k]) / n[k]; tot++; };
-    add('territories', 'territoires'); add('guardians', 'gardiens'); add('ultras', 'ultra-boss'); add('souverains', 'souverains');
+    add('territories', 'territoires'); add('guardians', 'gardiens'); add('ultras', 'colosses régionaux'); add('souverains', 'colosses du monde');
     add('cataclysmes', 'cataclysmes'); add('astres', 'astres'); add('stellaires', 'entités stellaires'); add('galactiques', 'organismes galactiques'); add('amas', 'entités d’amas'); add('toiles', 'entités de la Toile');
     return { name: rk.next.mystery ? '???' : rk.next.name, k: tot ? done / tot : 0, short: parts.join(', '), text: 'Prochain rang : ' + (rk.next.mystery ? '???' : rk.next.name) + ' (' + parts.join(', ') + ')' };
   }
@@ -1031,14 +1031,14 @@
       h('section', null, h('h4', null, 'Synergies actives (' + syns.length + ')'),
         syns.length ? h('ul', { class: 'rows' }, syns.map((s) => h('li', null, h('b', { class: s.syn.mult < 0 ? 'warn' : 'good' }, s.syn.name), h('span', { class: 'grow' }, D.BIOME[s.a.biome].name + ' et ' + D.BIOME[s.b.biome].name, h('small', null, s.syn.desc))))) : h('p', { class: 'muted' }, 'Aucune pour l’instant. Placez côte à côte des territoires aux climats complémentaires, ou laissez l’Archive se ranger (' + AN.Input.label('KeyV') + ' dans l’Archive).')),
       h('section', null, h('h4', null, 'Pouvoirs acquis'),
-        powers.list.length ? h('ul', { class: 'rows' }, powers.list.map((p) => h('li', null, AN.Icons.img('creature', p.species, 30), h('span', { class: 'grow' }, p.name, h('small', null, p.desc + (p.global ? ' (influence d’un ultra-boss)' : ' (pouvoir territorial)')))))) : h('p', { class: 'muted' }, 'Capturez un gardien pour obtenir son pouvoir territorial.')));
+        powers.list.length ? h('ul', { class: 'rows' }, powers.list.map((p) => h('li', null, AN.Icons.img('creature', p.species, 30), h('span', { class: 'grow' }, p.name, h('small', null, p.desc + (p.global ? ' (influence d’un colosse)' : ' (pouvoir territorial)')))))) : h('p', { class: 'muted' }, 'Capturez un gardien pour obtenir son pouvoir territorial.')));
   };
   function needText(n) {
     const p = [];
     if (n.territories) p.push(n.territories + ' territoires');
     if (n.guardians) p.push(n.guardians + ' gardien' + (n.guardians > 1 ? 's' : ''));
-    if (n.ultras) p.push(n.ultras + ' ultra-boss');
-    if (n.souverains) p.push(n.souverains + ' souverain' + (n.souverains > 1 ? 's' : '') + ' du monde');
+    if (n.ultras) p.push(n.ultras + (n.ultras > 1 ? ' colosses régionaux' : ' colosse régional'));
+    if (n.souverains) p.push(n.souverains + ' colosse' + (n.souverains > 1 ? 's' : '') + ' du monde');
     if (n.cataclysmes) p.push(n.cataclysmes + ' cataclysme' + (n.cataclysmes > 1 ? 's' : ''));
     if (n.astres) p.push(n.astres + ' astres');
     if (n.stellaires) p.push(n.stellaires + ' entité' + (n.stellaires > 1 ? 's' : '') + ' stellaire' + (n.stellaires > 1 ? 's' : ''));
@@ -1091,7 +1091,7 @@
     const all = D.TIERS.map((x) => x.id);
     const tiers = all.filter(tierOpen);
     const hidden = all.filter((t) => t >= 4 && !tierOpen(t)).length;
-    const TITLES = ['Créatures mineures', 'Prédateurs', 'Gardiens de zone', 'Ultra-boss régionaux', 'Souverains du monde', 'Cataclysmes planétaires', 'Entités stellaires', 'Organismes galactiques', 'Entités d’amas', 'Entités de la Toile', 'Entités du Pli'];
+    const TITLES = ['Créatures mineures', 'Prédateurs', 'Gardiens de zone', 'Colosses régionaux', 'Colosses du monde', 'Colosses planétaires', 'Colosses stellaires', 'Colosses galactiques', 'Colosses d’amas', 'Colosses de la Toile', 'Colosses du Pli'];
     return page('bestiaire', 'Bestiaire', seen + ' espèces observées, ' + caught + ' capturées.', null,
       tiers.map((t) => h('section', null, h('h4', null, TITLES[t]),
         h('div', { class: 'beast-grid' }, D.CREATURES.filter((c) => c.tier === t).map((c) => {
@@ -1102,9 +1102,10 @@
             h('b', null, c.name),
             h('small', null, c.biomes.map((x) => D.BIOME[x].name).join(', ')),
             h('p', null, c.desc),
+            AN.Kits && AN.Kits.of(c) ? h('p', { class: 'beast-kit' }, h('b', null, 'Gestes. '), AN.Kits.of(c).name + '.') : null, // son jeu d'attaques, à elle seule (1.17)
             h('small', { class: 'muted' }, (b.captured ? 'Capturée ×' + b.captured : 'Jamais capturée') + (b.killed ? ', vaincue ×' + b.killed : '')),
             // un colosse (1.16) : sa faiblesse, dès le premier sceau brisé
-            D.COLOSSI && D.COLOSSI[c.id] ? h('p', { class: 'beast-secret' + (b.secret ? '' : ' muted') }, h('b', null, 'Colosse. '), b.secret ? D.COLOSSI[c.id].secret : 'Sa faiblesse reste à découvrir : brisez l’un de ses sceaux.') : null,
+            D.COLOSSI && D.COLOSSI[c.id] ? h('p', { class: 'beast-secret' + (b.secret ? '' : ' muted') }, h('b', null, 'Colosse ' + D.COLOSSUS_PLAN_NAME[D.COLOSSI[c.id].plan] + ', ' + U.fmt(Math.round(AN.Colossus.length(c) / 100) * 100) + ' px' + (AN.Colossus.isMap(c) ? ', colosse-carte : son dos est la zone entière. ' : '. ')), b.secret ? D.COLOSSI[c.id].secret : 'Sa faiblesse reste à découvrir : brisez l’un de ses sceaux.') : null,
             c.tier <= 2 && c.biomes.length ? btn('Chercher', () => UI.seek('creature', c.id), 'ghost tiny seek', { title: 'Indiquer quels mondes abritent ' + c.name }) : null);
         })))),
       hidden + D.HIGHER_TIERS.length ? h('section', null, h('h4', null, 'Échelons supérieurs'),
@@ -1165,7 +1166,7 @@
           h('dt', null, 'Créatures capturées'), h('dd', null, st.captures),
           h('dt', null, 'Créatures vaincues'), h('dd', null, st.kills),
           h('dt', null, 'Gardiens capturés'), h('dd', null, st.guardians),
-          h('dt', null, 'Ultra-boss capturés'), h('dd', null, st.ultras),
+          h('dt', null, 'Colosses régionaux capturés'), h('dd', null, st.ultras),
           st.cosmic ? [h('dt', null, 'Êtres cosmiques capturés'), h('dd', null, st.cosmic)] : null,
           (prof.cosmos && prof.cosmos.astres.length) ? [h('dt', null, 'Astres retenus'), h('dd', null, prof.cosmos.astres.length)] : null,
           h('dt', null, 'Extractions d’urgence'), h('dd', null, st.emergencies),

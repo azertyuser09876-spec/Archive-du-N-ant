@@ -39,6 +39,8 @@
       x: o.x, y: o.y, vx: Math.cos(o.angle) * o.speed, vy: Math.sin(o.angle) * o.speed,
       r: o.size || 4, dmg: o.dmg, team: o.team, color: o.color || '#ffffff', life: o.life || (o.range ? o.range / o.speed : 2),
       pierce: o.pierce || 0, slow: o.slow || 0, explode: o.explode || 0, hits: new Set(), owner: o.owner || null, heavy: !!o.heavy, net: o.net || 0,
+      // trajectoires du bestiaire vivant (1.17) : courbe, onde, retour, poursuite, éclats, flaque à l'arrivée
+      t: 0, turn: o.turn || 0, wave: o.wave || null, ret: o.ret || 0, home: o.home || 0, split: o.split || null, burst: o.burst || null, bx: o.x, by: o.y,
     };
     X.projectiles.push(p);
     return p;
@@ -54,6 +56,7 @@
     if (target.col && !opts.seal) return AN.Colossus.hit(X, target, dmg, src, opts);
     if (target.boss && (target.boss.invuln > 0 || target.boss.underground)) return 0;
     let d = dmg * (1 - (target.armor || 0));
+    if (target.shellT > 0) d *= 1 - (target.shellK || 0.7); // roulée en boule (réflexe, 1.17)
     if (target.boss && target.boss.exhausted) {
       // épuisé : il ne peut plus tomber, seulement être capturé ou achevé
       d = 0;
@@ -88,7 +91,7 @@
     if (target.hp <= 0) {
       if (target.isBoss && target.team === 'wild') AN.Boss.onZero(X, target);
       else C.kill(X, target, src);
-    }
+    } else if (target.team === 'wild' && !target.isBoss && target.kind === 'creature' && AN.Kits) AN.Kits.reflex(X, target); // son réflexe, si elle en a un (1.17)
     return d;
   };
 
@@ -159,7 +162,7 @@
 
   /** Zone d'effet annoncée : cercle (pluie, impact) qui frappe après un délai. */
   C.telegraph = (X, o) => {
-    X.telegraphs.push({ kind: o.kind || 'circle', x: o.x, y: o.y, r: o.r, t: 0, windup: o.windup || 1, dmg: o.dmg, team: o.team || 'wild', color: o.color || AN.STAMP, angle: o.angle || 0, len: o.len || 0, width: o.width || 0, follow: o.follow || null, onDone: o.onDone || null, silent: o.silent });
+    X.telegraphs.push({ kind: o.kind || 'circle', x: o.x, y: o.y, r: o.r, t: 0, windup: o.windup || 1, dmg: o.dmg, team: o.team || 'wild', color: o.color || AN.STAMP, angle: o.angle || 0, len: o.len || 0, width: o.width || 0, arc: o.arc || 1, follow: o.follow || null, onDone: o.onDone || null, silent: o.silent });
     if (!o.silent) AN.Audio.play('telegraph', { gap: 0.15 });
   };
   C.pool = (X, o) => {
@@ -178,7 +181,22 @@
     for (let i = X.projectiles.length - 1; i >= 0; i--) {
       const p = X.projectiles[i];
       p.life -= dt;
-      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.t += dt;
+      if (p.turn) { const a = p.turn * dt, c = Math.cos(a), sn = Math.sin(a), vx = p.vx; p.vx = vx * c - p.vy * sn; p.vy = vx * sn + p.vy * c; }
+      if (p.home) { // il poursuit la cible la plus proche, en tournant à vitesse bornée
+        let tg = null, bd = 420;
+        for (const t of C.enemiesOf(X, p.team)) { const d = U.dist(t.x, t.y, p.x, p.y); if (d < bd) { bd = d; tg = t; } }
+        if (tg) { const sp = Math.hypot(p.vx, p.vy), a0 = Math.atan2(p.vy, p.vx), a = a0 + U.clamp(U.angDiff(a0, Math.atan2(tg.y - p.y, tg.x - p.x)), -p.home * dt, p.home * dt); p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp; }
+      }
+      if (p.ret && p.t >= p.ret && p.owner && p.owner.alive !== false) { // un boomerang : il revient à qui l'a lancé
+        const sp = Math.hypot(p.vx, p.vy), a = Math.atan2(p.owner.y - p.y, p.owner.x - p.x);
+        p.vx += (Math.cos(a) * sp - p.vx) * Math.min(1, dt * 5); p.vy += (Math.sin(a) * sp - p.vy) * Math.min(1, dt * 5);
+        if (!p.back) { p.back = true; p.hits.clear(); }
+        if (U.dist(p.x, p.y, p.owner.x, p.owner.y) < (p.owner.r || 10)) p.life = 0;
+      }
+      p.bx += p.vx * dt; p.by += p.vy * dt;
+      if (p.wave) { const sp = Math.hypot(p.vx, p.vy) || 1, off = Math.sin(p.t * p.wave.freq + (p.wave.ph || 0)) * p.wave.amp; p.x = p.bx - (p.vy / sp) * off; p.y = p.by + (p.vx / sp) * off; }
+      else { p.x = p.bx; p.y = p.by; }
       let dead = p.life <= 0;
       if (!dead && Z.isSolid(Z.tileAt(zone, p.x, p.y))) {
         dead = true;
@@ -212,6 +230,12 @@
       }
       if (dead) {
         if (p.explode) C.explode(X, p.x, p.y, p.explode, p.dmg, p.team, p.color === AN.INK ? '#6a5ad8' : p.color, p.owner);
+        if (p.split) { // il se brise en éclats
+          const S = p.split, a0 = Math.atan2(p.vy, p.vx);
+          for (let k = 0; k < S.n; k++) C.shoot(X, { x: p.x, y: p.y, angle: a0 + Math.PI + ((k + 0.5) / S.n - 0.5) * Math.PI * 1.6 + Math.PI, speed: S.speed, dmg: S.dmg, team: p.team, size: S.size, color: p.color, range: S.range, owner: p.owner });
+          FX.burst(p.x, p.y, p.color, 8, 140, { size: 2.5 });
+        }
+        if (p.burst) { C.pool(X, { x: p.x, y: p.y, r: p.burst.r, dps: p.burst.dps, life: p.burst.life, color: p.burst.color, team: p.team }); FX.ring(p.x, p.y, p.burst.color, 6, p.burst.r, 0.3, 3); }
         X.projectiles.splice(i, 1);
       }
     }
@@ -227,6 +251,8 @@
           FX.burst(t.x, t.y, t.color, 10, 150, { size: 3 });
           for (const e of C.enemiesOf(X, t.team)) if (U.dist(t.x, t.y, e.x, e.y) <= t.r + e.r * 0.5) C.hit(X, e, t.dmg, { x: t.x, y: t.y }, { knock: 200 });
           X.cam.shake(3);
+        } else if (t.kind === 'cone') { // un cône (griffes, toupie : bestiaire vivant, 1.17) : l'annonce seule ; le coup est porté par la créature
+          FX.ring(t.x, t.y, t.color, t.r * 0.5, t.r, 0.2, 2);
         } else if (t.kind === 'line') {
           for (const e of C.enemiesOf(X, t.team)) {
             if (distToSegment(e.x, e.y, t.x, t.y, t.x + Math.cos(t.angle) * t.len, t.y + Math.sin(t.angle) * t.len) <= t.width / 2 + e.r) C.hit(X, e, t.dmg, { x: t.x, y: t.y }, { knock: 220 });
@@ -345,6 +371,11 @@
         ctx.setLineDash([]);
         ctx.fillStyle = U.rgba(AN.STAMP, 0.3);
         ctx.beginPath(); ctx.arc(tg.x, tg.y, tg.r * k, 0, TAU); ctx.fill();
+      } else if (tg.kind === 'cone') {
+        ctx.beginPath(); ctx.moveTo(tg.x, tg.y); ctx.arc(tg.x, tg.y, tg.r, tg.angle - tg.arc / 2, tg.angle + tg.arc / 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = U.rgba(AN.STAMP, 0.25);
+        ctx.beginPath(); ctx.moveTo(tg.x, tg.y); ctx.arc(tg.x, tg.y, tg.r * k, tg.angle - tg.arc / 2, tg.angle + tg.arc / 2); ctx.closePath(); ctx.fill();
       } else if (tg.kind === 'line') {
         ctx.save(); ctx.translate(tg.x, tg.y); ctx.rotate(tg.angle);
         ctx.fillRect(0, -tg.width / 2, tg.len, tg.width); ctx.strokeRect(0, -tg.width / 2, tg.len, tg.width);

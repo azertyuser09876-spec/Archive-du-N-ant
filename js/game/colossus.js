@@ -30,6 +30,8 @@
   Co.def = (id) => D.COLOSSI && D.COLOSSI[id];
   /** Les plus gros sont la carte (1.16.3) : la zone du cœur, c'est leur corps, et le vide tout autour. */
   Co.isMap = (def) => !!(def && Co.def(def.id) && def.tier >= (D.COLOSSUS_MAP_TIER || 99));
+  /** Sa longueur : selon son rang, sa taille propre, et trois fois plus pour un colosse-carte (1.16.4). */
+  Co.length = (def) => (D.COLOSSUS_LENGTH[def.tier] || 1000) * ((Co.def(def.id) || {}).size || 1) * (Co.isMap(def) ? D.COLOSSUS_MAP_SCALE || 1 : 1);
   Co.is = (e) => !!(e && e.col);
 
   /* ======================= Géométrie ======================= */
@@ -51,13 +53,13 @@
    */
   const V = (Co.view = { x: 0, y: 0, k: 0.18, on: false });
   Co.setView = (cam) => { if (cam && Number.isFinite(cam.x)) { V.x = cam.x; V.y = cam.y; V.on = true; } };
-  Co.proj = function (x, y, z, lift) {
-    const zz = Math.max(0, z), s = 1 + V.k * zz;
+  Co.proj = function (x, y, z, lift, k) {
+    const zz = Math.max(0, z), s = 1 + (k != null ? k : V.k) * zz;
     if (!V.on) return { x, y: y - zz * lift, s: 1 };
     return { x: V.x + (x - V.x) * s, y: V.y + (y - V.y) * s - zz * lift, s };
   };
   const liftOf = (col) => col.ZH * 0.6;
-  const PN = (col, n) => Co.proj(n.x, n.y, n.z, liftOf(col));
+  const PN = (col, n) => Co.proj(n.x, n.y, n.z, liftOf(col), col.persp); // un colosse-carte : une perspective plus douce (1.16.4)
   Co.pn = PN;
   const sx = (col, n) => PN(col, n).x;
   const sy = (col, n) => PN(col, n).y;
@@ -70,6 +72,15 @@
     if (c.disc) { // un disque (le moyeu d'une roue) : t le traverse de gauche à droite, off de haut en bas
       const u = t * 2 - 1, k = Math.sqrt(Math.max(0, 1 - u * u)) * off, r0 = U.lerp(c.ra, c.rb, t) * 0.85;
       return { x: (pa.x + pb.x) / 2 + u * r * 0.85, y: (pa.y + pb.y) / 2 + k * r * 0.85, gx: (A.x + B.x) / 2 + u * r0, gy: (A.y + B.y) / 2 + k * r0, z, r, s, under: A.under && B.under };
+    }
+    if (c.stadium && (t < 0 || t > 1)) { // au-delà d'un bout : sur sa rondeur (le dos d'un colosse-carte, 1.16.4)
+      const len = Math.hypot(B.x - A.x, B.y - A.y) || 1, rr = t < 0 ? c.ra : c.rb, du = (t < 0 ? -t : t - 1) * len;
+      const avail = Math.sqrt(Math.max(0, rr * rr - du * du)) / Math.max(1, rr), tc = U.clamp(t, 0, 1);
+      const zc = U.lerp(A.z, B.z, tc), sc = U.lerp(pa.s, pb.s, tc), rc = rr * sc;
+      const ex = U.lerp(pa.x, pb.x, t), ey = U.lerp(pa.y, pb.y, t), dx = pb.x - pa.x, dy = pb.y - pa.y, l = Math.hypot(dx, dy) || 1;
+      const o = off * rc * 0.85 * avail;
+      const gdx = B.x - A.x, gdy = B.y - A.y, go = off * rr * 0.85 * avail;
+      return { x: ex + (-dy / l) * o, y: ey + (dx / l) * o, gx: U.lerp(A.x, B.x, t) + (-gdy / len) * go, gy: U.lerp(A.y, B.y, t) + (gdx / len) * go, z: zc, r: rc * avail, s: sc, under: A.under && B.under };
     }
     let x = U.lerp(pa.x, pb.x, t), y = U.lerp(pa.y, pb.y, t);
     if (off) {
@@ -456,7 +467,7 @@
   Co.setup = function (X, e, zone) {
     const cd = Co.def(e.def.id);
     if (!cd) return null;
-    const L = (D.COLOSSUS_LENGTH[e.def.tier] || 1000) * (cd.size || 1);
+    const L = Co.length(e.def);
     const rng = AN.RNG.from(X.world.seed, 'colosse' + zone.index);
     // tout son corps reste dans la zone : son centre se tient loin des bords
     const m = Math.min(L * 0.5, zone.w * Z.T * 0.32, zone.h * Z.T * 0.32);
@@ -471,11 +482,13 @@
     });
     // il naît loin des bords (son antre peut en être proche) ; un colosse-carte, au centre de sa zone
     col.map = Co.isMap(e.def);
+    if (col.map) { col.ZH = Math.min(L * 0.16, 480); col.persp = 0.07; } // un géant : sa hauteur et sa perspective restent à l'échelle de la vue (1.16.4)
     if (col.map) { const cx = (zone.w * Z.T) / 2, cy = (zone.h * Z.T) / 2; col.x = cx; col.y = cy; zb.x0 = cx - 160; zb.x1 = cx + 160; zb.y0 = cy - 160; zb.y1 = cy + 160; col.lair = { x: cx, y: cy }; }
     col.x = U.clamp(col.x, zb.x0, zb.x1); col.y = U.clamp(col.y, zb.y0, zb.y1);
     col.lair = { x: U.clamp(col.lair.x, zb.x0, zb.x1), y: U.clamp(col.lair.y, zb.y0, zb.y1) };
     e.x = col.x; e.y = col.y;
     PLANS[cd.plan].build(col, cd);
+    if (col.map && col.plan === 'roue') col.spinMax = Math.min(col.spinMax, 0.12); // une roue-monde tourne à peine : la pointe de ses bras va au pas
     const per = Math.max(60, Math.round((e.maxHp * D.COLOSSUS_SEAL_SHARE) / cd.seals.length));
     col.seals = cd.seals.map((s) => ({ at: s.at, kind: s.kind, hp: per, max: per, broken: false, open: false }));
     e.r = Math.min(L * 0.15, 220); // le cœur du colosse : portée de la capture, des formes et du coup de grâce (borné : les formes de capture gardent leur mesure)
@@ -1041,8 +1054,13 @@
     return A.t > 3.2;
   };
   ACTS.onde = (X, e, col, A) => {
-    if (A.t > 0.5 && !A.n) { A.n = 1; AN.Combat.shockwave(X, { x: col.x, y: col.y, r0: col.A * 0.15, speed: 300, max: col.A * 0.9, width: 26, dmg: col.dmg * 0.6, team: 'wild', color: e.pal.accent }); X.cam.shake(6); AN.Audio.play('explosion', { pitch: 0.6 }); }
-    if (A.t > 1.2 && A.n === 1) { A.n = 2; AN.Combat.shockwave(X, { x: col.x, y: col.y, r0: col.A * 0.15, speed: 300, max: col.A * 0.9, width: 26, dmg: col.dmg * 0.6, team: 'wild', color: e.pal.accent }); }
+    // un colosse-carte : l'onde naît sous vos pieds, dans son dos immense (1.16.4) ; on la voit venir
+    if (A.cx == null) {
+      if (col.map) { A.cx = X.player.x + rnd(-220, 220); A.cy = X.player.y + rnd(-220, 220); FX.ring(A.cx, A.cy, U.rgba(e.pal.accent, 0.8), 10, col.A * 0.15, 0.5, 4); }
+      else { A.cx = col.x; A.cy = col.y; }
+    }
+    if (A.t > 0.5 && !A.n) { A.n = 1; AN.Combat.shockwave(X, { x: A.cx, y: A.cy, r0: col.A * 0.15, speed: 300, max: col.A * 0.9, width: 26, dmg: col.dmg * 0.6, team: 'wild', color: e.pal.accent }); X.cam.shake(6); AN.Audio.play('explosion', { pitch: 0.6 }); }
+    if (A.t > 1.2 && A.n === 1) { A.n = 2; AN.Combat.shockwave(X, { x: A.cx, y: A.cy, r0: col.A * 0.15, speed: 300, max: col.A * 0.9, width: 26, dmg: col.dmg * 0.6, team: 'wild', color: e.pal.accent }); }
     return A.t > 1.6;
   };
   ACTS.roulement = (X, e, col, A, dt) => {
@@ -1104,7 +1122,8 @@
     const L = col.L;
     // un colosse-carte s'en prend à ce qui est sur lui : pluies, ondes, souffle, fils, rugissement
     if (col.map) { // pondérées : les pluies et les ondes surtout, le rugissement (qui secoue) plus rarement
-      const back = ['pluie', 'pluie', 'pluie', 'onde', 'onde', 'souffle', 'souffle', 'rugissement'].concat(col.plan === 'araignee' ? ['toile', 'toile'] : [], col.plan === 'roue' ? ['inversion'] : []);
+      const nearMouth = U.dist(p.x, p.y, col.mouth.x, col.mouth.y) < 1300; // son souffle ne porte pas d'un bout à l'autre de son dos
+      const back = ['pluie', 'pluie', 'pluie', 'onde', 'onde', 'rugissement'].concat(nearMouth ? ['souffle', 'souffle'] : [], col.plan === 'araignee' ? ['toile', 'toile'] : [], col.plan === 'roue' ? ['inversion'] : []);
       return back[Math.floor(Math.random() * back.length)];
     }
     const list = cd.attacks.concat(cd.signature && !cd.attacks.includes(cd.signature) ? [cd.signature] : []);
@@ -1159,8 +1178,8 @@
     const sp = Math.min(L * (col.plan === 'serpent' ? 0.34 : col.plan === 'volant' ? 0.55 : 0.2), col.plan === 'serpent' ? 380 : col.plan === 'volant' ? 520 : 240) * col.rage;
     if (b.active && b.introT > 0 && col.plan !== 'volant') { col.vx *= 0.85; col.vy *= 0.85; return; } // il entre en scène : il vous regarde
     if (col.map) { // il est la carte : il respire, piétine, tourne à peine sur lui-même
-      col.vx += (Math.cos(col.t * 0.13) * 22 - col.vx) * Math.min(1, dt); col.vy += (Math.sin(col.t * 0.11) * 22 - col.vy) * Math.min(1, dt);
-      if (col.plan === 'roue') col.spinRate += (0.25 * (Math.sign(col.spinRate) || 1) - col.spinRate) * Math.min(1, dt * 0.8);
+      col.vx += (Math.cos(col.t * 0.13) * 8 - col.vx) * Math.min(1, dt); col.vy += (Math.sin(col.t * 0.11) * 8 - col.vy) * Math.min(1, dt); // le monde ne tourne pas sous vos pieds
+      if (col.plan === 'roue') col.spinRate += (0.04 * (Math.sign(col.spinRate) || 1) - col.spinRate) * Math.min(1, dt * 0.8);
       return;
     }
     if (col.stun > 0 || col.biteTail > 0 || col.hidden > 0) { col.vx *= 0.85; col.vy *= 0.85; return; }
@@ -1286,7 +1305,7 @@
     col.x += col.vx * dt; col.y += col.vy * dt;
     col.x = U.clamp(col.x, col.bounds.x0, col.bounds.x1); col.y = U.clamp(col.y, col.bounds.y0, col.bounds.y1);
     col.walk += dt * (1.2 + Math.hypot(col.vx, col.vy) / (col.L * 0.08));
-    if (col.plan !== 'volant' && col.plan !== 'roue' && col.plan !== 'serpent' && Math.hypot(col.vx, col.vy) > 5) col.a += U.clamp(U.angDiff(col.a, Math.atan2(col.vy, col.vx)), -dt * 1.2, dt * 1.2) * 0.3;
+    if (col.plan !== 'volant' && col.plan !== 'roue' && col.plan !== 'serpent' && !col.map && Math.hypot(col.vx, col.vy) > 5) col.a += U.clamp(U.angDiff(col.a, Math.atan2(col.vy, col.vx)), -dt * 1.2, dt * 1.2) * 0.3;
     col.spin += col.spinRate * dt;
     for (const k in col.n) { const n = col.n[k]; n.ox = n.x; n.oy = n.y; }
     PLANS[col.plan].pose(X, e, col, dt);
@@ -1366,6 +1385,15 @@
       const k = Math.sqrt(Math.max(1e-4, 1 - Math.min(1, u * u)));
       return { t: U.clamp((u + 1) / 2, 0, 1), off: U.clamp(v / k, -9, 9), inside: u * u + v * v <= 1 };
     }
+    if (c.stadium) { // le dos d'un colosse-carte : jusqu'à ses bords arrondis (1.16.4)
+      const dx = pb.x - pa.x, dy = pb.y - pa.y, l = Math.hypot(dx, dy) || 1;
+      const t = ((x - pa.x) * dx + (y - pa.y) * dy) / (l * l);
+      const tmin = -(c.ra * pa.s) / l, tmax = 1 + (c.rb * pb.s) / l, tt = U.clamp(t, tmin, tmax);
+      const tc = U.clamp(tt, 0, 1), r = U.lerp(c.ra * pa.s, c.rb * pb.s, tc);
+      const du = tt < 0 ? -tt * l : tt > 1 ? (tt - 1) * l : 0, avail = Math.sqrt(Math.max(0, r * r - du * du));
+      const off = ((x - pa.x) * -dy + (y - pa.y) * dx) / l / Math.max(1, avail * 0.85);
+      return { t: tt, off: U.clamp(off, -9, 9), inside: t >= tmin && t <= tmax && Math.abs(off) <= 1 && avail > 4 };
+    }
     const dx = pb.x - pa.x, dy = pb.y - pa.y, l2 = dx * dx + dy * dy || 1, l = Math.sqrt(l2);
     const t = ((x - pa.x) * dx + (y - pa.y) * dy) / l2;
     const tc = U.clamp(t, 0, 1);
@@ -1401,18 +1429,139 @@
     plumes: ['braise', 'herbe', 'braise'], engrenages: ['rouage', 'ruine', 'rocher'], rayons: ['braise', 'cristal'], etoiles: ['etoile', 'cristal', 'etoile'],
     spirale: ['etoile', 'herbe', 'etoile'], pages: ['ruine', 'herbe', 'ruine'], fils: ['toile', 'etoile', 'toile'], 'cratères': ['rocher', 'cristal', 'rocher'],
   };
+  /* ======================= Le dos-biome d'un colosse-carte (1.16.4) ======================= */
+  // Son dos est un paysage de son biome : une grille dans le repère de sa plus grande surface plate
+  // (u le long de la capsule, v en travers, en px au sol), avec son sol, ses reliefs, ses mares, son décor.
+  const BT = 32, OUT = 255;
+  /** Position (t, off) sur la capsule du dos → (u, v). */
+  function backUV(col, c, t, off) {
+    if (c.disc) { const R = c.ra * 0.85, un = t * 2 - 1, k = Math.sqrt(Math.max(0, 1 - un * un)); return { u: 1 + un * R, v: k * off * R }; }
+    const A = col.n[c.a], B = col.n[c.b], len = Math.hypot(B.x - A.x, B.y - A.y) || 1;
+    const r = t < 0 ? c.ra : t > 1 ? c.rb : U.lerp(c.ra, c.rb, t), du = t < 0 ? -t * len : t > 1 ? (t - 1) * len : 0;
+    return { u: t * len, v: off * Math.sqrt(Math.max(0, r * r - du * du)) * 0.85 };
+  }
+  /** (u, v) → (t, off) sur la capsule du dos. */
+  function backTO(col, c, u, v) {
+    if (c.disc) { const R = c.ra * 0.85, un = U.clamp((u - 1) / R, -0.999, 0.999), k = Math.sqrt(1 - un * un); return { t: (un + 1) / 2, off: v / (k * R) }; }
+    const A = col.n[c.a], B = col.n[c.b], len = Math.hypot(B.x - A.x, B.y - A.y) || 1, t = u / len;
+    const r = t < 0 ? c.ra : t > 1 ? c.rb : U.lerp(c.ra, c.rb, t), du = t < 0 ? -t * len : t > 1 ? (t - 1) * len : 0;
+    return { t, off: v / Math.max(1, Math.sqrt(Math.max(0, r * r - du * du)) * 0.85) };
+  }
+  /** La case du dos sous (t, off) : FLOOR, WALL, HAZARD ; null hors du dos. */
+  function backCell(col, capIdx, t, off) {
+    const B = col.back;
+    if (!B || capIdx !== B.cap) return null;
+    const q = backUV(col, col.caps[B.cap], t, off);
+    const i = Math.floor((q.u - B.u0) / BT), j = Math.floor((q.v - B.v0) / BT);
+    if (i < 0 || j < 0 || i >= B.w || j >= B.h) return null;
+    const g = B.grid[j * B.w + i];
+    return g === OUT ? null : g;
+  }
+  Co.backCell = backCell;
+  Co.backUV = backUV; Co.backTO = backTO;
+  /** Une case libre de son dos, au hasard : { cap, t, off } (loin de la plateforme si on le demande). */
+  function backSpot(col, rng, away) {
+    const B = col.back, c = col.caps[B.cap];
+    for (let k = 0; k < 200; k++) {
+      const i = rng.int(1, B.w - 2), j = rng.int(1, B.h - 2);
+      if (B.grid[j * B.w + i] !== Z.FLOOR) continue;
+      // pas collé à un relief
+      let near = false;
+      for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) if (B.grid[(j + dy) * B.w + i + dx] === Z.WALL) near = true;
+      if (near) continue;
+      const u = B.u0 + (i + 0.5) * BT, v = B.v0 + (j + 0.5) * BT;
+      if (away && B.pad && Math.hypot(u - B.pad.u, v - B.pad.v) < away) continue;
+      const to = backTO(col, c, u, v);
+      if (Math.abs(to.off) > 0.95) continue;
+      return { cap: c.i, t: to.t, off: to.off, u, v };
+    }
+    return { cap: c.i, t: 0.5, off: 0, u: 0, v: 0 };
+  }
+  Co.backSpot = backSpot;
+  function buildBack(X, e, col, zone, rng, cap) {
+    const b = D.BIOME[zone.biome] || D.BIOME[((X.world.zones || [])[0] || {}).biome] || D.BIOMES[0];
+    const A = col.n[cap.a], Bn = col.n[cap.b], len = cap.disc ? 0 : Math.hypot(Bn.x - A.x, Bn.y - A.y);
+    const R = Math.max(cap.ra, cap.rb);
+    const u0 = cap.disc ? 1 - R : -R, v0 = -R;
+    const w = Math.ceil((cap.disc ? 2 * R : len + 2 * R) / BT), h = Math.ceil((2 * R) / BT);
+    const B = (col.back = { cap: cap.i, biome: b.id, u0, v0, w, h, grid: new Uint8Array(w * h).fill(OUT), shade: new Float32Array(w * h), decor: [] });
+    const rad = (u) => (cap.disc ? R : U.lerp(cap.ra, cap.rb, U.clamp(u / Math.max(1, len), 0, 1)));
+    const inside = (u, v, k) => { if (cap.disc) return Math.hypot(u - 1, v) <= R * k; const uc = U.clamp(u, 0, len); return Math.hypot(u - uc, v) <= rad(uc) * k; };
+    const cu = (i) => u0 + (i + 0.5) * BT, cv = (j) => v0 + (j + 0.5) * BT;
+    const nS = new AN.Noise(rng.int(1, 1e9)), nB = new AN.Noise(rng.int(1, 1e9));
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const k = j * w + i;
+      B.shade[k] = nS.fbm(i * 0.18, j * 0.18, 3);
+      if (inside(cu(i), cv(j), 0.9)) B.grid[k] = Z.FLOOR;
+    }
+    // ce qui reste dégagé : la plateforme, les sceaux, les attaches des membres
+    const pad = col.deck.pad, pq = backUV(col, cap, pad.t, pad.off);
+    B.pad = { u: pq.u, v: pq.v };
+    const clear = [{ u: pq.u, v: pq.v, r: BT * 7 }];
+    col.seals.forEach((s) => { const an = col.anchors[s.at]; if (an && an.cap === cap.i) { const q = backUV(col, cap, an.t, an.off); clear.push({ u: q.u, v: q.v, r: BT * 4 }); } });
+    if (cap.disc) clear.push({ u: 1, v: 0, r: BT * 4 }); else { clear.push({ u: 0, v: 0, r: BT * 5 }); clear.push({ u: len, v: 0, r: BT * 5 }); }
+    const free = (u, v, m) => inside(u, v, 0.74) && !clear.some((q) => Math.hypot(u - q.u, v - q.v) < q.r + m);
+    // des massifs, en îlots séparés : on passe toujours entre eux (au moins deux cases)
+    const blobs = [];
+    const interior = B.grid.reduce((n, g, k) => n + (g === Z.FLOOR && inside(cu(k % w), cv((k / w) | 0), 0.74) ? 1 : 0), 0);
+    const wallFrac = U.clamp((1 - (b.open != null ? b.open : 0.6)) * 0.4, 0.07, 0.18);
+    const nb = Math.round((interior * wallFrac) / 11);
+    for (let k = 0, tries = 0; k < nb && tries < nb * 30; tries++) {
+      const r = rng.float(1.2, 2.8) * BT, u = rng.float(u0, u0 + w * BT), v = rng.float(v0, v0 + h * BT);
+      if (!free(u, v, r) || blobs.some((o) => Math.hypot(o.u - u, o.v - v) < o.r + r + BT * 2.2)) continue;
+      blobs.push({ u, v, r }); k++;
+    }
+    blobs.forEach((o) => {
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+        const d = Math.hypot(cu(i) - o.u, cv(j) - o.v), wob = 0.75 + 0.45 * nB.fbm(i * 0.5, j * 0.5, 2);
+        if (d <= o.r * wob && B.grid[j * w + i] === Z.FLOOR) B.grid[j * w + i] = Z.WALL;
+      }
+    });
+    // des mares du danger du biome
+    if (b.hazard) {
+      const np = Math.max(2, Math.round((interior * (b.hazardAmt || 0.05)) / 16));
+      for (let k = 0, tries = 0; k < np && tries < np * 30; tries++) {
+        const r = rng.float(1.5, 3.2) * BT, u = rng.float(u0, u0 + w * BT), v = rng.float(v0, v0 + h * BT);
+        if (!free(u, v, r) || blobs.some((o) => Math.hypot(o.u - u, o.v - v) < o.r + r + BT * 2)) continue;
+        blobs.push({ u, v, r, pool: true }); k++;
+        for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+          const d = Math.hypot(cu(i) - u, cv(j) - v), wob = 0.75 + 0.45 * nB.fbm(i * 0.6 + 40, j * 0.6, 2);
+          if (d <= r * wob && B.grid[j * w + i] === Z.FLOOR) B.grid[j * w + i] = Z.HAZARD;
+        }
+      }
+    }
+    // le menu décor du biome (non bloquant), comme au sol d'une zone
+    const nd = Math.round(w * h * 0.07);
+    for (let k = 0; k < nd; k++) {
+      const i = rng.int(0, w - 1), j = rng.int(0, h - 1);
+      if (B.grid[j * w + i] !== Z.FLOOR || !b.decor || !b.decor.length) continue;
+      const d = rng.pick(b.decor);
+      B.decor.push({ x: i * BT + rng.float(2, BT - 2), y: j * BT + rng.float(2, BT - 2), type: d[0], color: d[1], s: rng.float(0.7, 1.3), rot: rng.float(0, TAU) });
+    }
+    B.walls = B.grid.reduce((n, g) => n + (g === Z.WALL ? 1 : 0), 0);
+    B.pools = B.grid.reduce((n, g) => n + (g === Z.HAZARD ? 1 : 0), 0);
+    return B;
+  }
   function buildDeck(X, e, col, zone, rng) {
     const deck = (col.deck = { decor: [], nodes: [], riders: [] });
     const flats = col.caps.filter((c) => c.flat && c.grip);
     if (!flats.length) return deck;
     const kinds = DECOR[col.cfg.look] || ['rocher', 'herbe'];
     // un colosse-carte porte la plateforme de l'Artefact, sur sa plus grande surface plate
+    let back = null;
     if (col.map) {
       const big = flats.slice().sort((a, b) => (b.ra + b.rb) - (a.ra + a.rb))[0];
-      deck.pad = { cap: big.i, t: 0.5, off: 0, R: 92 };
+      if (!big.disc) big.stadium = true; // on marche jusqu'à ses bords arrondis
+      deck.pad = { cap: big.i, t: 0.5, off: big.disc ? -0.5 : 0.5, R: 92 }; // à l'écart du sceau du dos
+      back = buildBack(X, e, col, zone, rng, big);
     }
     const area = (c) => { const A = col.n[c.a], B = col.n[c.b]; return (Math.hypot(B.x - A.x, B.y - A.y) + c.ra + c.rb) * (c.ra + c.rb); };
     flats.forEach((c) => {
+      if (back && c.i === back.cap) { // le dos-biome : de quoi peupler un paysage, sur ses cases libres
+        const n = Math.min(260, Math.round((back.w * back.h) / 30));
+        for (let k = 0; k < n; k++) { const q = backSpot(col, rng, 150); deck.decor.push({ cap: c.i, t: q.t, off: q.off, kind: rng.pick(kinds), s: rng.float(0.8, 1.6), seed: rng.int(0, 9999) }); }
+        return;
+      }
       const n = U.clamp(Math.round(area(c) / 12000), 2, 30);
       for (let k = 0; k < n; k++) {
         const d = { cap: c.i, t: rng.float(0.04, 0.96), off: rng.float(-0.85, 0.85), kind: rng.pick(kinds), s: rng.float(0.7, 1.4), seed: rng.int(0, 9999) };
@@ -1424,18 +1573,26 @@
     let res = Object.keys((D.BIOME[zone.biome] || {}).resources || {});
     if (!res.length) for (const z of X.world.zones || []) { res = Object.keys((D.BIOME[z.biome] || {}).resources || {}); if (res.length) break; }
     const nn = res.length ? 2 + Math.floor(e.def.tier / 2) + (col.map ? 4 : 0) : 0;
-    for (let k = 0; k < nn; k++) { const c = rng.pick(flats); deck.nodes.push({ cap: c.i, t: rng.float(0.15, 0.85), off: rng.float(-0.7, 0.7), res: rng.pick(res), uses: 2, prog: 0 }); }
+    for (let k = 0; k < nn; k++) {
+      if (back) { const q = backSpot(col, rng, 200); deck.nodes.push({ cap: q.cap, t: q.t, off: q.off, res: rng.pick(res), uses: 2, prog: 0 }); continue; }
+      const c = rng.pick(flats); deck.nodes.push({ cap: c.i, t: rng.float(0.15, 0.85), off: rng.float(-0.7, 0.7), res: rng.pick(res), uses: 2, prog: 0 });
+    }
     // des créatures y vivent : celles du monde
     if (X.creatures && AN.Entities && AN.WorldGen) {
       // la faune de sa zone, sinon celle des autres paysages du monde (un cratère, un foyer d'étoile n'ont parfois que leur maître)
       const biomes = [zone.biome, zone.mix].concat((X.world.zones || []).map((z) => z.biome)).filter(Boolean);
       let pool = [];
       for (const b of biomes) { pool = AN.WorldGen.pool(b).filter((d) => d.tier <= 1 && !d.fake); if (pool.length) break; }
-      const n = col.map ? Math.min(16, 6 + e.def.tier) : Math.min(10, 2 + e.def.tier);
+      const n = back ? Math.min(40, 12 + e.def.tier * 2) : Math.min(10, 2 + e.def.tier);
+      let grp = null;
       for (let k = 0; k < n && pool.length; k++) {
-        const def = rng.pick(pool), c = rng.pick(flats);
+        // sur un dos-biome, elles vivent en groupes, chacun son coin, comme dans une zone
+        if (back && (!grp || grp.left <= 0)) { const q = backSpot(col, rng, 500); grp = { def: rng.pick(pool), q, left: rng.int(2, 4) }; }
+        const def = back ? grp.def : rng.pick(pool), c = back ? col.caps[back.cap] : rng.pick(flats);
         const r = AN.Entities.creature(def, col.x, col.y, { threat: X.world.threat, rule: X.world.rule, hueSeed: rng.int(0, 999) });
-        r.rider = { host: e, cap: c.i, t: rng.float(0.2, 0.8), off: rng.float(-0.6, 0.6), goal: null, wait: rng.float(0, 3) };
+        let t = rng.float(0.2, 0.8), off = rng.float(-0.6, 0.6);
+        if (back) { grp.left--; const to = backTO(col, c, grp.q.u + rng.float(-60, 60), grp.q.v + rng.float(-60, 60)); t = to.t; off = U.clamp(to.off, -0.9, 0.9); if (backCell(col, c.i, t, off) !== Z.FLOOR) { t = grp.q.t; off = grp.q.off; } }
+        r.rider = { host: e, cap: c.i, t, off, goal: null, wait: rng.float(0, 3) };
         r.rider.home = { cap: r.rider.cap, t: r.rider.t, off: r.rider.off }; // son territoire : elle ne vous poursuit pas au-delà (1.16.3)
         if (r.temper === 'agressif' || r.temper === 'territorial') r.temper = 'territorial';
         deck.riders.push(r);
@@ -1509,13 +1666,19 @@
         const k = Math.min(1, ((r.speed || 70) * 0.7 * dt) / d);
         const nx = here.x + (tx - here.x) * k, ny = here.y + (ty - here.y) * k;
         const L1 = locate(col, cap, nx, ny);
-        if (L1.inside) { R.t = L1.t; R.off = L1.off; }
-        else { const o = partAt(col, nx, ny, cap, here.z, true); if (o) { R.cap = o.cap.i; R.t = o.t; R.off = o.off; R.goal = null; } }
+        let m = null;
+        if (L1.inside) m = { cap: cap.i, t: L1.t, off: L1.off };
+        else { const o = partAt(col, nx, ny, cap, here.z, true); if (o) m = { cap: o.cap.i, t: o.t, off: o.off }; }
+        if (m && backCell(col, m.cap, m.t, m.off) === Z.WALL) { m = null; R.goal = null; } // un relief de son dos : elle le contourne
+        if (m) { if (m.cap !== R.cap) R.goal = null; R.cap = m.cap; R.t = m.t; R.off = m.off; }
         r.face = Math.atan2(ty - here.y, tx - here.x);
       }
     }
     placeRider(col, r);
-    // elles attaquent qui est sur leur colosse : au contact, ou à distance
+    // elles attaquent qui est sur leur colosse : leur propre jeu d'attaques (1.17), sans quitter leur place
+    if (r.act) { AN.Kits.run(X, r, dt); return; }
+    const kit = AN.Kits && AN.Kits.of(r.def);
+    if (kit && kit.primary) { if (onIt && hostile && !p.climb.hop) AN.Kits.attack(X, r, p, dt, { fixed: true }); return; }
     const atk = r.atk;
     if (onIt && hostile && atk && r.atkCd <= 0 && !p.climb.hop) {
       const d = U.dist(p.x, p.y, r.x, r.y);
@@ -1537,8 +1700,11 @@
     const k = Math.min(1, (sp * dt) / d);
     const nx = here.x + (tx - here.x) * k, ny = here.y + (ty - here.y) * k;
     const L1 = locate(col, cap, nx, ny);
-    if (L1.inside) { R.t = L1.t; R.off = L1.off; }
-    else { const o = partAt(col, nx, ny, cap, here.z, true) || partAt(col, nx, ny, cap, here.z, false); if (o) { R.cap = o.cap.i; R.t = o.t; R.off = o.off; R.goal = null; } }
+    let m = null;
+    if (L1.inside) m = { cap: cap.i, t: L1.t, off: L1.off };
+    else { const o = partAt(col, nx, ny, cap, here.z, true) || partAt(col, nx, ny, cap, here.z, false); if (o) m = { cap: o.cap.i, t: o.t, off: o.off }; }
+    if (m && backCell(col, m.cap, m.t, m.off) === Z.WALL) m = null; // un relief : on contourne (un autre but)
+    if (m) { if (m.cap !== R.cap) R.goal = null; R.cap = m.cap; R.t = m.t; R.off = m.off; } else R.goal = null;
     r.face = Math.atan2(ty - here.y, tx - here.x);
   }
   /**
@@ -1653,7 +1819,15 @@
         if (q.d < bd) { bd = q.d; best = { cap: o.i, t: U.clamp(q.t, 0.08, 0.92) }; }
       }
       if (!best && pad) best = { cap: pad.cap, t: pad.t };
-      if (best) { c.cap = best.cap; c.t = best.t; c.off = 0; c.hop = null; }
+      let off0 = 0;
+      if (best && col.back && best.cap === col.back.cap && backCell(col, best.cap, best.t, 0) !== Z.FLOOR) { // pas dans un relief ni dans une mare : la case libre la plus proche
+        const B = col.back, cc = col.caps[B.cap], q0 = backUV(col, cc, best.t, 0);
+        for (let r = 1, done = false; r < 16 && !done; r++) for (let k = 0; k < 12 && !done; k++) {
+          const a = (k / 12) * TAU, u = q0.u + Math.cos(a) * r * BT, v = q0.v + Math.sin(a) * r * BT, to = backTO(col, cc, u, v);
+          if (Math.abs(to.off) < 0.95 && backCell(col, B.cap, to.t, to.off) === Z.FLOOR) { best.t = to.t; off0 = to.off; done = true; }
+        }
+      }
+      if (best) { c.cap = best.cap; c.t = best.t; c.off = off0; c.hop = null; }
       p.grip = Math.max(p.grip || 0, 0.45); c.loose = 0;
       AN.PlayerCtl.damage(X, col.dmg * 0.3, null, { ignoreIframes: true });
       AN.HUD.toast(best && pad && best.cap === pad.cap ? 'Vous glissez jusqu’à la plateforme.' : 'Vous glissez jusqu’à son dos.', 2);
@@ -1692,7 +1866,7 @@
    * voulue, même s'il fait un angle (de la cuisse au tibia, du bras à la main). { cap, t } ou null.
    */
   function jointPart(col, cap, t, ax) {
-    const end = cap.disc ? null : t >= 0.97 ? cap.b : t <= 0.03 ? cap.a : null; // d'un disque, on sort par son bord (partAt)
+    const end = cap.disc || cap.stadium ? null : t >= 0.97 ? cap.b : t <= 0.03 ? cap.a : null; // d'un disque, d'un dos-carte, on sort par son bord (partAt)
     const al = Math.hypot(ax.x, ax.y);
     if (!end || al < 0.1) return null;
     const pn = PN(col, col.n[end]);
@@ -1701,7 +1875,7 @@
     const back = ((bk.x - pn.x) * ax.x + (bk.y - pn.y) * ax.y) / bl / al;
     let best = null, bd = Math.max(0.3, back + 0.15);
     for (const o of col.caps) {
-      if (o === cap || o.disc || !o.grip || (o.a !== end && o.b !== end) || !visible(col, o) || col.n[o.a].under || col.n[o.b].under) continue;
+      if (o === cap || o.disc || o.stadium || !o.grip || (o.a !== end && o.b !== end) || !visible(col, o) || col.n[o.a].under || col.n[o.b].under) continue;
       const q = PN(col, col.n[o.a === end ? o.b : o.a]);
       const dl = Math.hypot(q.x - pn.x, q.y - pn.y) || 1;
       const dot = ((q.x - pn.x) * ax.x + (q.y - pn.y) * ax.y) / dl / al;
@@ -1739,23 +1913,55 @@
     if (jn) { cap = jn.cap; c.cap = jn.cap.i; c.t = jn.t; c.off = 0; }
     else if (moving) {
       const here = capPoint(col, cap, c.t, c.off);
-      const sp = cap.flat ? X.S.speed * 0.95 : col.map ? X.S.speed * 0.8 : 150; // les membres d'un colosse-carte sont ses chemins
-      const tx = here.x + ax.x * sp * dt, ty = here.y + ax.y * sp * dt;
-      const L1 = locate(col, cap, tx, ty);
-      if (L1.inside) { c.t = L1.t; c.off = L1.off; }
-      else {
+      let sp = cap.flat ? X.S.speed * 0.95 : col.map ? X.S.speed * 1.4 : 150; // les membres d'un colosse-carte sont des routes de milliers de pixels : on y court (1.16.4)
+      if (c.mire > 0) sp *= 1 - c.mire; // une mare du dos ralentit
+      const backCap = col.back ? col.caps[col.back.cap] : null;
+      const step = (dx, dy) => {
+        const tx = here.x + dx * sp * dt, ty = here.y + dy * sp * dt;
+        // le dos-biome porte qui marche au-dessus de lui : les attaches des membres passent dessous (1.16.4)
+        if (backCap && cap !== backCap) {
+          const Lb = locate(col, backCap, tx, ty);
+          if (Lb.inside && Math.abs(Lb.off) < 0.8 && Math.abs(capPoint(col, backCap, Lb.t, Lb.off).z - here.z) < 0.35) return { cap: backCap, t: Lb.t, off: Lb.off }; // nettement dedans : pas d'aller-retour au bord
+        }
+        const L1 = locate(col, cap, tx, ty);
+        if (L1.inside) return { cap, t: L1.t, off: L1.off };
         const o = partAt(col, tx, ty, cap, here.z);
-        const j = o ? null : jointPart(col, cap, L1.t, ax);
-        if (o) { cap = o.cap; c.cap = o.cap.i; c.t = o.t; c.off = o.off; }
-        else if (j) { cap = j.cap; c.cap = j.cap.i; c.t = j.t; c.off = 0; }
-        else { c.t = U.clamp(L1.t, 0, 1); c.off = U.clamp(L1.off, -0.97, 0.97); }
+        if (o) return { cap: o.cap, t: o.t, off: o.off };
+        const j = jointPart(col, cap, L1.t, ax);
+        if (j) return { cap: j.cap, t: j.t, off: 0 };
+        return { cap, t: cap.stadium ? L1.t : U.clamp(L1.t, 0, 1), off: U.clamp(L1.off, -0.97, 0.97) };
+      };
+      // un relief du dos-biome arrête le pas : on glisse le long (1.16.4)
+      const stuckIn = backCell(col, c.cap, c.t, c.off) === Z.WALL; // déjà dans un relief (posé là) : on en sort librement
+      const ok = (m) => stuckIn || backCell(col, m.cap.i, m.t, m.off) !== Z.WALL;
+      // bloqué : des directions voisines, de plus en plus écartées (le dos tourne avec le colosse : ses reliefs ne suivent pas les axes de l'écran)
+      let m = step(ax.x, ax.y);
+      if (!ok(m)) {
+        m = null;
+        const a0 = Math.atan2(ax.y, ax.x), al = Math.hypot(ax.x, ax.y);
+        for (const da of [0.45, -0.45, 0.9, -0.9, 1.35, -1.35]) {
+          const k = al * Math.cos(da), mm = step(Math.cos(a0 + da) * k, Math.sin(a0 + da) * k);
+          if (ok(mm)) { m = mm; break; }
+        }
+      }
+      if (m) { cap = m.cap; c.cap = m.cap.i; c.t = m.t; c.off = m.off; }
+    }
+    // une mare du danger du biome, sur son dos : elle brûle, glace, ronge, et ralentit
+    c.mire = 0;
+    if (col.back && backCell(col, c.cap, c.t, c.off) === Z.HAZARD) {
+      const hz = (D.BIOME[col.back.biome] || {}).hazard;
+      if (hz && !(X.mount && AN.Mount.ignoresHazard(X.mount, D.BIOME[col.back.biome]))) {
+        c.mire = hz.slow || 0;
+        p.hazardAcc = (p.hazardAcc || 0) + (hz.dps || 0) * (1 - (X.S.hazardRes || 0)) * dt;
+        if (p.hazardAcc >= 1) { const d = Math.floor(p.hazardAcc); p.hazardAcc -= d; AN.PlayerCtl.damage(X, d / (1 - (X.S.armor || 0)), null, { dot: true, numbers: false }); }
+        if (Math.random() < dt * 6) FX.add({ kind: 'dot', x: p.x + (Math.random() - 0.5) * 14, y: p.y + 4, vy: -40, color: hz.color || '#ffffff', life: 0.5, size: 2 });
       }
     }
     // l'endurance de la prise
     const holding = I.down('KeyE');
     const pt = capPoint(col, cap, c.t, c.off);
     let drain = 0.012 + (moving ? 0.01 : 0) + pt.z * 0.006 + (col.plan === 'volant' ? col.alt * 0.012 : 0) + Math.abs(col.spinRate || 0) * 0.005;
-    if (col.map) drain *= 0.5; // un colosse-carte : on y vit, ses membres sont des chemins
+    if (col.map) drain = 0; // un colosse-carte : on y vit, ses membres sont des chemins ; seules ses secousses font lâcher (1.16.4)
     if (cap.flat && col.shake <= 0.15) { // une surface plate : on y reprend son souffle ; sur un colosse-carte, même en marchant (c'est le sol)
       if (!moving) drain = -0.15; else if (col.map) drain = -0.06;
     }
@@ -1855,6 +2061,7 @@
         if (d < 70 || d > 280) continue;
         const da = Math.abs(U.angDiff(dir, Math.atan2(q.y - p.y, q.x - p.x)));
         if (da > 0.7 || q.z - here.z > 0.55) continue;
+        if (backCell(col, o.i, t, 0) === Z.WALL) continue; // on ne saute pas dans un relief du dos
         const sc = d + da * 160;
         if (sc < bs) { bs = sc; best = { cap: o.i, t, x: q.x, y: q.y, r: q.r }; }
       }
@@ -1992,7 +2199,15 @@
     const gd = zone.guardian && D.CREATURE[zone.guardian];
     if (!gd || !Co.isMap(gd)) return false;
     zone.colMap = true;
-    for (let y = 0; y < zone.h; y++) for (let x = 0; x < zone.w; x++) zone.grid[y * zone.w + x] = x < 2 || y < 2 || x >= zone.w - 2 || y >= zone.h - 2 ? Z.WALL : Z.FLOOR;
+    // la zone prend la taille du colosse (1.16.4) : il y tient tout entier, avec une marge de vide
+    const n = Math.max(zone.w, zone.h, Math.ceil((Co.length(gd) * 1.3 + 900) / Z.T));
+    zone.w = zone.h = n;
+    zone.grid = new Uint8Array(n * n); zone.bmap = new Uint8Array(n * n); zone.shade = new Float32Array(n * n).fill(0.5);
+    zone.mix = null;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) zone.grid[y * n + x] = x < 2 || y < 2 || x >= n - 2 || y >= n - 2 ? Z.WALL : Z.FLOOR;
+    const cx = (n * Z.T) / 2;
+    zone.arena = { x: cx, y: cx, r: zone.arena ? zone.arena.r : 400, tx: Math.floor(n / 2), ty: Math.floor(n / 2) };
+    if (zone.state) zone.state.fog = new Uint8Array(n * n);
     ['plates', 'gates', 'nodes', 'groups', 'ruins', 'decor', 'vaults', 'eggs', 'wells', 'bridges', 'filaments', 'inversions'].forEach((k) => { if (Array.isArray(zone[k])) zone[k] = []; });
     zone.village = null; zone.structure = null; zone.comp = null;
     if (zone.state && zone.state.fog) zone.state.fog.fill(1); // rien à explorer : tout se voit
@@ -2156,7 +2371,17 @@
         F.onBody = true;
         const flats = col.caps.filter((c) => c.grip && c.flat && visible(col, c));
         const pool = flats.length ? flats : col.caps.filter((c) => c.grip);
-        F.nodes.forEach((q, k) => { const c = pool[(k * 7 + 3) % pool.length]; q.on = { cap: c.i, t: 0.2 + ((k * 0.37) % 0.6), off: ((k % 3) - 1) * 0.45 }; });
+        const rng = AN.RNG.from(X.world.seed, 'trame' + col.attacks);
+        // sur un dos-biome : autour de vous (entre 150 et 800 px), pour qu'on les relie à temps
+        const pc = X.player.climb, me = col.back && (pc && pc.cap === col.back.cap ? backUV(col, col.caps[pc.cap], pc.t, pc.off) : col.back.pad);
+        F.nodes.forEach((q, k) => {
+          if (col.back) {
+            let best = null;
+            for (let n = 0; n < 40 && !best; n++) { const sp = backSpot(col, rng, 0), d = Math.hypot(sp.u - me.u, sp.v - me.v); if (d > 150 && d < 800) best = sp; }
+            if (best) { q.on = { cap: best.cap, t: best.t, off: best.off }; return; }
+          }
+          const c = pool[(k * 7 + 3) % pool.length]; q.on = { cap: c.i, t: 0.2 + ((k * 0.37) % 0.6), off: ((k % 3) - 1) * 0.45 };
+        });
       }
       F.nodes.forEach((q) => { const c = q.on && col.caps[q.on.cap]; if (c) { const pt = capPoint(col, c, q.on.t, q.on.off); q.x = pt.x; q.y = pt.y; } });
     }
@@ -2174,7 +2399,7 @@
     if (!best) return null;
     const col = best.col, L = col.L;
     const far = U.clamp(900 / (L + 500), 0.45, 0.85);
-    if (p.climb) return { zoom: 0.85, x: p.x, y: p.y, k: 0 }; // sur lui : on voit son dos autour de soi (1.16.2)
+    if (p.climb) return { zoom: col.map ? 1 : 0.85, x: p.x, y: p.y, k: 0 }; // sur lui : on voit son dos autour de soi (1.16.2) ; sur un dos-biome, comme au sol d'une zone (1.16.4)
     // éveillé et proche : on recule pour le voir en entier ; endormi, errant ou épuisé : à peine ; loin : rien (1.16.1)
     const awake = best.boss.active && !best.boss.exhausted;
     const near = awake ? U.clamp(1 - (bd - L * 0.55) / (L * 0.8), 0, 1) : U.clamp(1 - (bd - L * 0.3) / (L * 0.5), 0, 1) * 0.35;

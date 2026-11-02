@@ -43,6 +43,8 @@
   };
 
   const PAT = {
+    /** L'attaque signature d'un gardien : la forme que sa graine lui a donnée (bestiaire vivant, 1.17). */
+    signature(X, e) { return AN.Kits ? AN.Kits.signature(X, e) : { busy: 0, cd: 0.6 }; },
     radial(X, e, p) {
       const n = p.n || 12, off = Math.random() * TAU;
       for (let i = 0; i < n; i++) C.shoot(X, { x: e.x, y: e.y, angle: off + (i / n) * TAU, speed: p.speed || 180, dmg: p.dmg * e.dmgMul, team: 'wild', size: p.size || 6, color: p.color, range: 900, owner: e });
@@ -316,7 +318,8 @@
 
     const ph = phases[b.phase];
     // Déplacement : garde une distance moyenne en tournant autour du joueur.
-    if (!b.current || b.current.type === 'aimed') {
+    if (e.act && AN.Kits) AN.Kits.run(X, e, dt); // son attaque signature (1.17) mène son corps
+    if ((!b.current || b.current.type === 'aimed') && !e.act) {
       const d = U.dist(e.x, e.y, pl.x, pl.y);
       const want = 170 + e.r;
       const a = Math.atan2(pl.y - e.y, pl.x - e.x);

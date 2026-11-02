@@ -1056,6 +1056,8 @@ html.reduce-fx .panel { animation: none; }
 /* bestiaire : la faiblesse d'un colosse (1.16) */
 .beast-secret { font-size: 12px; border-left: 3px solid var(--cyan); padding: 2px 0 2px 8px; margin: 6px 0; }
 .beast-secret.muted { border-left-color: var(--line); }
+.beast-kit, .kit-line { font-size: 12px; margin: 4px 0; }
+.beast-kit b, .kit-line b { font-weight: 700; }
 /* le saut (1.16.1) : seulement là où l'on peut sauter */
 .tb-jump { right: calc(118px * var(--s)); bottom: calc(296px * var(--s)); display: none; }
 .can-jump .tb-jump { display: flex; }

@@ -84,10 +84,19 @@
 
   /** Comète : une tête de glace et une longue chevelure. */
   S.comet = (ctx, e, t, pal, A, r, lw) => {
-    for (let k = 0; k < 5; k++) {
-      const w = r * (0.9 - k * 0.15), len = r * (2.2 + k * 0.5);
-      const sw = Math.sin(t * 6 + k) * r * 0.08;
-      poly(ctx, [[0, -w], [-len, sw - w * 0.2], [-len * 1.05, sw], [-len, sw + w * 0.2], [0, w]], U.rgba(k % 2 ? pal.accent : '#ffffff', 0.35 - k * 0.05));
+    // la chevelure suit sa trajectoire : elle s'incurve dans les virages (1.18)
+    const pts = AN.Rig ? AN.Rig.chain(e, 'tail') : [];
+    if (pts.length > 2) {
+      for (let k = 0; k < 5; k++) {
+        const w0 = 0.9 - k * 0.15, len = (0.75 + k * 0.12), m = pts.length - 1, L = [], R = [];
+        for (let i = 0; i <= m; i++) {
+          const a = pts[Math.max(0, i - 1)], b = pts[Math.min(m, i + 1)], dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1;
+          const f = i / m, w = w0 * (1 - f * 0.8) + Math.sin(t * 6 + k + i) * 0.04;
+          const x = pts[0].x + (pts[i].x - pts[0].x) * len, y = pts[0].y + (pts[i].y - pts[0].y) * len;
+          L.push([(x - (dy / dl) * w) * r, (y + (dx / dl) * w) * r]); R.unshift([(x + (dy / dl) * w) * r, (y - (dx / dl) * w) * r]);
+        }
+        poly(ctx, [[0, -w0 * r]].concat(L, R, [[0, w0 * r]]), U.rgba(k % 2 ? pal.accent : '#ffffff', 0.35 - k * 0.05));
+      }
     }
     circ(ctx, 0, 0, r * 0.75, pal.body, pal.dark, lw);
     circ(ctx, r * 0.2, -r * 0.2, r * 0.25, '#ffffff');

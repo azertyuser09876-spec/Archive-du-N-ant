@@ -47,7 +47,7 @@
     { name: 'Enclos', need: { territories: 2 }, zoom: 0.25, threat: 3, desc: 'Les premiers fragments forment un lieu.' },
     { name: 'Domaine', need: { territories: 5, guardians: 1 }, zoom: 0.12, threat: 4, desc: 'Un gardien veille sur l’Archive.' },
     { name: 'Contrée', need: { territories: 9, guardians: 3 }, zoom: 0.06, threat: 5, desc: 'Une mosaïque de réalités incompatibles.' },
-    { name: 'Région', need: { territories: 14, ultras: 1 }, zoom: 0.03, threat: 6, desc: 'Un ultra-boss a pris racine.' },
+    { name: 'Région', need: { territories: 14, ultras: 1 }, zoom: 0.03, threat: 6, desc: 'Un colosse a pris racine.' },
     { name: 'Monde', need: { territories: 22, ultras: 2 }, zoom: 0.012, threat: 7, desc: 'La surface n’était pas plate.' },
   ];
 

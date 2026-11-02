@@ -71,6 +71,7 @@
     if (z.structure && !z.structure.taken && near(z.structure.x, z.structure.y, 360)) Tp.show('structure');
     if (X.event) Tp.show('event', 1500);
     if (z.colMap && !X.colShow) { Tp.show('colmap', 400); Tp.show('climb', 800); } // sur un colosse-carte (1.16.3)
+    if (X.creatures.some((c) => c.act && c.team === 'wild' && near(c.x, c.y, 420))) Tp.show('gestes', 300); // une créature prépare son geste (1.17)
     if (X.creatures.some((c) => c.col && c.alive && U.dist(c.col.x, c.col.y, p.x, p.y) < c.col.L * 1.6)) Tp.show('colossus'); // un colosse en vue (1.16)
     if (X.bagFree && X.bagFree() <= 0) Tp.show('bag');
     if (X.conquered.size >= 1) Tp.show('extract', 2500);

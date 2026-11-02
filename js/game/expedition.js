@@ -209,7 +209,7 @@
 
     const seed = AN.hash(X.world.seed + ':canvas:' + zi);
     zone.backdrop = AN.Skies.hasBackdrop(X); // orbite, système : le fond se voit à travers le sol (1.10)
-    X.canvas = AN.Terrain.renderZone(zone, seed);
+    X.canvas = zone.colMap ? AN.Terrain.canvas(1, 1) : AN.Terrain.renderZone(zone, seed); // un colosse-carte n'a pas de sol à peindre (1.16.4 : sa zone est immense)
     X.thumb = zone.colMap ? AN.ColossusArt.voidThumb(zone) : AN.Terrain.thumb(zone, 3);
     X.fogCanvas = AN.Terrain.canvas(zone.w * 3, zone.h * 3);
     const fctx = X.fogCanvas.getContext('2d');
@@ -235,7 +235,7 @@
     });
     if (X.mount) { X.mount.x = p.x; X.mount.y = p.y; }
     AN.Base.onEnterZone(X, zi, fromZi);
-    X.flow = AN.Physics.flowField(zone, Math.floor(p.x / Z.T), Math.floor(p.y / Z.T));
+    X.flow = zone.colMap ? null : AN.Physics.flowField(zone, Math.floor(p.x / Z.T), Math.floor(p.y / Z.T));
     X.cam.x = p.x; X.cam.y = p.y; X.cam.zoom = Exp.baseZoom();
     X.weather = [];
     X.biome = D.BIOME[zone.biome];
@@ -247,7 +247,8 @@
     if (AN.Music) AN.Music.mood('expedition', { seed: X.world.seed, biome: zone.biome, scale: X.world.scale });
     if (AN.HUD.ready) AN.HUD.zoneChanged(X);
     const spec = Exp.zoneSpec(X, zi);
-    if (fromZi != null) AN.HUD.toast((zone.isHeart ? X.echelon.heart : X.echelon.unit + ' ' + (zi + 1) + ' sur ' + X.world.zones.length) + ' : ' + spec.name, 3.5);
+    const where = zone.isHeart ? X.echelon.heart : X.echelon.unit + ' ' + (zi + 1) + ' sur ' + X.world.zones.length;
+    if (fromZi != null) AN.HUD.toast(where === spec.name ? spec.name : where + ' : ' + spec.name, 3.5); // pas de « Noyau galactique : Noyau galactique » (1.16.5)
     if (X.search) setTimeout(() => { if (AN.X === X && X.zi === zi) AN.Search.onEnterZone(X); }, fromZi == null ? 7800 : 1400);
     AN.Events.onEnterZone(X);
     AN.Nations.onEnterZone(X); // la caravane perdue, un raid laissé derrière soi (1.13)
@@ -704,7 +705,7 @@
     X.flowT -= dt;
     if (X.flowT <= 0) {
       X.flowT = 0.35;
-      X.flow = AN.Physics.flowField(X.zone, Math.floor(p.x / Z.T), Math.floor(p.y / Z.T));
+      X.flow = X.zone.colMap ? null : AN.Physics.flowField(X.zone, Math.floor(p.x / Z.T), Math.floor(p.y / Z.T));
     }
     if (!X.ending && !p.hidden) AN.PlayerCtl.update(X, dt);
     else { p.dvx = p.dvy = 0; }
