@@ -33,7 +33,11 @@
     AN.Audio.play('boss_roar', { at: e });
     X.cam.shake(10);
     FX.ring(e.x, e.y, AN.STAMP, e.r, e.r * 4, 0.9, 4);
-    AN.HUD.toast((e.def.tier >= 3 ? D.TIERS[e.def.tier].name : 'Gardien') + ' : ' + e.def.name);
+    // l'entrée d'un gardien (1.14) : son nom à l'écran, la caméra qui se tourne vers lui ; un errant n'a droit qu'au message
+    // un colosse ne fait son entrée qu'une fois (1.16) : réveillé de nouveau, il reprend le combat
+    const seen = e.col && e.col.seen;
+    if (e.col) e.col.seen = true;
+    if (!(!seen && AN.Moments && AN.Moments.bossIntro(X, e)) && !seen) AN.HUD.toast((e.def.tier >= 3 ? D.TIERS[e.def.tier].name : 'Gardien') + ' : ' + e.def.name);
     AN.Profile.markSeen(X.profile, e.def.id);
     X.activeBoss = e;
   };
@@ -241,7 +245,21 @@
       if (pl.alive && d < b.arena.r * (b.errant ? 1 : 0.85)) B.wake(X, e);
       return;
     }
-    if (b.exhausted) {
+    if (b.introT > 0) { // il entre en scène : il vous regarde, il ne frappe pas encore
+      b.introT -= dt;
+      e.dvx = e.dvy = 0;
+      e.face += U.angDiff(e.face, Math.atan2(pl.y - e.y, pl.x - e.x)) * Math.min(1, dt * 3);
+      return;
+    }
+    if (b.exhausted) { B.exhaustedUpdate(X, e, dt); return; }
+    if (b.invuln > 0) { b.invuln -= dt; e.dvx = e.dvy = 0; return; }
+    B.fight(X, e, dt);
+  };
+
+  /** Épuisé : il se débat (ondes), puis se relève s'il n'a été ni capturé ni achevé. */
+  B.exhaustedUpdate = function (X, e, dt) {
+    const b = e.boss;
+    {
       e.dvx = e.dvy = 0;
       b.exhaustT -= dt;
       b.pulseT -= dt;
@@ -256,11 +274,16 @@
         AN.Audio.play('boss_roar', { at: e });
         AN.HUD.toast(e.def.name + ' se relève.');
         if (AN.Cosmic) AN.Cosmic.onRecover(X, e);
+        if (e.col) AN.Colossus.onRecover(X, e); // un colosse referme son dernier sceau (1.16)
         FX.ring(e.x, e.y, AN.STAMP, e.r, e.r * 3, 0.7, 4);
       }
-      return;
     }
-    if (b.invuln > 0) { b.invuln -= dt; e.dvx = e.dvy = 0; return; }
+  };
+
+  /** Le combat d'un gardien : phases, déplacement, motifs d'attaque, contact. */
+  B.fight = function (X, e, dt) {
+    const b = e.boss;
+    const pl = X.player;
 
     // Laisse : un gardien ne quitte pas son arène.
     if (b.arena && !b.errant && U.dist(pl.x, pl.y, b.arena.x, b.arena.y) > b.arena.r + 520) {
@@ -346,6 +369,7 @@
     AN.Audio.play('boss_roar', { at: e });
     X.cam.shake(14);
     FX.burst(e.x, e.y, e.pal.accent, 50, 320, { size: 5 });
+    if (e.col) AN.Colossus.onDown(X, e); // un colosse s'effondre (1.16)
     if (!(AN.Cosmic && AN.Cosmic.onExhausted(X, e))) AN.HUD.toast(e.def.name + ' est épuisé. Maintenez ' + AN.Input.label('KeyF') + ' pour le capturer, ou appuyez sur ' + AN.Input.label('KeyE') + ' à son contact pour l’achever.', 6);
   };
 
@@ -356,7 +380,8 @@
     FX.ring(e.x, e.y, e.pal.accent, e.r, e.r * 5, 1.2, 6);
     X.cam.shake(16);
     AN.Audio.play('explosion');
-    C.drop(X, e.x, e.y, e.def.drops, 1 + (X.world.threat - 1) * 0.15);
+    const at = e.col && e.col.map && X.mapPad ? X.mapPad : e; // un colosse-carte : son butin tombe sur la plateforme (1.16.3)
+    C.drop(X, at.x, at.y, e.def.drops, 1 + (X.world.threat - 1) * 0.15);
     const bs = AN.Profile.markSeen(X.profile, e.def.id);
     bs.killed = (bs.killed || 0) + 1;
     X.stats.kills++;
@@ -368,6 +393,9 @@
     X.activeBoss = null;
     if (AN.Nations) AN.Nations.onGuardian(X, e); // il menaçait l'une de leurs villes (1.12)
     e.boss.summoned.forEach((m) => { if (m.alive) { m.alive = false; m.noLoot = true; FX.burst(m.x, m.y, m.pal.body, 8, 100); } });
+    // ce que sa forme de capture avait fait naître s'en va avec lui (1.16.3 : le troupeau du Berger restait là)
+    const F = e.boss.form;
+    if (F) [].concat(F.orbs || [], F.copies || [], F.cores || []).forEach((m) => { if (m.alive) { m.alive = false; m.noLoot = true; FX.burst(m.x, m.y, '#ffffff', 8, 100); } });
     if (e.boss.errant) { AN.HUD.toast(e.def.name + ' ' + how + '.'); return; }
     X.conquer(e.boss.zoneIndex, e);
   };

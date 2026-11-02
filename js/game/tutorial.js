@@ -1,7 +1,8 @@
 /* Tutoriel interactif : « Le Seuil », un petit monde à part, proposé à la
    première partie. Une seule zone, construite à la main (pas par le
    générateur), traversée d'étape en étape : se déplacer, récolter, tirer,
-   frapper et esquiver, capturer, affronter un gardien, extraire.
+   frapper et esquiver, un compagnon prêté et sa capacité (1.15), capturer,
+   affronter un gardien, extraire.
    Le moteur d'expédition est le même que partout ailleurs : le tutoriel ne
    fait qu'ajouter un monde, une carte d'objectifs et un guidage.
    Dans le Seuil, on ne peut pas tomber. Rejoué depuis la pause, le tutoriel
@@ -154,6 +155,13 @@
       done: (X, S) => X.stats.swings > S.sw0 && X.stats.dashes > S.da0,
     },
     {
+      id: 'companion', title: 'Un compagnon',
+      enter: (X) => Tu.lend(X),
+      text: () => ['L’Artefact vous prête un Brindeuil. Un compagnon se bat à vos côtés et vous prête une capacité ; la sienne soigne. Appuyez sur ', kbd(AN.Input.label('KeyQ')), '. Plus tard, vous choisirez vos compagnons parmi vos créatures (console, chapitre L’Archive).'],
+      target: (X) => X.tuto.lent || null,
+      done: (X, S) => (X.stats.abilities || 0) > S.ab0,
+    },
+    {
       id: 'capture', title: 'Capturer',
       text: () => ['Les Mousserons sont paisibles. Affaiblissez-en un en tirant, sans le tuer : un cercle bleu l’entoure. Visez-le alors et maintenez ', kbd(AN.Input.label('KeyF')), ' : le rayon de l’Artefact l’emporte dans la soute.'],
       target: (X) => nearest(X, alive(X, 'mousseron')) || roomPx('meadow'),
@@ -223,7 +231,8 @@
     const T = X.tuto;
     T.i = i;
     T.t = 0;
-    T.S = { k0: X.stats.kills, sw0: X.stats.swings || 0, da0: X.stats.dashes || 0 };
+    T.S = { k0: X.stats.kills, sw0: X.stats.swings || 0, da0: X.stats.dashes || 0, ab0: X.stats.abilities || 0 };
+    if (Tu.STEPS[i] && Tu.STEPS[i].enter) Tu.STEPS[i].enter(X);
     if (i > 0) AN.Audio.play('rank');
     renderCard(X);
   };
@@ -274,11 +283,31 @@
     if (st.done(X, T.S) && T.t > 0.6 && T.i < Tu.STEPS.length - 1) Tu.enterStep(X, T.i + 1);
   };
 
+  /**
+   * Le compagnon prêté (1.15) : un Brindeuil, le temps du Seuil. Il n'appartient pas à la
+   * collection (pas d'uid) : il n'en sort pas et n'y entre pas.
+   */
+  Tu.lend = function (X) {
+    if (X.tuto.lent) return X.tuto.lent;
+    const def = D.CREATURE.brindeuil, p = X.player;
+    const a = AN.Entities.creature(def, p.x - 46, p.y + 24, { team: 'ally', variant: 'commun', hueSeed: 11, scale: 1.6 });
+    a.temper = 'agressif'; a.lent = true; a.keys = []; a.kills = 0; a.level = 1; a.powerMul = 1; a.cdMul = 0.5;
+    a.abilityId = 'soin';
+    X.allies.push(a);
+    if (X.abil) X.abil.list.push({ ally: a, id: 'soin', cd: 0, max: D.ABILITIES.soin.cd * 0.5 });
+    X.tuto.lent = a;
+    AN.FX.burst(a.x, a.y, '#ffffff', 26, 200, { size: 3 });
+    AN.FX.ring(a.x, a.y, AN.CYAN, 8, 90, 0.7, 3);
+    AN.Audio.play('capture_ok');
+    if (AN.HUD.refreshAbilities) AN.HUD.refreshAbilities(X);
+    return a;
+  };
+
   /** Dans le Seuil, l'Artefact retient le joueur au bord de la chute. */
   Tu.guard = function (X, d) {
     const p = X.player;
     if (p.hp - d >= 1) return d;
-    if (!X.tuto.guardMsg) { X.tuto.guardMsg = 1; AN.HUD.toast('L’Artefact vous retient. Ici, vous ne pouvez pas tomber ; ailleurs, tomber fait tout perdre.', 6); }
+    if (!X.tuto.guardMsg) { X.tuto.guardMsg = 1; AN.HUD.toast('L’Artefact vous retient. Ici, vous ne pouvez pas tomber ; ailleurs, tomber fait tout perdre. En danger, maintenez ' + AN.Input.label('KeyX') + ' : l’extraction d’urgence vous ramène, sans le butin.', 8); }
     p.hp = Math.max(p.hp, p.maxHp * 0.5);
     p.iframes = 1.2;
     return 0;
@@ -397,7 +426,7 @@
     const el = h('div', { class: 'panel small tuto-offer' },
       h('p', { class: 'kicker' }, 'Première partie'),
       h('h2', null, 'Le Seuil'),
-      h('p', null, 'Un monde minuscule s’est accroché à l’Artefact. Il va s’effondrer, comme tous les autres. Avant, il peut vous apprendre l’essentiel : récolter, combattre, capturer, extraire.'),
+      h('p', null, 'Un monde minuscule s’est accroché à l’Artefact. Il va s’effondrer, comme tous les autres. Avant, il peut vous apprendre l’essentiel : récolter, combattre, être accompagné, capturer, extraire.'),
       h('p', { class: 'muted' }, 'Cinq minutes environ. Ce que vous en rapporterez sera le premier morceau de votre Archive. Ici, vous ne pouvez pas tomber.'),
       h('div', { class: 'actions' },
         UI.btn('Passer', () => { UI.close(); prof.flags.tutorial = 'skipped'; AN.Save.write(prof); if (onSkip) onSkip(); }, 'ghost'),

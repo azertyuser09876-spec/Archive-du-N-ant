@@ -164,10 +164,12 @@
   };
   /** Déplacer une structure posée vers un autre territoire (gratuit). */
   St.move = function (p, s, terrUid) {
+    St.lastBuilt = null; // un déplacement ne rejoue pas la construction d'un autre bâtiment (1.14)
     if (s.terr === terrUid) return null;
     const r = pickTerritory(p, s.id, terrUid, s);
     if (r.why) return r.why;
     settle(p, s, r.t);
+    St.lastBuilt = s;
     AN.Save.write(p);
     return null;
   };
@@ -242,8 +244,8 @@
       AN.Audio.play('ui_ok');
       AN.HUD.toast(def.name + ' : ' + def.desc + (X.T && X.T.dismantle ? ' Maintenez E pour la démonter et l’emporter.' : ' Avec un kit de démontage, on pourrait l’emporter et la reconstruire dans l’Archive.'), 7);
       if (Math.random() < 0.35 + St.powers(X.profile).lore) {
-        const unknown = D.LORE.filter((l) => !X.profile.lore.includes(l.id));
-        if (unknown.length) { const L = unknown[Math.floor(Math.random() * unknown.length)]; X.profile.lore.push(L.id); AN.Save.write(X.profile); setTimeout(() => AN.UI.lore(L), 600); }
+        const L = AN.Story.nextFragment(X.profile); // le fragment suivant de l'acte en cours (1.14)
+        if (L) { AN.Story.learn(X.profile, L); AN.Save.write(X.profile); setTimeout(() => AN.UI.lore(L), 600); }
       }
       return true;
     }
@@ -345,11 +347,49 @@
   /** Un bâtiment qui vient d'être posé sort de terre (pas enregistré avec la partie). */
   const rising = new Map();
   St.rise = (s) => { if (s) rising.set(s.uid, performance.now()); };
+  /**
+   * Un bâtiment qui se construit (1.14), en 2,6 s : son tracé au sol, un échafaudage qui
+   * monte, le bâtiment qui sort de terre derrière lui dans la poussière, puis l'échafaudage
+   * qui s'efface.
+   */
+  const BUILD = 2600;
   St.drawArchive = function (ctx, e, t, active) {
     const t0 = rising.get(e.s.uid);
-    let k = 1;
-    if (t0 != null) { k = U.clamp((performance.now() - t0) / 1200, 0, 1); if (k >= 1) rising.delete(e.s.uid); }
-    AN.StructArt.draw(ctx, e.s.id, e.ax, e.ay, St.SIZE * (0.2 + 0.8 * U.easeOut(k)), t, { level: e.s.level || 1, alpha: (active ? 1 : 0.55) * Math.min(1, 0.2 + k * 2) });
+    const alpha = active ? 1 : 0.55;
+    const S = St.SIZE;
+    if (t0 == null) { AN.StructArt.draw(ctx, e.s.id, e.ax, e.ay, S, t, { level: e.s.level || 1, alpha }); return; }
+    const k = U.clamp((performance.now() - t0) / BUILD, 0, 1);
+    if (k >= 1) rising.delete(e.s.uid);
+    const x = e.ax, y = e.ay;
+    const foot = y + S * 0.55, top = y - S * 1.05; // du pied au faîte
+    // 1. le tracé au sol
+    const kt = U.clamp(k / 0.2, 0, 1) * (1 - U.clamp((k - 0.85) / 0.15, 0, 1));
+    if (kt > 0) {
+      ctx.save(); ctx.strokeStyle = U.rgba(AN.CYAN, 0.8 * kt); ctx.lineWidth = 2; ctx.setLineDash([6, 5]); ctx.lineDashOffset = -t * 30;
+      ctx.beginPath(); ctx.ellipse(x, foot - 4, S * 0.75 * U.easeOut(U.clamp(k / 0.2, 0, 1)), S * 0.24, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    // 2. le bâtiment sort de terre, découpé à la hauteur atteinte
+    const kb = U.easeOut(U.clamp((k - 0.25) / 0.55, 0, 1));
+    if (kb > 0) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x - S * 1.6, foot - (foot - top + S * 0.5) * kb, S * 3.2, (foot - top + S * 0.5) * kb + S * 0.2); ctx.clip();
+      AN.StructArt.draw(ctx, e.s.id, x, y + (1 - kb) * S * 0.25, S, t, { level: e.s.level || 1, alpha });
+      ctx.restore();
+      if (kb < 1 && Math.random() < 0.5) AN.FX.add({ kind: 'dot', x: x + (Math.random() - 0.5) * S * 1.4, y: foot - 2, vx: (Math.random() - 0.5) * 60, vy: -20 - Math.random() * 40, color: '#b8a888', life: 0.7, size: 3, drag: 2 });
+    }
+    // 3. l'échafaudage : il monte avant le bâtiment, puis s'efface
+    const ks = U.easeOut(U.clamp((k - 0.1) / 0.35, 0, 1)) * (1 - U.clamp((k - 0.8) / 0.2, 0, 1));
+    if (ks > 0) {
+      const h = (foot - top) * U.clamp((k - 0.1) / 0.35, 0, 1);
+      ctx.save(); ctx.globalAlpha *= ks; ctx.strokeStyle = U.rgba(AN.INK, 0.75); ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (const px of [-0.7, -0.25, 0.25, 0.7]) { ctx.moveTo(x + px * S, foot); ctx.lineTo(x + px * S, foot - h); }
+      for (let yy = foot - S * 0.4; yy > foot - h; yy -= S * 0.45) { ctx.moveTo(x - 0.75 * S, yy); ctx.lineTo(x + 0.75 * S, yy); }
+      ctx.moveTo(x - 0.7 * S, foot); ctx.lineTo(x + 0.25 * S, foot - Math.min(h, S * 0.9));
+      ctx.stroke(); ctx.restore();
+    }
+    // 4. achevé : une onde
+    if (k >= 1) { AN.FX.ring(x, foot - S * 0.4, AN.CYAN, S * 0.4, S * 1.6, 0.6, 3); AN.FX.burst(x, foot, '#b8a888', 12, 120, { size: 3 }); }
   };
   St.nearest = function (p, x, y) {
     let best = null, bd = 1e9;

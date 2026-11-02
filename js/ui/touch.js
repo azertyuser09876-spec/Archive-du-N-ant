@@ -18,7 +18,7 @@
   const h = AN.h;
 
   const T = (AN.Touch = { on: false, sticks: {}, root: null, mode: null });
-  T.LABELS = { KeyE: '« Agir »', Space: '« Esquive »', KeyF: '« Capture »', KeyQ: '« Capacité »', KeyG: '« Appel »', KeyR: '« Monture »', Tab: '« Sac »', KeyX: '« Urgence »', KeyV: '« Agencer »', Escape: '« Pause »', Digit1: 'la case 1', Digit2: 'la case 2', Digit3: 'la case 3', Digit4: 'la case 4', Mouse0: 'stick droit', Mouse2: '« Frappe »' };
+  T.LABELS = { KeyE: '« Agir »', Space: '« Esquive »', KeyC: '« Saut »', KeyF: '« Capture »', KeyQ: '« Capacité »', KeyG: '« Appel »', KeyR: '« Monture »', Tab: '« Sac »', KeyX: '« Urgence »', KeyV: '« Agencer »', Escape: '« Pause »', Digit1: 'la case 1', Digit2: 'la case 2', Digit3: 'la case 3', Digit4: 'la case 4', Mouse0: 'stick droit', Mouse2: '« Frappe »' };
 
   const prefs = () => (AN.Prefs ? AN.Prefs.data.touch : { mode: 'auto', size: 1, left: false });
   // la requête est préparée une fois (1.8.2) : sa réponse reste à jour toute seule
@@ -111,6 +111,7 @@
       stick('left'), stick('right'),
       h('div', { class: 'tgroup tg-exp' },
         button('dash', 'Esquive', 'Space', { buzz: true }),
+        button('jump', 'Saut', 'KeyC', { small: true }),
         button('melee', 'Frappe', null, { mouse: 2, aim: 'melee' }),
         button('capture', 'Capture', 'KeyF', { aim: 'capture' }),
         button('act', 'Agir', 'KeyE', { buzz: true }),
@@ -190,6 +191,9 @@
     const prompt = AN.HUD.els && AN.HUD.els.prompt;
     const ready = !!(prompt && !prompt.hidden) || (mode === 'arc' && document.querySelector('.prompt:not([hidden])'));
     T.root.classList.toggle('can-act', !!ready);
+    // le bouton Saut n'apparaît que là où l'on peut sauter (galaxie, près d'un colosse, sur lui) (1.16.1)
+    const X = AN.X;
+    T.root.classList.toggle('can-jump', !!(X && X.player && (X.player.climb || AN.Colossus.canLeap(X) || (AN.Beyond && AN.Beyond.leaps(X)))));
   };
 
   T.releaseAll = function () {

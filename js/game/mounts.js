@@ -125,13 +125,23 @@
     AN.Audio.play('melee');
   };
 
-  /** Les coups reçus par le joueur monté frappent la monture. Renvoie vrai si absorbé. */
+  /**
+   * Les coups reçus par le joueur monté (1.16.3) : la monture en encaisse une part, le cavalier
+   * le reste. Elle ne le rend plus invulnérable (auparavant elle prenait tout, et chaque coup
+   * offrait un quart de seconde d'invulnérabilité). Renvoie les dégâts qui restent au cavalier.
+   */
+  Mt.share = 0.45;
+  /**
+   * Une monture très robuste ne fait pas pour autant un rempart sans fin : ce qu'elle encaisse pour vous
+   * lui coûte d'autant plus que sa vigueur dépasse deux fois la vôtre. Ainsi, en selle, elle ne vous offre
+   * jamais plus que l'équivalent de deux fois votre vigueur, quelle que soit sa taille.
+   */
+  Mt.cost = (a, p) => Math.max(1, a.maxHp / (2 * Math.max(1, p.maxHp)));
   Mt.absorb = function (X, dmg, src, opts) {
     const a = X.mount;
-    if (!a || opts.dot) return false;
-    AN.Combat.hit(X, a, dmg * 0.85, src, { knock: 0, numbers: true });
-    X.player.iframes = 0.25;
-    return true;
+    if (!a || opts.dot) return dmg;
+    AN.Combat.hit(X, a, dmg * Mt.share * Mt.cost(a, X.player), src, { knock: 0, numbers: true });
+    return dmg * (1 - Mt.share);
   };
 
   /** Dessin du cavalier, au-dessus de la monture. */

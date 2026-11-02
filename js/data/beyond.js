@@ -37,7 +37,7 @@
   D.ECHELON_ORDER.push('amas', 'toile', 'pli');
 
   Object.assign(D.CAPTURE_FORMS, {
-    rassemblement: { name: 'Rassemblement', desc: 'Ses galaxies errantes s’éloignent. Frappez-les pour les repousser dans son orbite (l’anneau clair), toutes, puis capturez-le.' },
+    rassemblement: { name: 'Rassemblement', desc: 'Ses galaxies errantes s’éloignent. Chaque coup en renvoie une vers lui : ramenez-les toutes dans l’anneau clair, puis capturez-le.' },
     tissage: { name: 'Tissage', desc: 'Des nœuds s’allument autour de lui. Touchez-les dans l’ordre indiqué pour fermer la trame, puis capturez-le.' },
     reflet: { name: 'Reflet', desc: 'Il se dédouble. Un seul porte une ombre : capturez celui-là. Un reflet se déchire sous le rayon, et le vrai reprend des forces.' },
   });

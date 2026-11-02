@@ -63,6 +63,7 @@
       cosmos: { astres: [], visits: {} },
       nations: [], // nations ancrées (1.12)
       mercs: [], // mercenaires engagés pour la prochaine expédition
+      story: { act: 0, form: null, courts: {}, chronicles: [] }, // le récit (1.14) : dernier acte annoncé, dernière forme de l'Artefact montrée
       destByScale: {},
       arrange: { reshape: false, autoReshape: true }, // agencement (1.7) : forme adaptée au déplacement, au rangement
       base: { guards: [], defenses: {}, installed: [] }, // hexagone de l'Artefact (1.9) : gardes, modules bâtis (niveau), modules installés
@@ -151,6 +152,12 @@
       if (!m) throw new Error('Aucune migration depuis le format ' + v);
       data = m(data);
       v = data.version;
+    }
+    // les conseils (1.15) : une partie déjà avancée connaît les systèmes d'avant ; seuls
+    // la console redessinée et le danger lui seront présentés (par la visite)
+    if (data.flags && !data.flags.tips && (data.expeditions || 0) >= 3 && AN.Data.TIPS) {
+      data.flags.tips = {};
+      AN.Data.TIPS.forEach((t) => { if (t.id !== 'console' && t.id !== 'danger') data.flags.tips[t.id] = 1; });
     }
     fillDefaults(data, S.newProfile(data.seed || 1));
     (data.collection || []).forEach(S.normalizeCreature);

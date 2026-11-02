@@ -199,7 +199,7 @@
 
   /* ======================= Formes de capture ======================= */
   const ORB_DEF = {
-    id: 'galaxie_errante', name: 'Galaxie errante', tier: 0, r: 22, hp: 9999, speed: 0, temper: 'passif', move: 'drift', attack: null,
+    id: 'galaxie_errante', name: 'Galaxie errante', tier: 0, r: 30, hp: 9999, speed: 0, temper: 'passif', move: 'drift', attack: null,
     traits: ['glow'], group: [1, 1], roles: [], biomes: [], resist: 1, armor: 0, rarity: 0, index: 9997, fake: true,
     art: { shape: 'spiral', body: '#c8b8ff', accent: '#fff0c0', eye: '#ffffff', eyes: 1, glow: '#c8b8ff' }, drops: {},
   };
@@ -214,13 +214,14 @@
   /** Prépare la forme de capture d'un maître d'au-delà, à son épuisement. */
   Bd.makeForm = function (X, e, F) {
     if (F.kind === 'rassemblement') {
-      F.inner = e.r + 70; F.outer = e.r + 200;
+      F.inner = e.r + 60; F.outer = e.r + 240;
       F.orbs = [0, 1, 2, 3].map((k) => {
         const a = (k / 4) * TAU + Math.random() * 0.6;
         const q = nearFloor(X, e.x + Math.cos(a) * (e.r + 300), e.y + Math.sin(a) * (e.r + 300));
         const o = AN.Entities.creature(ORB_DEF, q.x, q.y, { threat: X.world.threat });
         o.fixed = true; o.herd = true; o.noLoot = true; o.isBoss = false; o.aggroT = 0;
-        o.vx = Math.cos(a) * 30; o.vy = Math.sin(a) * 30;
+        o.herdTo = e; // chaque coup la renvoie vers le Berger, d'où qu'on frappe (1.14)
+        o.vx = Math.cos(a) * 20; o.vy = Math.sin(a) * 20;
         X.creatures.push(o);
         return o;
       });
@@ -235,6 +236,7 @@
       return true;
     }
     if (F.kind === 'reflet') {
+      if (e.col && e.col.map) { F.done = true; F.copies = []; return true; } // un colosse-carte n'a nulle part où cacher ses reflets : il n'y a que lui (1.16.3)
       // le vrai prend l'une des trois places ; deux reflets, sans ombre et à l'envers, prennent les autres
       const a0 = Math.random() * TAU;
       const spots = [0, 1, 2].map((k) => nearFloor(X, e.x + Math.cos(a0 + (k / 3) * TAU) * (e.r * 1.4 + 120), e.y + Math.sin(a0 + (k / 3) * TAU) * (e.r * 1.4 + 120)));
@@ -292,16 +294,16 @@
           }
           // elles dérivent loin du Berger ; les coups les repoussent
           const dx = o.x - e.x, dy = o.y - e.y, d = Math.hypot(dx, dy) || 1;
-          const drift = d > 1400 ? -30 : 26;
+          const drift = d > 1100 ? -30 : 15; // elles s'éloignent, lentement (1.14 : 26, jusqu'à 70 px/s)
           o.vx += (dx / d) * drift * dt; o.vy += (dy / d) * drift * dt;
-          const sp = Math.hypot(o.vx, o.vy), max = 70;
+          const sp = Math.hypot(o.vx, o.vy), max = 45;
           if (sp > max) { o.vx *= max / sp; o.vy *= max / sp; }
           const kd = Math.exp(-2.5 * dt);
           o.x += (o.vx + o.kbx * 1.6) * dt; o.y += (o.vy + o.kby * 1.6) * dt;
           o.kbx *= kd; o.kby *= kd;
           AN.Physics.collide(X.zone, o);
           o.anim += dt;
-          if (d >= F.inner && d <= F.outer && Math.hypot(o.kbx, o.kby) < 120) {
+          if (d <= F.outer) { // dès qu'elle franchit l'anneau, elle y reste (1.14 : il fallait s'y arrêter pile)
             o.held = true;
             FX.ring(o.x, o.y, AN.CYAN, o.r, o.r * 3, 0.5, 3);
             AN.Audio.play('pickup', { pitch: 0.8 + held * 0.15 });
@@ -336,7 +338,7 @@
           }
         }
       } else if (F.kind === 'reflet') {
-        for (const c of F.copies) if (c.alive) { c.hp = c.maxHp; c.face = e.face; c.anim = e.anim; }
+        for (const c of F.copies || []) if (c.alive) { c.hp = c.maxHp; c.face = e.face; c.anim = e.anim; }
       }
     }
   }

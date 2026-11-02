@@ -1,5 +1,247 @@
 # Journal des versions
 
+## 1.16.3 — Des colosses-cartes
+
+Les plus grands maîtres deviennent la carte elle-même ; les montures ne rendent plus invulnérable.
+
+- **Les cinq plus grands colosses sont la zone entière** : la Myriade, la Spirale-mère, le Berger d’amas, le Tisserand et le Relieur (rang 7 et plus).
+  - Leur zone n’a plus de sol : le colosse en occupe le centre et, tout autour, c’est le vide.
+  - On arrive sur son dos avec une **plateforme de l’Artefact**, un petit hexagone qui descend du ciel et se pose sur sa plus grande surface plate.
+  - À l’arrivée, la caméra s’éloigne d’un coup, très loin : on ne voit plus son personnage, seulement le colosse tout entier dans le vide, et son nom. Elle revient en moins de quatre secondes.
+  - **On n’en descend pas.** Lâcher prise est refusé. Une chute (prise épuisée, secousse non tenue, partie qui se dérobe) vous fait glisser jusqu’à la surface plate la plus proche de son dos, avec quelques dégâts.
+  - Ses sceaux du bas s’atteignent à pied, au bout de ses membres. Il s’en prend à ce qui est sur lui : surtout des pluies et des ondes, parfois un souffle, plus rarement un rugissement qui secoue ; des fils pour les araignées, une inversion pour les roues. Et il se secoue. Ses attaques laissent plus de temps entre elles que celles des autres colosses : on vit sur lui.
+  - Sur ses surfaces plates, la prise se reprend même en marchant : c’est le sol de la zone. Ses membres sont ses chemins : on y marche presque à vitesse normale, la prise s’y use deux fois moins vite qu’ailleurs, et tenir pendant une secousse coûte deux fois moins.
+  - Ses habitants sont plus nombreux (jusqu’à 16). Chacun défend son coin de dos et ne vous poursuit pas au-delà. À l’arrivée, ils vous laissent le temps de poser le pied, et la plateforme est dégagée.
+  - **Vos compagnons montent avec vous** : ils vous suivent sur son dos et s’en prennent à ses habitants. À terre, on les relève (E à leur contact).
+  - **La plateforme** (E) : extraire (l’Artefact y ouvre son portail), ou retourner vers la zone d’où vous venez. C’est aussi un abri : ses habitants n’y montent pas et n’attaquent pas qui s’y tient. Le colosse, lui, frappe partout sur son dos.
+  - Épuisé, il s’effondre sous vos pieds, pour 50 s (36 s pour les autres maîtres) : le temps de traverser son dos. Une forme de capture accomplie lui laisse encore au moins 30 s (14 s ailleurs). Le rayon de capture le vise d’où que vous soyez sur lui ; E l’achève. Les formes de capture se posent sur son dos (les nœuds de la trame du Tisserand) ou au-dessus de lui (le troupeau du Berger). Le Relieur n’a nulle part où cacher ses reflets : il n’en fait pas.
+  - Capturé ou achevé, il ne reste que la plateforme, seule dans le vide : son butin y tombe, et l’Artefact vous y ramène, avec vos compagnons.
+  - Sur la carte de la zone : sa silhouette et la plateforme. Un conseil, « Un colosse-carte », s’affiche à la première visite ; le Guide a sa ligne dans les commandes.
+- **Sur tous les colosses, on circule mieux.**
+  - Au bout d’une partie, on continue sur celle qui part dans la direction voulue, même si elle fait un angle. Avant, on ne pouvait pas passer de la cuisse d’une araignée à son tibia, qui repart en arrière depuis le genou.
+  - Le moyeu des roues (Engrenage, Astre-veilleur, Spirale-mère, Relieur) est un vrai disque. On le parcourt dans tous les sens, et ce qui y pousse et y vit s’y répartit. Avant, tout s’alignait sur une seule ligne verticale.
+- **Corrections.**
+  - Le butin en jeu affichait « NaN » après la capture d’un maître de rang 8 à 10 (Berger, Tisserand, Relieur) : leur valeur n’était pas définie.
+  - Ce qu’une forme de capture fait naître (le troupeau du Berger, les reflets du Relieur) disparaît avec le maître capturé ou achevé.
+- **Montures.** Elles ne protègent plus de tous les dégâts. Auparavant, la monture prenait 85 % des coups à votre place, vous n’en receviez aucun, et chaque coup vous offrait un quart de seconde d’invulnérabilité. Désormais, elle en prend 45 % et vous laisse le reste. Une monture très robuste paie d’autant plus cher ce qu’elle encaisse : en selle, elle ne vous offre jamais plus que l’équivalent de deux fois votre vigueur.
+- Nouveaux tests (105 au total) :
+  - les colosses-cartes sont les plus grands et seulement eux ;
+  - leur zone n’a ni sol ni passage, la plateforme est dégagée, chaque sceau s’atteint à pied depuis la plateforme ;
+  - on ne descend pas d’un colosse-carte ;
+  - les montures partagent les coups, dans la limite de deux fois la vigueur du cavalier.
+  - chaque créature a une valeur, à tous les rangs.
+
+**Changements de règles à noter.**
+- **Colosse-carte** : rang 7 et plus. Pas de sol, pas de passage, pas de plaque d’extraction : on entre et on sort par la plateforme. Une chute coûte 30 % des dégâts du colosse et ramène sur la surface plate la plus proche. Épuisé : 50 s (36 s pour les autres maîtres). Habitants : 6 + le rang, 16 au plus. Chacun ne poursuit plus au-delà de 520 px de son coin, ni sur la plateforme. Répit à l’arrivée : environ 8 s.
+- **Attaques d’un colosse-carte** : une toutes les 3 à 5 s (1,4 à 2,6 s pour les autres colosses), tirées parmi pluie (3 chances), onde (2), souffle (2), rugissement (1), fils (2, araignées) et inversion (1, roues).
+- **Déplacement sur un colosse-carte** : 80 % de la vitesse de marche sur ses membres (150 px/s sur les autres colosses).
+- **Prise sur un colosse-carte** : sur une surface plate, elle remonte de 6 % par seconde en marchant (15 % immobile, comme avant) ; ailleurs, elle s’use deux fois moins vite ; tenir pendant une secousse coûte 5 % par seconde (10 % sur les autres colosses).
+- **Montures** : 45 % des coups (85 % auparavant), sans invulnérabilité. Coût pour la monture multiplié par sa vigueur divisée par deux fois la vôtre (au moins 1). Les dégâts de terrain vous restent, comme avant.
+- Sauvegarde : le format reste le **6** ; rien de nouveau n’est enregistré.
+
+## 1.16.2 — Des colosses-mondes
+
+Après les premiers combats : on ne pouvait pas vraiment se déplacer sur eux, et ils n’étaient pas assez grands.
+
+- **Bien plus grands.** De 1 100 px pour les maîtres des régions à 2 600 px pour le Relieur, une fois et demie à deux fois plus qu’en 1.16.1. Les derniers couvrent presque toute leur zone : ce sont des paysages qui bougent. Leurs coups restent à taille humaine : un pied, une main, une onde ou une charge ont des zones et des vitesses bornées, pour qu’on puisse les esquiver. Un bras immense balaie plus lentement.
+- **On se déplace librement sur eux.**
+  - On marche dans toutes les directions, à vitesse de marche sur leur dos (moins vite le long d’un membre).
+  - On passe d’une partie du corps à l’autre dès qu’elles se touchent à la même hauteur, ou par une articulation : du dos à l’épaule, de la carapace à une patte, d’une aile au dos.
+  - Sur le colosse, la caméra se rapproche pour montrer son dos autour de vous.
+- **Un écosystème sur leur dos.** Chaque colosse porte un paysage selon ce qu’il est :
+  - les arbres et la mousse du Sylvarque, le continent d’Atlas avec ses forêts, ses ruines et son lac ;
+  - les cristaux du Léviathan, les braises du Pyroclaste et du Phénix ;
+  - les coraux des baleines, les rouages de l’Engrenage, les stèles du Relieur, les fils du Tisserand, les étoiles de la Myriade et du Berger…
+  - **Des créatures y vivent** : celles du monde. Les territoriales défendent leur colosse contre qui y monte, chacune à sa place autour de vous ; les craintives s’écartent ; certaines tirent. Elles se combattent, s’affaiblissent et se capturent comme ailleurs. Quand leur colosse disparaît, elles descendent au sol.
+  - **Des gisements s’y récoltent** (E maintenu, quand il ne se secoue pas) : les ressources de son monde.
+  - Sur son dos, **on se bat comme au sol** (on tire, on frappe), sans que les tirs ricochent sur lui. Près d’un sceau, le clic le frappe.
+- Nouveau test (101 au total) : taille de chaque colosse, coups bornés, un paysage et des gisements sur son dos, un point de son dos retrouvé là où il est.
+
+**Changements de règles à noter.**
+- **Taille des colosses** : 1 100, 1 350, 1 600, 1 800, 2 000, 2 200, 2 400 et 2 600 px du rang 3 au rang 10. Les zones et les vitesses de leurs coups sont calculées sur une taille bornée à 1 100 px ; leur pas, 110 px au plus ; leurs déplacements, 240 px/s au plus (380 pour un serpent, 520 pour un volant).
+- **Sur un colosse** : vitesse de marche sur son dos (150 px/s le long d’un membre). On passe d’une partie à une autre si elle est à moins de 0,35 de hauteur, ou reliée par une articulation. Clic : frapper un sceau à portée, sinon tirer ; clic droit : frappe chargée sur un sceau, sinon frappe au corps à corps.
+- **Habitants** : de 5 à 10 créatures du monde (2 + le rang), de rang 0 ou 1 ; gisements : 3 à 7, deux récoltes chacun, deux unités par récolte.
+- **Capture et formes de capture** : elles se mesurent au cœur du colosse, borné à 220 px quelle que soit sa taille (l’anneau du Berger, les ancres d’Atlas gardent leur mesure).
+- Sauvegarde : le format reste le **6** ; rien de nouveau n’est enregistré (le dos d’un colosse est tiré de la graine du monde).
+
+## 1.16.1 — Des colosses plus justes
+
+Retours sur les colosses, après les premières parties.
+
+- **Les membres ne se téléportent plus.** Plusieurs gestes changeaient d’état d’un coup, d’une image à l’autre :
+  - un pied qui s’abattait, une main qui retombait au ras du sol au début d’un balayage ;
+  - la tête qui retombait à la fin d’un rugissement, le corps entier quand le colosse s’effondrait ou se relevait ;
+  - les ailes qui sautaient quand le battement changeait de rythme ;
+  - les pieds du Titan-Lune qui se recollaient sous lui au début d’un bond ;
+  - un colosse qui pivotait trop vite avant de charger ou de plonger (la queue de la Tortue-Monde balayait près de 100 px par image) ;
+  - l’anneau du Serpent annulaire qui rattrapait la moitié de sa distance à chaque image ;
+  - le corps du serpent qui cessait de suivre sa tête quand il avançait lentement.
+
+  Tout cela se fait désormais en continu. Un garde-fou empêche en plus tout membre de parcourir plus de 2 600 px par seconde (sauf la Myriade quand elle se disperse, invisible). Un détecteur a mesuré la vitesse de chaque nœud du squelette pendant de vrais combats : il ne reste que des mouvements rapides et continus.
+- **Les colosses restent dans leur zone.** Le centre de leur corps se tient à une demi-longueur des bords (au plus un tiers de la zone), si bien que leurs membres ne débordent plus ; ils naissent déjà à l’intérieur.
+- **La caméra ne reste plus dézoomée.** Elle ne recule que face à un colosse éveillé et proche (de 0,55 à 1,35 fois sa longueur). Endormi, errant ou épuisé, il ne la fait presque pas bouger ; et elle ne le suit plus vers les bords de la zone.
+- **L’escalade est plus clémente.**
+  - La prise se vide plus de deux fois moins vite et se remplit vite, immobile, sur une surface plate. Pendant une secousse, la tenir coûte deux fois moins, et l’on a une seconde pour réagir.
+  - Les secousses sont plus espacées : 7 à 11 s, 5 s de répit après s’être agrippé, au moins 2,5 s après une frappe.
+  - On grimpe plus vite, on s’agrippe de plus loin, on atteint un sceau de plus loin.
+  - Les frappes sur un sceau sont plus fortes : 2,2 fois les dégâts, jusqu’à 5,5 fois chargées en 0,7 s.
+  - Tomber fait moins mal.
+- **Le saut a sa touche : C** (maintenir, puis relâcher ; R3 à la manette en expédition ; bouton « Saut » sur écran tactile, là où l’on peut sauter). **Espace redevient l’esquive, immédiate, partout** : il ne fallait plus attendre de relâcher la touche près d’un colosse ou dans une galaxie. Le saut a son propre délai, on peut esquiver juste après. Sur un colosse, C saute vers une autre prise, Espace lâche prise.
+- **Le saut ne franchit plus les zones protégées par une capacité.** En plein saut, on passe au-dessus du vide et de l’abîme, mais plus à travers les murs, les barrières des caveaux ni les bâtiments. Et en redescendant d’un colosse, on retombe toujours du côté d’où l’on est monté : grimper sur lui ne fait pas entrer dans un caveau.
+- Nouveau test (100 au total) : ce qui arrête un saut, l’intérieur d’un caveau séparé du reste de la zone, le saut et l’esquive sur deux touches.
+
+**Changements de règles à noter.**
+- **Commandes** : sauter, c’est C (maintenir, puis relâcher), dans une galaxie comme près d’un colosse ; Espace esquive, sans délai. Sur un colosse : C, sauter vers une autre prise ; Espace, lâcher prise. Une touche déjà choisie pour C dans « Commandes » est échangée, comme pour toute action.
+- **Saut** : il bute sur les murs, les barrières des caveaux et les bâtiments ; délai de 0,5 s, distinct de celui de l’esquive.
+- **Escalade** : prise −1,2 % par seconde au repos (−2,2 % en bougeant), +15 % par seconde immobile sur une surface plate ; tenir une secousse coûte 10 % par seconde ; une seconde pour réagir. Secousses toutes les 7 à 11 s. Frappe 2,2 fois (chargée : jusqu’à 5,5 fois).
+- **Colosses** : leur centre reste à une demi-longueur des bords de la zone.
+
+## 1.16.0 — Les colosses (bloc C)
+
+Deuxième bloc du plan : les maîtres des mondes deviennent des colosses.
+
+- **Les dix-sept maîtres sont des colosses.** Ce sont les ultra-boss des régions et tous les maîtres des échelles supérieures, du Sylvarque au Relieur. Ce ne sont plus des cibles qu’on use à coups de tirs dans une arène, mais des corps immenses (de 840 à 1 400 pixels de long, cinq à huit fois un ancien gardien), animés pas à pas, qui vivent dans leur paysage.
+  - **Six plans de corps, animés par le code** :
+    - bipède (Sylvarque, Atlas, Titan-Lune, Berger d’amas) ;
+    - quadrupède (Tortue-Monde) ;
+    - serpent (Pyroclaste, Léviathan tellurique, Serpent annulaire) ;
+    - volant (Thalassor, Baleine d’orbite, Phénix de plasma) ;
+    - roue (Engrenage primordial, Astre veilleur, Spirale-mère, Relieur) ;
+    - araignée (Myriade, Tisserand).
+  - Les pieds se posent et se lèvent un à un, le corps du serpent suit sa tête, les ailes battent, les bras d’une roue traînent derrière elle.
+  - **Du relief, à plusieurs hauteurs** : chaque partie du corps a sa hauteur (les pieds au sol, les genoux plus haut, le torse, la tête, les ailes d’un volant plus haut encore). Elle est dessinée en perspective : plus elle est haute, plus elle grandit et s’écarte du centre de la vue. Quand la caméra bouge, le haut glisse plus vite que le bas (parallaxe), et le colosse prend du volume. L’ombre reste au sol. Quand vous êtes dessous, le corps passe au-dessus de vous et devient translucide, et un contour vous signale.
+  - **Dans le paysage** : le colosse erre dans la zone du cœur, enjambe le relief, et ne se réveille qu’à votre approche ou si vous le touchez. La caméra recule pour le montrer en entier, et se rapproche quand vous êtes sur lui.
+- **Des coups de corps, pas des tirs.** Chaque attaque est un mouvement visible, annoncé :
+  - un pied qui se lève au-dessus de vous puis s’abat ;
+  - un bras qui fauche le sol ;
+  - une main qui s’écrase et reste plantée ;
+  - une tête qui mord ;
+  - une charge, un plongeon au ras du sol, des bras qui tournent, un rugissement qui repousse ;
+  - le souffle de certains.
+  - **Chacun a son attaque propre** :
+    - les racines du Sylvarque ;
+    - les rochers qui tombent du continent d’Atlas ;
+    - le bond du Titan-Lune ;
+    - la houlette du Berger, qui ramène à lui ;
+    - la carapace de la Tortue-Monde, qui tourne sur elle-même ;
+    - le geyser de lave du Pyroclaste ;
+    - les séismes du Léviathan ;
+    - l’anneau du Serpent annulaire, qui se resserre ;
+    - le sillage de feu du Phénix ;
+    - l’aspiration de la Baleine ;
+    - l’éclipse de l’Astre ;
+    - l’attraction de la Spirale ;
+    - les pages du Relieur qui changent de sens ;
+    - la dispersion de la Myriade ;
+    - les fils du Tisserand, qui ralentissent.
+- **On les bat en brisant leurs sceaux.** Chaque colosse porte trois à cinq sceaux lumineux ; tirer sur son corps ne fait que ricocher.
+  - **Sceaux du bas** : ils se découvrent quand le colosse s’expose. C’est le cas d’un pied ou d’une main restés plantés après un coup, d’une tête assommée contre la roche, d’un ventre qui rase le sol, de bras posés quand la roue s’arrête, ou d’une patte figée après avoir frappé. On les tire ou on les frappe tant qu’ils brillent.
+  - **Sceaux du haut** : on les atteint en grimpant. E près d’une partie basse et lente de son corps pour s’agripper. On se déplace ensuite sur lui (le corps bouge sous vos pieds), et l’on frappe (clic, ou clic droit maintenu pour une frappe chargée).
+  - **Le saut** : le saut chargé de la galaxie (Espace maintenu, puis relâché) a désormais une hauteur, et il sert aussi près d’un colosse. En l’air, on attrape une partie plus haute que ce qu’on atteint à pied. Sur le colosse, Espace fait sauter vers une autre prise dans la direction visée (une flèche pointillée la montre) : de la main au torse, d’une aile au dos. Sans prise à portée, on redescend. Le joueur est dessiné à sa hauteur, en perspective, avec son ombre au sol (dans une galaxie aussi).
+  - **La prise s’épuise** : une jauge autour de vous. On reprend son souffle immobile sur une surface plate (dos, carapace, moyeu). Quand le colosse se secoue, il faut maintenir E, ou l’on est jeté à terre.
+  - Chaque sceau brisé le fait chanceler, puis l’enrage. Quand le dernier cède, il s’effondre : la capture, le coup de grâce et les formes de capture des échelles supérieures se déroulent comme avant. S’il se relève, son dernier sceau se referme à moitié.
+- **Trouver comment le battre.** Si l’on piétine (30 s, puis 45 s sans briser de sceau), l’Artefact finit par remarquer ce qui cloche. La faiblesse de chaque colosse s’inscrit dans le bestiaire dès son premier sceau brisé.
+- Affichage tête haute : « Colosse · sceaux brisés : 1 sur 4 », et l’annonce d’un sceau découvert. La fiche d’un monde précise que son maître est un colosse. Deux conseils nouveaux (les colosses, grimper), et une ligne dans les commandes du Guide.
+- Mod de triche : partir face à un colosse au choix, briser le prochain sceau ; « Épuiser le gardien » brise aussi les sceaux d’un colosse. En débogage : `AN.dbg.colosse('atlas')`.
+- Nouveaux tests (99 au total) : chaque maître est un colosse complet (plan, sceaux du haut et du bas, attaques, indices, faiblesse) ; chaque corps est d’un seul tenant (on peut grimper partout), ses sceaux sont posés sur lui, leur vigueur est une part de celle du maître, et le même monde donne le même colosse.
+
+**Changements de règles à noter.**
+- **Maîtres (rang 3 et plus)** : seuls les sceaux leur font perdre de la vigueur. Les tirs, les coups, les capacités et les compagnons n’ont d’effet que sur un sceau découvert, et près de lui. La vigueur des sceaux vaut 24 % de celle du maître (elle grandit avec la menace du monde).
+- **Dégâts** : un coup de corps fait de 24 (rang 3) à 42 (rang 10) dégâts avant la force du monde. Le piétinement et la morsure frappent plus fort que le balayage. Un pied qui se pose écrase ce qui est dessous.
+- **Saut** : Espace maintenu près d’un colosse (comme dans une galaxie) ; la hauteur atteinte grandit avec la charge (0,25 à 1,1). On s’agrippe en l’air à une partie située jusqu’à 0,45 au-dessus de soi (au sol : jusqu’à 0,45). Hors des galaxies, un saut qui retombe sur la roche ne blesse pas. Sur le colosse, un saut porte de 70 à 280 px, jamais à plus de 0,55 au-dessus de la prise de départ.
+- **Escalade** : la prise se vide de 3 % par seconde au repos, davantage en bougeant, en hauteur, sur un volant ou une roue qui tourne. Tenir pendant une secousse coûte 24 % par seconde. On a 0,6 s pour tenir avant d’être jeté. On ne saisit pas une partie qui file : une roue qui tourne, un pied qui se lève. Un volant qui rase le sol, si. Tomber de haut fait des dégâts.
+- **Frappe sur un sceau** : 1,6 fois les dégâts de l’arme de corps à corps, jusqu’à 4,2 fois chargée. Un sceau découvert frappé depuis le sol prend 1,25 fois les dégâts.
+- **Les gardiens de zone** (rang 2) ne changent pas.
+- Sauvegarde : le format reste le **6** ; le bestiaire retient la faiblesse découverte (`secret`).
+
+## 1.15.0 — Lisible (bloc A)
+
+Premier bloc du plan annoncé : lisibilité d’abord (1.15), puis les colosses (1.16), la fin réaliste au-delà des galaxies (1.17) et des mondes plus vivants (1.18).
+
+- **Le danger remplace la menace de 1 à 7.** Un monde est désormais **Facile**, **Équilibré**, **Difficile** ou **Mortel** *pour vous* : l’Artefact compare la force de ce qui y vit (faune, gardiens, règle du monde) à la vôtre (vigueur, protection, armes, bienfaits de l’Archive, compagnons choisis).
+  - Les deux forces sont données en niveaux sur la même échelle (dix niveaux d’écart, c’est une force double) : « monde niveau 31 · vous 27 ».
+  - Le danger suit votre préparation : changez d’arme, de protection ou de compagnons, il change aussitôt (fiche et bas de la page Préparation).
+  - On le retrouve partout où la menace s’affichait : carte, fiche, affichage tête haute en expédition, message d’arrivée, rapport d’expédition, journal.
+- **La fiche d’un monde ne dit plus rien de faux.** L’ancienne fiche « estimée » pouvait annoncer une ressource absente, en oublier une autre ou donner une menace approximative. La nouvelle fiche est exacte ; ce que le scanner ne perçoit pas encore est marqué d’un **« ? »**, et la fiche dit à quelle fiabilité il se lèvera.
+  - **Ce qu’on y trouve** : toutes les ressources, avec leur abondance (Traces, Présent, Abondant, en trois barres) ; la faune (les espèces déjà observées en portrait, le nombre des autres) ; les gardiens ; le peuple ou la nation ; les caveaux et leur clé ; les structures ; les événements.
+  - **Conditions** : les paysages de chaque zone, la taille, la règle du monde expliquée, l’anomalie, la stabilité.
+  - Le scanner (Améliorations) révèle : faune, règle, caveaux et peuple à 50 % ; gardiens, anomalie et structures à 70 % ; événements à 85 % ; les espèces jamais observées à 100 %. Les bâtiments qui l’épaulent comptent.
+- **La carte des destinations se lit d’un coup d’œil.** Quatre anneaux teintés et nommés, du centre au bord : Facile, Équilibré, Difficile, Mortel. Chaque monde porte le liseré de son danger, et les mondes ne se chevauchent plus. Une légende illustrée remplace le paragraphe d’explication (degrés, peuple, caveau, sauvetage, recherche).
+- **La console devient un registre ouvert.**
+  - **À gauche**, l’Artefact vivant (dans sa forme et sa couleur du moment), l’état de l’Archive, la réserve et le sommaire en quatre chapitres : I Partir, II Fabriquer, III L’Archive, IV Savoir. Une pastille rouge signale ce qui vous attend.
+  - **À droite**, la page ouverte, avec son fil (« I Partir · Destinations ») et ses onglets.
+  - Chaque page a un **« ? »** qui en dit l’essentiel en quelques lignes ; les textes longs y sont rangés.
+  - Sur téléphone, le sommaire devient un bandeau ; en paysage, l’en-tête se fait discret pour laisser la place à la page.
+- **Une visite guidée** de la console à sa première ouverture, en cinq étapes (la carte, le danger, la collection, les améliorations, le Guide). On peut la passer, et la refaire depuis le Guide. Elle s’arrête si l’on va ailleurs.
+- **Des conseils au bon moment.** La première fois qu’un système apparaît (compagnons et capacités, monture, appel, caveau en vue, village, nation, sac plein, extraction, vigueur basse, structure, événement, autre échelle, évolution possible, agencement, nouveau rang), un conseil s’affiche une seule fois. Les conseils vus se retrouvent dans le **Guide** (chapitre Savoir), avec la liste des commandes et un bouton pour rejouer le Seuil.
+- **Le Seuil couvre davantage.** Une étape nouvelle : l’Artefact vous prête un Brindeuil, le temps du tutoriel, pour apprendre les compagnons et leur capacité (Q). L’Artefact qui vous retient au bord de la chute rappelle l’extraction d’urgence (X maintenu).
+- Le scanner de l’Artefact se présente pour ce qu’il fait désormais : le nombre de destinations, et ce que leurs fiches révèlent.
+- Mod de triche : la menace qu’on y règle est appelée « menace interne » (c’est elle qui règle les créatures).
+- Nouveaux tests (97 au total) : danger (échelle, degrés, monotonie, équipement, Seuil, rien d’enregistré), fiche exacte (ressources, gardiens, règle, anomalie, caveaux, faune, sur 40 mondes), aide et conseils (une aide par page, identifiants uniques, visite), conseils d’une ancienne partie, étape du compagnon prêté.
+
+**Changements de règles à noter.**
+- **La menace n’est plus affichée.** Elle reste la règle interne qui fixe la vigueur et les dégâts des créatures ; rien ne change en combat. Ce qui s’affiche est le danger, relatif à votre force.
+- **Degrés** (écart de niveaux, monde moins vous) : Facile en dessous de −6, Équilibré de −6 à +2, Difficile de +3 à +8, Mortel à partir de +9. Avec l’équipement de départ, un monde de menace 1 ou 2 est Équilibré et un monde de menace 7 Mortel.
+- **Scanner** : il ne change plus ce que la fiche affiche de façon approximative ; il décide seulement de ce qu’elle révèle (seuils ci-dessus). Les ressources, la taille, les paysages, la stabilité, le peuple et le maître du cœur (échelons cosmiques) sont toujours connus.
+- **Le Seuil** compte une étape de plus (huit) : le Brindeuil prêté ne rejoint pas votre collection.
+- **Conseils** : une partie qui compte déjà trois expéditions ou plus ne reçoit pas les conseils sur les systèmes qu’elle connaît ; elle voit la visite de la console et le conseil sur le danger.
+- Sauvegarde : le format reste le **6** ; `flags.tips` (conseils vus) est ajouté ; le journal des expéditions retient le danger de chaque expédition (`danger`).
+
+## 1.14.1 — Tout le monde à bord
+
+- **L’hexagone emporte ce qui est à bord.** Le départ et l’arrivée de l’hexagone perdaient en réalisme : le joueur était caché pendant la descente, les compagnons et les gardes attendaient déjà au sol pendant que l’hexagone était encore dans le ciel, et dans l’Archive le joueur disparaissait d’un coup au départ (et marchait déjà au retour, pendant la descente).
+  - **Dans un monde** : le joueur, ses compagnons et les gardes descendent avec l’hexagone et n’en sortent qu’une fois posés. Pendant la descente, ils n’agissent pas et les bêtes ne peuvent pas les viser. Au départ avec le joueur, les compagnons montent aussi : ceux qui sont loin rejoignent l’hexagone d’un trait de lumière.
+  - **Dans l’Archive** : au départ, le joueur (et sa monture), les gardes et les compagnons s’élèvent avec l’hexagone. Au retour, ils redescendent avec lui ; on attend d’être posé pour bouger, puis les compagnons regagnent leur territoire à pied.
+
+**Changements de règles à noter.**
+- Pendant la descente de l’hexagone, les compagnons et les gardes ne peuvent être ni touchés ni visés ; ils ne combattent qu’une fois posés. Au retour dans l’Archive, le joueur ne bouge qu’une fois l’hexagone posé (1,7 s).
+
+## 1.14.0 — Le récit et les animations (bloc 3)
+
+- **Un récit discret, en quatre actes**, calé sur les rangs de l’Archive. Pas de grand dialogue, pas de fin pour l’instant.
+  - **I. La solitude** (Parcelle à Domaine), **II. Le prix** (Contrée à Monde), **III. L’origine** (Orbite à Toile), **IV. Le Pli** (rang Inconnue).
+  - Quand un acte s’ouvre, après l’annonce du rang, quelques lignes apparaissent sur le blanc, comme l’introduction.
+  - **Les fragments se lisent dans l’ordre.** Une ruine donne le fragment suivant de l’acte en cours. Quand tout ce que l’acte permet a été lu, les ruines se taisent : « Les inscriptions ont été effacées. Proprement. » 16 fragments nouveaux, 43 en tout, répartis dans les quatre actes. Le dernier ne ferme rien.
+  - **Des lieux qui racontent**, un par acte, rares, sans un mot de dialogue :
+    - des pas blancs qui mènent à un carré découpé dans le sol ;
+    - un cairn dont les pierres portent les noms des mondes que vous avez quittés, ceux où vous avez laissé des gens d’abord ;
+    - un hexagone comme le vôtre, à moitié enfoui, avec son Artefact éteint ;
+    - dans le Pli, une page où quelqu’un dessine votre Archive, case par case.
+  - **Les nations racontent aussi.** Quand le monde d’une nation rejoint l’Archive, vous recevez sa chronique : ce que ce peuple se rappelle de celui qui archivait avant vous (huit chroniques, une par peuple). À partir du troisième acte, un souverain vous en parle, une fois.
+  - **Le journal** de la console range les fragments par acte (les actes à venir restent cachés), avec les chroniques des peuples. La liste des expéditions distingue les retours et les ancrages des échecs.
+- **L’Artefact change de forme** avec l’histoire, en six formes animées, chacune avec une seule phrase :
+  - losange, anneaux, fissures, cadre, étoile, œil ;
+  - l’œil regarde où vous êtes.
+  - Il prend **la couleur de votre réputation** : le bleu clair de ceux qui sauvent, l’or de ceux qu’on vénère, le rouge de ceux qu’on craint, la rouille de ceux qui pillent, le gris-bleu de ceux qui collectent.
+  - Le prix payé se voit : plus vous avez abandonné, contraint ou massacré, plus il a de fissures.
+  - Sa transformation se regarde : la caméra s’approche, l’ancienne forme se défait, la nouvelle se resserre. On la retrouve sur l’hexagone en expédition et sur la carte des destinations.
+- **Animations.**
+  - **Un bâtiment qui se construit** : son tracé au sol, un échafaudage, le bâtiment qui sort de terre dans la poussière. La console se referme pour qu’on le regarde.
+  - **Un peuple qui arrive à pied** : au retour, ses habitants sortent de l’hexagone et marchent jusqu’à leur place ; leurs maisons sortent de terre une à une.
+  - **Un astre qui prend place dans le ciel** : la caméra recule jusqu’à sa couche, il arrive de loin en spirale, puis une onde. Le monde d’une **nation** ancrée arrive de la même façon, au bord de l’Archive ou dans le ciel selon sa taille.
+  - **Une créature capturée, aspirée vers l’Artefact** : elle rapetisse, tourne et file vers l’hexagone (vers le ciel s’il est loin).
+  - **L’entrée d’un gardien** : bandes noires, la caméra se tourne vers lui, son nom et son rang à l’écran ; il attend la fin de son entrée pour frapper.
+  - **Une évolution visible** : la console se referme, une colonne de lumière, puis sa nouvelle taille.
+  - **Une chute qui marque** : le temps ralentit, le monde perd ses couleurs et se fend autour de vous, puis blanchit : « Vous tombez. »
+  - **Le monde d’une nation qui rejoint l’Archive** : ses lumières montent, tout blanchit.
+  - Le départ et le retour de l’hexagone (1.9) portent désormais l’Artefact dans sa forme du moment.
+- **Corrections (signalées en jouant).**
+  - **Immortalité** : la troisième phase du Crabe-forteresse lançait des ondes de choc sans dégâts définis ; un joueur touché avait des PV « NaN » (affichés « NaN » sur la barre de vie) et ne pouvait plus mourir. Les dégâts sont fixés, et un dégât qui n’est pas un nombre est désormais ignoré (joueur et créatures) ; des PV invalides reprennent leur dernière valeur.
+  - **Barrières des caveaux franchies d’un dash** : quand les images ralentissaient, un dash contre la barrière, ou contre le mur à côté, faisait passer de l’autre côté (une fois sur deux à 20 images par seconde). Les déplacements rapides se font désormais par petits pas, chacun arrêté par les murs : plus aucun passage, quelle que soit la fréquence d’images.
+  - **Capture du Berger d’amas** : ses galaxies errantes étaient difficiles à ramener (il fallait les contourner pour tirer dans le bon sens, puis les arrêter pile dans l’anneau). Chaque coup en renvoie désormais une vers le Berger, d’où qu’on tire ; elle est retenue dès qu’elle franchit l’anneau ; elles s’éloignent plus lentement et sont plus faciles à toucher.
+- Mod de triche : « Rejouer le récit » (transformation de l’Artefact et ouverture de l’acte en cours) ; « Tout le récit » donne aussi les chroniques.
+- Nouveaux tests (93 au total) : toutes les attaques ont des dégâts chiffrés ; actes et ordre des fragments, silences, lieux qui racontent (reproductibles, propres à l’acte), cairn, chroniques, souverains, formes et couleur de l’Artefact, une seule transformation et une seule ouverture d’acte, arrivées dans l’Archive.
+
+**Changements de règles à noter.**
+- **Fragments** : une ruine donne le fragment suivant de l’acte en cours, et non plus un fragment au hasard. Quand l’acte est lu, elle se tait jusqu’au rang suivant. Les fragments déjà trouvés restent acquis. Quatre fragments ne se trouvent que dans leur lieu.
+- **Une ancienne partie** voit une fois la forme actuelle de l’Artefact et l’ouverture de l’acte où elle en est (pas les précédents). Ses peuples déjà installés ne rejouent pas leur arrivée.
+- **Gardiens** : pendant leur entrée (2,8 s, 1,6 s en effets réduits), ils ne frappent pas. Un gardien errant n’a pas d’entrée.
+- **Chute** : l’expédition s’achève 2,9 s après la chute (1,6 s auparavant) ; le monde y tourne au ralenti.
+- **Rassemblement (Berger d’amas)** : un coup renvoie une galaxie errante vers le Berger, quelle que soit la direction du tir ; l’anneau est plus large et retient toute galaxie qui le franchit ; elles dérivent à 45 px/s au plus (70 auparavant).
+- **Déplacements** : par petits pas (au plus un demi-rayon) ; un mouvement rapide ne traverse plus une paroi d’une tuile.
+- **Introduction** : la première phrase devient « Il n’y a toujours eu que toi. » (elle ne dit plus « seul »).
+- Sauvegarde : le format reste le **6** ; le champ `story` (dernier acte annoncé, dernière forme montrée, chroniques reçues, souverains qui ont parlé) est ajouté automatiquement, ainsi que `walked` sur les peuples installés et `abandoned` dans le journal des expéditions.
+
 ## 1.13.1 — Les gardes restent à leur poste
 
 - **Correction : les gardes partaient vers le joueur.** Quand la bête qu’ils visaient était cachée derrière un obstacle, les gardes de l’hexagone (et, depuis la 1.13, ceux des villes) suivaient le chemin qui mène au joueur au lieu d’aller vers elle : ils s’éloignaient de leur poste, puis y revenaient, sans fin. Ils vont désormais droit vers la bête et longent les obstacles. Le même défaut touchait les compagnons et les mercenaires qui visaient une bête loin de vous, et les bêtes qui s’en prenaient aux gardes ou aux habitants d’une ville.

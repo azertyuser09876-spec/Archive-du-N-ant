@@ -24,7 +24,8 @@
      logique dès sa lecture : le reste du jeu n'a pas à le savoir. */
   I.ACTIONS = [
     { code: 'KeyW', name: 'Haut' }, { code: 'KeyS', name: 'Bas' }, { code: 'KeyA', name: 'Gauche' }, { code: 'KeyD', name: 'Droite' },
-    { code: 'Space', name: 'Esquiver (ou sauter, en galaxie)' }, { code: 'KeyF', name: 'Rayon de capture (maintenir) · en agençant : forme fixe ou adaptée' },
+    { code: 'Space', name: 'Esquiver · sur un colosse : lâcher prise' }, { code: 'KeyC', name: 'Sauter (maintenir, puis relâcher) : au-dessus du vide, près d’un colosse, d’une prise à l’autre' },
+    { code: 'KeyF', name: 'Rayon de capture (maintenir) · en agençant : forme fixe ou adaptée' },
     { code: 'KeyE', name: 'Interagir, récolter, extraire' }, { code: 'KeyQ', name: 'Capacité du compagnon · en agençant : défaire' },
     { code: 'KeyG', name: 'Appel stratégique · en agençant : ranger automatiquement' }, { code: 'KeyR', name: 'Monture · en agençant : tourner, autre forme' }, { code: 'Tab', name: 'Sac et soute, collection' },
     { code: 'KeyX', name: 'Extraction d’urgence (maintenir)' }, { code: 'KeyV', name: 'Agencer l’Archive' },

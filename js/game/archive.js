@@ -32,6 +32,7 @@
     FX.clear();
     const off = AN.Production.catchUp(profile);
     const bondEv = AN.Bonds.catchUp(profile);
+    AN.Arrivals.init(profile); // les peuples déjà installés ne rejoueront pas leur arrivée (1.14)
     Ar.rebuildCreatures();
     Ar.rebuildSettlements();
     cam.x = A.player.x; cam.y = A.player.y - 40; cam.zoom = 1;
@@ -61,6 +62,7 @@
     else if (off > 60) setTimeout(() => AN.HUD.toast('Pendant votre absence, l’Archive a continué de produire.', 4), 600);
     setTimeout(() => Ar.announce(bondEv), opts.integration ? 9000 : 1500);
     Ar.checkRank(!!opts.integration);
+    if (profile.flags.intro) A.storyAfter = 2.5; // le récit reprend où il en est (1.14) : il attend que la file et les fenêtres soient finies
     AN.Save.write(profile);
   };
 
@@ -115,6 +117,10 @@
     });
   };
 
+  /** La caméra regarde un endroit un moment (un bâtiment qui se construit, 1.14). */
+  Ar.watch = function (x, y, zoom, dur) { if (A) A.watch = { x, y, zoom, until: A.time + dur }; };
+  /** Une créature évolue sous vos yeux (1.14). */
+  Ar.evolve = function (uid, text) { if (A) AN.Arrivals.evolve(A, uid, text); };
   /** Petite fête visuelle autour d'une créature (évolution, naissance). */
   Ar.celebrate = function (uid) {
     if (!A) return;
@@ -200,6 +206,7 @@
     const newUids = new Set(result.creatures.map((c) => c.uid));
     A.creatures.forEach((e) => { if (newUids.has(e.uid)) { e.hiddenUntilIntegrated = true; } });
     if (result.creatures.length) A.queue.push({ type: 'creatures', uids: newUids });
+    AN.Arrivals.queueFor(A.profile, result).forEach((q) => A.queue.push(q)); // un peuple qui arrive à pied, ce qui prend place dans le ciel (1.14)
     A.queue.push({ type: 'report', result });
     A.qT = 0.8;
   };
@@ -235,6 +242,8 @@
         A.queue.shift();
         A.qT = 0.6 + list.length * 0.25;
       }
+    } else if (q.type === 'settlers' || q.type === 'sky') {
+      if (A.qT <= 0 && AN.Arrivals.step(A, q, dt)) { A.queue.shift(); A.qT = 0.5; }
     } else if (q.type === 'report') {
       if (A.qT <= 0) {
         A.queue.shift();
@@ -256,6 +265,14 @@
       AN.Save.write(p);
     }
   };
+  /** Les conseils de l'Archive (1.15), quand rien d'autre ne se passe. */
+  function archiveTips() {
+    const p = A.profile;
+    if (!AN.Tips || A.queue.length || A.depart || A.baseLand || (A.introT >= 0 && A.introT < 3) || AN.UI.isOpen() || !p.flags.intro) return;
+    if (A.time > 3) AN.Tips.show('archive');
+    if (p.territories.length >= 3 && A.time > 20) AN.Tips.show('arrange');
+    if (A.time % 6 < 1 && !AN.Tips.seen(p, 'evolve') && p.collection.some((c) => !c.lost && AN.Bonds.evolutions(p, c).some((o) => o.ok))) AN.Tips.show('evolve');
+  }
   /** Annonce du nouveau rang, après le rapport d'expédition. */
   Ar.showPendingRank = function () {
     if (!A || !A.pendingRank) return;
@@ -264,6 +281,8 @@
     AN.Audio.play('rank');
     AN.UI.banner('L’Archive devient : ' + rk.def.name, rk.def.desc + (rk.next ? '' : ''));
     A.rankZoom = { t: 0 };
+    A.storyAfter = A.time + 4.5; // puis l'Artefact change, peut-être, et un acte s'ouvre (1.14)
+    if (AN.Tips) AN.Tips.show('rank', 7000);
   };
 
   Ar.minZoom = () => {
@@ -335,10 +354,15 @@
     const cam = A.cam;
     if (A.introT >= 0 && A.introT < 3) A.introT += dt;
     AN.Base.archiveUpdate(A, dt); // départ et retour de l'hexagone (1.9)
-    if (A.depart) { A.player.dvx = A.player.dvy = A.player.vx = A.player.vy = 0; A.cam.zoom += (A.focus.zoom - A.cam.zoom) * (1 - Math.exp(-4 * dt)); A.cam.x *= Math.exp(-4 * dt); A.cam.y *= Math.exp(-4 * dt); FX.update(dt); return; }
+    if (A.depart) { A.formAnim = null; A.player.dvx = A.player.dvy = A.player.vx = A.player.vy = 0; A.cam.zoom += (A.focus.zoom - A.cam.zoom) * (1 - Math.exp(-4 * dt)); A.cam.x *= Math.exp(-4 * dt); A.cam.y *= Math.exp(-4 * dt); FX.update(dt); return; }
     // au retour, on regarde d'abord l'hexagone se reposer, puis arrivent les territoires
     if (A.baseLand) A.focus = { x: 0, y: 0, zoom: U.clamp(Math.min(A.cam.W, A.cam.H) / 1500, 0.22, 0.6) };
+    else if (A.formAnim) formAnimUpdate();
+    else if (A.evo) AN.Arrivals.evoUpdate(A);
+    else if (A.watch) { A.focus = { x: A.watch.x, y: A.watch.y, zoom: A.watch.zoom }; if (A.time > A.watch.until) { A.watch = null; A.focus = null; } }
     else processQueue(dt);
+    // le récit attend que rien d'autre ne se passe (1.14)
+    if (A.storyAfter && A.time >= A.storyAfter && !A.queue.length && !A.rankZoom && !A.formAnim && !AN.UI.isOpen() && !A.depart) { A.storyAfter = null; Ar.storyBeat(); }
 
     // déplacement
     const ax = I.axis();
@@ -348,7 +372,8 @@
       const v = 720 / A.mapView.zoom;
       A.mapView.x += ax.x * v * dt; A.mapView.y += ax.y * v * dt;
       p.dvx = p.dvy = 0;
-    } else { p.dvx = ax.x * sp; p.dvy = ax.y * sp; }
+    } else if (A.baseLand) { p.dvx = p.dvy = 0; } // l'hexagone se pose : on attend d'être au sol
+    else { p.dvx = ax.x * sp; p.dvy = ax.y * sp; }
     const k = 1 - Math.exp(-14 * dt);
     p.vx += (p.dvx - p.vx) * k; p.vy += (p.dvy - p.vy) * k;
     p.x += p.vx * dt; p.y += p.vy * dt;
@@ -392,6 +417,7 @@
     for (const e of A.creatures) {
       e.flash -= dt;
       if (e.ridden) continue;
+      if (e.onHex && (A.baseLand || A.depart)) continue; // à bord de l'hexagone qui part ou se pose (1.14.1)
       if (A.follow && A.follow === e.uid) { followStep(e, dt); continue; }
       wanderStep(e, dt, e.def.tier >= 3 ? 0.15 : 0.32);
     }
@@ -416,6 +442,7 @@
       AN.Production.tick(A.profile, 1);
       A.profile.lastTick = Date.now();
       spawnPickups();
+      archiveTips();
     }
     for (let i = A.pickups.length - 1; i >= 0; i--) {
       const it = A.pickups[i];
@@ -789,9 +816,14 @@
       if (!cam.visible(L.x, L.y, L.r + 80)) continue;
       const P = D.PEOPLE[L.st.people];
       if (z > 0.08) {
-        L.buildings.forEach((b) => {
+        const ab = AN.Arrivals.buildings(A, L); // un peuple qui arrive : ses maisons sortent de terre une à une (1.14)
+        L.buildings.forEach((b, i) => {
+          if (ab && i >= ab.n) return;
+          const k = ab ? U.easeOut(U.clamp((A.time - ab.bt[i]) / 0.5, 0, 1)) : 1;
+          if (k < 1) { ctx.save(); ctx.translate(b.x, b.y + 20); ctx.scale(1, k); ctx.translate(-b.x, -b.y - 20); }
           if (b.tent) AN.Settlements.drawTent(ctx, b.x, b.y, 40, P);
           else AN.CivArt.drawBuilding(ctx, b.x, b.y, 54, P.style, P, 'house', b.variant, t, b.seed);
+          if (k < 1) ctx.restore();
         });
       }
       if (L.st.request && z > 0.12) {
@@ -838,26 +870,44 @@
         FX.ring(0, 0, AN.CYAN, 10, 400, 1.6, 4);
       }
     }
-    ctx.save();
-    ctx.translate(0, Math.sin(t * 1.3) * 4 - 20);
-    ctx.globalAlpha = k;
-    ctx.fillStyle = 'rgba(28,34,48,0.12)';
-    ctx.beginPath(); ctx.ellipse(0, 44, 30, 9, 0, 0, TAU); ctx.fill();
-    const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 70);
-    g.addColorStop(0, U.rgba(AN.CYAN, 0.25)); g.addColorStop(1, U.rgba(AN.CYAN, 0));
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 70, 0, TAU); ctx.fill();
-    for (let i = 0; i < 4; i++) {
-      ctx.save();
-      ctx.rotate(t * (0.3 + i * 0.25) * (i % 2 ? -1 : 1) + i * 0.4);
-      const s = (10 + i * 7) * k;
-      ctx.strokeStyle = i === 0 ? AN.CYAN : U.rgba(AN.INK, 0.9 - i * 0.18);
-      ctx.lineWidth = i === 0 ? 3 : 1.5;
-      ctx.strokeRect(-s, -s, s * 2, s * 2);
-      ctx.restore();
+    // sa forme et sa couleur suivent l'histoire (1.14) ; l'œil regarde où vous êtes
+    const look = AN.Story.look(A.profile);
+    const fa = A.formAnim;
+    const p = A.player;
+    AN.ArtefactArt.draw(ctx, 0, 0, t, Object.assign(look, {
+      k, size: Math.max(0.05, k), lookX: p.x / 260, lookY: (p.y + 20) / 260,
+      morph: fa ? { from: fa.from, k: (A.time - fa.t0) / fa.dur } : null,
+    }));
+  }
+
+  /* ---------- le récit (1.14) : la forme de l'Artefact, puis l'ouverture d'un acte ---------- */
+  Ar.storyBeat = function () {
+    if (!A) return;
+    const p = A.profile;
+    const fc = AN.Story.checkForm(p, false); // retenue à la fin de la transformation : un départ ne la fait pas perdre
+    if (fc) {
+      A.formAnim = { from: fc.from, to: fc.to, def: fc.def, t0: A.time, dur: 3.6 };
+      AN.Audio.play('appear');
+      return; // l'acte suivra, une fois l'Artefact transformé
     }
-    ctx.fillStyle = AN.CYAN;
-    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 0); ctx.lineTo(0, 7); ctx.lineTo(-5, 0); ctx.closePath(); ctx.fill();
-    ctx.restore();
+    const act = AN.Story.checkAct(p);
+    if (act) { AN.Save.write(p); AN.UI.interlude(act); }
+  };
+  function formAnimUpdate() {
+    const fa = A.formAnim;
+    const k = (A.time - fa.t0) / fa.dur;
+    A.focus = { x: 0, y: -20, zoom: U.clamp(Math.min(A.cam.W, A.cam.H) / 520, 0.8, 1.4) };
+    const col = AN.Story.color(A.profile);
+    if (Math.random() < 0.5) FX.add({ kind: 'dot', x: (Math.random() - 0.5) * 120, y: 20 + Math.random() * 30, vx: 0, vy: -60 - Math.random() * 80, color: col, life: 1.2, size: 2.5, glow: true });
+    if (k >= 0.5 && !fa.burst) {
+      fa.burst = true;
+      FX.ring(0, -20, col, 10, 300, 1.2, 5);
+      FX.burst(0, -20, col, 40, 260, { size: 3 });
+      A.cam.shake(5);
+      AN.Audio.play('rank');
+      AN.UI.banner('L’Artefact : ' + fa.def.name, fa.def.line);
+    }
+    if (k >= 1.15) { AN.Story.state(A.profile).form = fa.to; AN.Save.write(A.profile); A.formAnim = null; A.focus = null; A.storyAfter = A.time + 4; }
   }
 
   function drawGrid(ctx, cam) {
@@ -1104,8 +1154,12 @@
     drawSettlements(ctx, t, z);
     AN.Cosmos.drawGiants(ctx, A, z, t);
 
-    const ents = A.creatures.filter((e) => !e.hiddenUntilIntegrated && cam.visible(e.x, e.y, e.r * 3) && !(e.guardHex && (lift.up > 0 || lift.alpha < 1)));
+    const moving = lift.up > 0 || lift.alpha < 1; // l'hexagone central part ou revient
+    const aboard = (e) => moving && (e.guardHex || e.ridden || e.onHex); // gardes, monture, compagnons
+    const ents = A.creatures.filter((e) => !e.hiddenUntilIntegrated && cam.visible(e.x, e.y, e.r * 3) && !aboard(e));
     if (z > 0.12) for (const v of A.villagers || []) if (cam.visible(v.x, v.y, 30)) ents.push(v);
+    if (z > 0.06) for (const w of AN.Arrivals.walkers(A)) if (cam.visible(w.x, w.y, 30)) ents.push(w);
+    AN.Arrivals.drawWorld(ctx, A, t); // la colonne de lumière d'une évolution (1.14)
     if (z > 0.05) { const act = new Set(AN.Structures.active(p).map((s) => s.uid)); for (const b of AN.Structures.drawables(p)) { b.active = act.has(b.s.uid); ents.push(b); } }
     ents.sort((a, b) => a.y - b.y);
     for (const e of ents) {
@@ -1117,7 +1171,18 @@
         ctx.fillText('blessé', e.x, e.y - e.r - 6);
       }
     }
-    if (A.depart) { /* le joueur est à bord : il part avec l'hexagone */ }
+    if (A.formAnim) drawArtefact(ctx, t, null); // sa transformation ne se cache pas derrière une créature (1.14)
+    if (moving) {
+      // à bord (1.14.1) : le joueur, sa monture et les gardes montent ou descendent avec l'hexagone, au lieu de disparaître
+      // d'un coup au départ, ou d'attendre déjà au sol à l'arrivée
+      ctx.save();
+      ctx.globalAlpha *= lift.alpha;
+      ctx.translate(0, -lift.up * 520); ctx.scale(1 + lift.up * 0.35, 1 + lift.up * 0.35);
+      A.creatures.filter(aboard).sort((u, v) => u.y - v.y).forEach((e) => AN.Art.draw(ctx, e, t, { glow: false }));
+      if (A.mount) AN.Art.drawPlayer(ctx, Object.assign({}, A.player, { y: A.player.y - A.mount.r * 0.42, r: 11 }), t, { weapon: false, mounted: true });
+      else AN.Art.drawPlayer(ctx, A.player, t, { weapon: false });
+      ctx.restore();
+    }
     else if (z > 0.2) {
       if (A.mount) AN.Art.drawPlayer(ctx, Object.assign({}, A.player, { y: A.player.y - A.mount.r * 0.42, r: 11 }), t, { weapon: false, mounted: true });
       else AN.Art.drawPlayer(ctx, A.player, t, { weapon: false });

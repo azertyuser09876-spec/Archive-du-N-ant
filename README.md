@@ -2,7 +2,7 @@
 
 Un jeu solo d’extraction et de collection, en 2D vue de dessus, jouable dans le navigateur.
 
-Vous avez toujours vécu seul sur une surface blanche et infinie. Un jour, un Artefact apparaît : il ouvre des passages vers d’autres mondes. Vous y combattez, vous capturez des créatures et des gardiens, vous récoltez des ressources. Quand vous repartez, le monde est détruit. Tout ce que vous avez réussi à extraire rejoint votre Archive, qui grandit jusqu’à changer d’échelle.
+Il n’y a toujours eu que vous, sur une surface blanche et infinie. Un jour, un Artefact apparaît : il ouvre des passages vers d’autres mondes. Vous y combattez, vous capturez des créatures et des gardiens, vous récoltez des ressources. Quand vous repartez, le monde est détruit. Tout ce que vous avez réussi à extraire rejoint votre Archive, qui grandit jusqu’à changer d’échelle.
 
 ## Jouer
 
@@ -16,7 +16,7 @@ Vous avez toujours vécu seul sur une surface blanche et infinie. Un jour, un Ar
 
 **Reprendre une expédition** : l’expédition en cours est enregistrée toutes les dix secondes, à chaque changement de zone et quand on ferme la page. Au retour, le jeu propose de la reprendre là où on l’avait laissée (sac, soute, zones conquises, découvertes intactes ; les créatures, elles, ont repris leur place) ou de l’abandonner.
 
-**Première partie** : après l’introduction, le jeu propose **le Seuil**, un petit monde à part qui sert de tutoriel interactif (environ cinq minutes) : se déplacer, récolter, tirer, frapper et esquiver, capturer, affronter un gardien, extraire. On peut le passer, et le rejouer plus tard depuis la pause (sans rien garder).
+**Première partie** : après l’introduction, le jeu propose **le Seuil**, un petit monde à part qui sert de tutoriel interactif (environ cinq minutes) : se déplacer, récolter, tirer, frapper et esquiver, être accompagné (un compagnon prêté et sa capacité), capturer, affronter un gardien, extraire. On peut le passer, et le rejouer plus tard depuis la pause (sans rien garder).
 
 ## Commandes
 
@@ -31,12 +31,13 @@ Toutes les touches se changent dans **Pause → Commandes** (clic sur « Changer
 | ZQSD ou WASD, flèches | Se déplacer (les touches sont lues par position : AZERTY et QWERTY fonctionnent) |
 | Clic gauche | Tirer |
 | Clic droit | Frapper au corps à corps |
-| Espace | Esquiver (brève invulnérabilité). Dans une galaxie, maintenir puis relâcher pour sauter au-dessus du vide |
+| Espace | Esquiver (brève invulnérabilité) ; sur un colosse, lâcher prise |
+| C (maintenir, puis relâcher) | Sauter : au-dessus du vide d’une galaxie, près d’un colosse pour atteindre plus haut et s’agripper en l’air ; sur un colosse, vers une autre prise |
 | F (maintenir) | Rayon de capture, sur une créature affaiblie ou un gardien épuisé |
-| E | Interagir : Artefact (et transfert depuis l’hexagone), bâtiments, récolte, passages, plaques d’extraction, ruines, structures (fouiller, démonter), caveaux, prisonniers, chefs de village, ancres, balise de rappel, compagnons et gardes à terre |
+| E | Interagir : Artefact (et transfert depuis l’hexagone), bâtiments, récolte, passages, plaques d’extraction, ruines, structures (fouiller, démonter), caveaux, prisonniers, chefs de village, ancres, balise de rappel, compagnons et gardes à terre ; s’agripper à un colosse, et maintenir pour tenir quand il se secoue |
 | Q | Capacité prêtée par le compagnon actif (la molette change de compagnon) |
 | G | Appel stratégique d’un géant de l’Archive (une fois par expédition) |
-| R | Monter ou descendre de sa monture (aussi dans l’Archive) |
+| R | Monter ou descendre de sa monture (aussi dans l’Archive) : elle prend près de la moitié des coups à votre place |
 | 1 à 4 | Consommables |
 | Tab | Sac et soute (expédition), collection (Archive) |
 | X (maintenir) | Extraction d’urgence |
@@ -87,9 +88,9 @@ La musique est composée en direct par le jeu : un thème pour l’écran titre,
 
 ## La boucle de jeu
 
-1. **Dans l’Archive**, approchez l’Artefact (E). Sa console range ses pages en quatre groupes : **Voyager** (Destinations, Préparation, Hexagone), **Fabriquer** (Atelier, Améliorations, Constructions), **L’Archive** (Vue d’ensemble, Collection, Peuples) et **Savoir** (Bestiaire, Journal) ; un badge signale ce qui vous attend dans chaque page. L’Artefact propose plusieurs mondes, disposés sur une carte : plus un monde est loin de l’Artefact, plus il est dangereux. Les informations affichées sont estimées : leur fiabilité dépend du scanner. Si vous cherchez quelque chose de précis (une ressource, une créature déjà observée), utilisez « Je cherche » : l’Artefact indique exactement quels mondes la contiennent, et vous guide sur place.
+1. **Dans l’Archive**, approchez l’Artefact (E). Sa console est un registre en quatre chapitres : **I Partir** (Destinations, Préparation, Hexagone), **II Fabriquer** (Atelier, Améliorations, Constructions), **III L’Archive** (Vue d’ensemble, Collection, Peuples) et **IV Savoir** (Guide, Bestiaire, Journal) ; une pastille signale ce qui vous attend, et le « ? » de chaque page en dit l’essentiel. Une visite guidée la présente à sa première ouverture. L’Artefact propose plusieurs mondes, disposés sur une carte en quatre anneaux : **Facile**, **Équilibré**, **Difficile**, **Mortel**. Ce danger est relatif à votre force (équipement, compagnons, bienfaits de l’Archive). La fiche de chaque monde est exacte ; ce que le scanner ne perçoit pas encore est marqué « ? ». Si vous cherchez quelque chose de précis (une ressource, une créature déjà observée), utilisez « Je cherche » : l’Artefact indique exactement quels mondes la contiennent, et vous guide sur place.
 2. **Préparez** l’expédition : armes, protection, sac, outils, consommables, compagnons, appel stratégique ; le risque est résumé en bas de la page, à côté de « Ouvrir le passage ». L’équipement fabriqué est perdu si vous tombez ; l’équipement « lié » ne l’est jamais. Dans la page **Hexagone**, choisissez les gardes et les défenses de votre base mobile (voir plus bas).
-3. **Explorez** : chaque monde compte de deux à quatre zones, chacune gardée par un gardien. Vaincre ou capturer tous les gardiens ouvre le Cœur de la région, où vit un ultra-boss.
+3. **Explorez** : chaque monde compte de deux à quatre zones, chacune gardée par un gardien. Vaincre ou capturer tous les gardiens ouvre le Cœur de la région, où erre son maître : un **colosse**. On ne l’use pas à coups de tirs, on brise ses sceaux lumineux. Ceux du bas se découvrent quand il s’expose (un pied resté planté, une tête assommée, un ventre au ras du sol). Ceux du haut s’atteignent en grimpant sur lui : E près d’une partie basse de son corps (ou en plein saut, C maintenu, pour atteindre plus haut), clic pour frapper (clic droit maintenu : plus fort), C pour sauter vers une autre prise, Espace pour lâcher prise, E maintenu quand il se secoue. Chaque partie de son corps a sa hauteur, dessinée en perspective. Son dos est un paysage où l’on marche librement : des créatures y vivent et le défendent, des gisements s’y récoltent (E), et l’on s’y bat comme au sol. Sa faiblesse s’inscrit dans le bestiaire. Les plus grands (rang 7 et plus) sont la zone entière : on arrive sur leur dos avec une plateforme de l’Artefact, tout autour c’est le vide, on n’en descend pas, et l’on en repart par la plateforme (E : extraire, ou retourner d’où l’on vient).
 4. **Capturez** : affaiblissez une créature (elle s’entoure d’un cercle bleu), puis maintenez F. Un gardien se capture quand il est épuisé, en évitant ses ondes de choc. La soute de l’Artefact limite ce que vous pouvez emporter.
 5. **Extrayez** depuis l’hexagone, au pied de l’Artefact (ou depuis une plaque blanche) : choisissez les territoires conquis à emporter, puis restez sur l’hexagone (ou dans le portail) pendant que le monde s’efface autour de vous. L’hexagone repart avec le butin, la zone se brise, le monde s’éteint, et l’on voit l’hexagone se reposer, puis chaque territoire emporté rejoindre sa place dans l’Archive.
 6. **Retrouvez** vos captures et les territoires dans l’Archive ; le rapport de retour fait le compte des gains et des pertes. Les territoires produisent des ressources, les créatures aussi. Placés côte à côte, certains territoires créent des synergies.
@@ -106,9 +107,11 @@ Des créatures marchent parfois sur lui. S’il tombe, il est **submergé** : l�
 
 Certains mondes sont habités. Certains sont même tenus tout entiers par une **nation** : une ville dans chaque zone, sa capitale au cœur. On y commerce, on y engage des mercenaires, on rend service aux gouverneurs, on défend les villes contre les bêtes ; par alliance, ou par la force, son monde rejoint l’Archive sans être détruit, envoie un tribut, formule ses demandes et prend place dans son ciel. Ailleurs, un village isolé : ses habitants peuvent vous suivre, refuser, vous combattre, fuir à bord d’une arche ou vous trahir. Ceux que vous emmenez s’installent dans l’Archive, avec leurs humeurs et leurs demandes ; ceux que vous laissez disparaissent avec leur monde. Les peuples suivants s’en souviennent.
 
-Quand l’Archive atteint le rang Monde, l’Artefact capte des destinations plus grandes : des **mondes** entiers, puis des **orbites**, des **systèmes** et des **galaxies**, et au-delà l’**Amas**, la **Toile** et le **Pli**. Chacun a ses déplacements (apesanteur, gravité, sauts au-dessus du vide, ponts qui se font et se défont, filaments où l’on file, marche inversée), sa menace, son maître et sa façon de le capturer. L’amélioration **Ancrage** retient ces êtres trop grands pour la soute, puis des astres entiers, qui rejoignent le ciel de l’Archive. Dézoomez dans l’Archive pour voir ce qu’elle devient : à partir du rang Monde, elle repose sur un globe. En expédition, une carte « vous êtes ici » montre où l’on se trouve dans l’échelon.
+Quand l’Archive atteint le rang Monde, l’Artefact capte des destinations plus grandes : des **mondes** entiers, puis des **orbites**, des **systèmes** et des **galaxies**, et au-delà l’**Amas**, la **Toile** et le **Pli**. Chacun a ses déplacements (apesanteur, gravité, sauts au-dessus du vide, ponts qui se font et se défont, filaments où l’on file, marche inversée), ses périls, son maître et sa façon de le capturer. L’amélioration **Ancrage** retient ces êtres trop grands pour la soute, puis des astres entiers, qui rejoignent le ciel de l’Archive. Dézoomez dans l’Archive pour voir ce qu’elle devient : à partir du rang Monde, elle repose sur un globe. En expédition, une carte « vous êtes ici » montre où l’on se trouve dans l’échelon.
 
 ### Lieux ancrés
+
+Une histoire discrète accompagne l’Archive, en quatre actes qui suivent ses rangs : **la solitude**, **le prix**, **l’origine**, **le Pli**. Pas de grand dialogue : des fragments dans les ruines (dans l’ordre, et quand tout est lu, des silences), quelques lignes quand un acte s’ouvre, des lieux qui racontent sans un mot, et la chronique de chaque peuple dont le monde rejoint l’Archive. L’**Artefact** change de forme avec elle (losange, anneaux, fissures, cadre, étoile, œil) et prend la couleur de votre réputation. Le journal de la console range le récit par acte. Il n’a pas de fin, pour l’instant.
 
 Les mondes dont vous avez rapporté des continents, et ceux d’où vous avez ramené des astres, deviennent des **lieux ancrés**, sous leur nom propre (« Planète Nylombe », « Système d’Arithal ») : l’Artefact s’y téléporte sans limite, depuis la console (Destinations, puis Lieux ancrés) ou en cliquant dessus dans l’Archive dézoomée. Ils sont toujours les mêmes et ne sont jamais détruits : on y récolte, on y capture, et l’on rentre sans effondrement. Les gisements repoussent, les créatures et les gardiens reviennent avec le temps. On n’en rapporte pas de territoire.
 
@@ -166,11 +169,14 @@ Pour publier une « release » téléchargeable, créez une release GitHub et jo
 - 6 améliorations de l’Artefact, 12 rangs d’Archive (le dernier ouvre le Pli), 17 synergies entre territoires
 - Une base mobile : l’hexagone de l’Artefact, ses gardes et 5 modules de défense
 - 8 peuples, 8 attitudes, 5 réputations ; des nations qui tiennent des mondes entiers (villes, comptoirs, mercenaires, missions des gouverneurs, raids, alliance ou soumission, tribut, demandes)
-- 27 fragments de récit à retrouver
+- Un récit discret en quatre actes : 43 fragments, des lieux qui racontent, les chroniques des peuples
+- Un Artefact qui change de forme (six formes) et prend la couleur de votre réputation
 - 12 outils de préparation (récolte, capture, modules d’extraction, transport)
 - 15 bâtiments à construire sur les territoires de l’Archive (avec un bonus de paysage), 12 structures à découvrir dans les mondes, à démonter et à reconstruire
 - 6 événements des mondes (météores, floraison, migration, éclipse, faille, écho)
-- Un tutoriel interactif dans un monde à part, le Seuil
+- 17 colosses : les maîtres des mondes, de 1 100 à 2 600 px, en six plans de corps animés par le code (bipède, quadrupède, serpent, volant, roue, araignée), avec leurs sceaux, leur attaque propre et leur faiblesse à découvrir ; on grimpe sur eux, on marche sur leur dos, où vivent des créatures et poussent des gisements ; les cinq plus grands sont la carte elle-même, suspendus dans le vide
+- Un tutoriel interactif dans un monde à part, le Seuil ; une visite guidée de la console, 20 conseils donnés au bon moment et rangés dans le Guide
+- Un danger relatif à votre force (Facile, Équilibré, Difficile, Mortel) et des fiches de monde exactes
 - Trois emplacements de partie, reprise des expéditions, 17 actions reconfigurables, manette, écran tactile, application installable hors ligne
 - Agencement de l’Archive : formes qui comblent les creux, formes adaptées au déplacement, rangement automatique qui maximise les synergies
 - Musique générative (titre, Archive, un thème par monde, combat, effondrement, fin), sons placés dans l’espace, une voix par arme et par famille de créatures
@@ -193,25 +199,32 @@ js/data/              données pures : biomes, créatures, traits, peuples, équ
                       outils, structures et événements (works.js), hexagone et défenses (base.js),
                       Amas, Toile et Pli (beyond.js), cieux et terres repris (cieux.js, terres.js),
                       syllabes des noms propres (noms.js), bienfaits par échelle (puissance.js),
-                      nations (nations.js)
+                      nations (nations.js), le récit en quatre actes (recit.js),
+                      aide des pages, conseils et visite guidée (aide.js), les colosses (colosses.js)
 js/gen/               génération des mondes et des zones (sans affichage), noms propres (names.js)
 js/render/            caméra, particules, icônes, dessin des créatures et des terrains,
                       mosaïque de l’Archive en miniature (mosaic.js), êtres d’au-delà (beyondArt.js),
                       fonds d’échelon et carte « vous êtes ici » (skies.js),
-                      formes du bestiaire de la 1.11 (bestiaireArt.js)
+                      formes du bestiaire de la 1.11 (bestiaireArt.js), formes de l’Artefact (artefactArt.js),
+                      colosses (colossusArt.js)
 js/game/              règles : profil, entités, combat, IA, boss, capture, joueur,
                       expédition, effondrement, cinématique, production, Archive,
                       liens, montures, capacités, caveaux, sauvetage, peuples,
                       échelons cosmiques (cosmic.js), Amas, Toile et Pli (beyond.js),
                       couches de l’Archive et globe (cosmos.js), lieux ancrés (places.js),
-                      nations (nations.js),
+                      nations (nations.js), récit et Artefact (story.js),
+                      danger relatif (danger.js), fiche exacte d’un monde (fiche.js),
+                      colosses : squelettes, coups de corps, sceaux, escalade (colossus.js),
+                      moments d’expédition : gardien, capture, chute (moments.js),
+                      arrivées dans l’Archive : peuples, ciel, évolution (arrivals.js),
                       formes des territoires (shapes.js), recherche précise (search.js),
                       tutoriel du Seuil (tutorial.js), outils (tools.js),
                       structures (structures.js), événements des mondes (events.js),
                       reprise des expéditions (resume.js), agencement de l’Archive (arrange.js),
                       base mobile : hexagone, gardes, défenses, submersion (base.js)
 js/ui/                affichage tête haute, fenêtres, console de l’Artefact, carte des destinations,
-                      manette (gamepad.js), commandes tactiles (touch.js), nations (nationsUI.js)
+                      manette (gamepad.js), commandes tactiles (touch.js), nations (nationsUI.js), récit (storyUI.js),
+                      conseils et visite guidée (tips.js)
 mods/triche.js        mod de triche, à part du jeu (local seulement, jamais publié)
 tests/index.html      tests automatiques (ouvrir dans un navigateur)
 tests/gallery.html    galerie de contrôle : biomes, créatures et structures
@@ -227,10 +240,11 @@ Le dossier `mods` contient un mod de triche, `mods/triche.js`, pour ne pas tout 
 - **Ouvrir ou fermer** : **F8**, la touche **²** (au-dessus de Tab), ou l’onglet **TRICHE** sur le bord gauche de l’écran (pratique au doigt).
 - **Ressources** : +100, +1 000 ou +10 000 de chaque ressource, ou la quantité voulue d’une seule ; ramasser toutes les productions.
 - **Équipement et Artefact** : tout l’équipement et les outils (+10 de chaque consommable), améliorations au maximum, bâtiments au niveau maximum (posés sur les territoires) et modules de l’hexagone au maximum, toutes les structures trouvées.
-- **Archive** : territoires (qualité et paysage au choix), rang suivant ou rang maximal (ajoute ce qu’il faut : territoires, gardiens, astres…), astres, temps qui passe (+1 h, +8 h, +24 h : production, faim, reproduction), bestiaire complet, tout le récit, nouvelles destinations.
+- **Archive** : territoires (qualité et paysage au choix), rang suivant ou rang maximal (ajoute ce qu’il faut : territoires, gardiens, astres…), astres, temps qui passe (+1 h, +8 h, +24 h : production, faim, reproduction), bestiaire complet, tout le récit (fragments et chroniques), rejouer le récit (transformation de l’Artefact et ouverture de l’acte en cours), nouvelles destinations.
 - **Créatures** : n’importe quelle espèce (avec un filtre), variante, niveau, nombre, en compagnon ; toutes au maximum (niveau, loyauté, faim, soins).
-- **Expédition** : cases à cocher qui restent actives d’une partie à l’autre (invincible, dégâts ×10, vitesse ×1,5, sac et soute illimités, capture facile, carte révélée, transfert éclair) ; boutons vigueur pleine (hexagone et gardes compris), affaiblir ou vaincre les créatures, épuiser ou achever le gardien, révéler la carte, aller à l’arène, au passage, à une plaque ou à l’hexagone, ouvrir et finir le transfert, lancer un assaut sur l’hexagone, le submerger, mettre la faveur d’une nation au maximum, aller à sa capitale, lancer un raid sur la ville, accomplir la mission du gouverneur.
-- **Voyager** : partir tout de suite vers un échelon (région, monde, orbite, système, galaxie, amas, toile, Pli), un paysage, une menace, un monde habité, une nation.
+- **Expédition** : cases à cocher qui restent actives d’une partie à l’autre (invincible, dégâts ×10, vitesse ×1,5, sac et soute illimités, capture facile, carte révélée, transfert éclair) ; boutons vigueur pleine (hexagone et gardes compris), affaiblir ou vaincre les créatures, épuiser ou achever le gardien, briser un sceau du colosse, révéler la carte, aller à l’arène, au passage, à une plaque ou à l’hexagone, ouvrir et finir le transfert, lancer un assaut sur l’hexagone, le submerger, mettre la faveur d’une nation au maximum, aller à sa capitale, lancer un raid sur la ville, accomplir la mission du gouverneur.
+- **Voyager** : partir tout de suite vers un échelon (région, monde, orbite, système, galaxie, amas, toile, Pli), un paysage, une menace interne, un monde habité, une nation.
+- **Colosses** : partir face au colosse de son choix, à l’entrée de la zone du cœur.
 - **Lieux ancrés** : se rendre dans l’un d’eux, tout y faire repousser.
 - **Jeu** : vitesse du jeu ×1 à ×8, sauvegarde immédiate.
 
@@ -241,7 +255,7 @@ Les triches modifient la partie en cours et sont enregistrées avec elle : pour 
 ## Tests et débogage
 
 - Ouvrez `tests/index.html` : 71 tests vérifient la génération déterministe, l’accessibilité des zones, l’intégrité des données, la sauvegarde (emplacements, migrations, reprise d’expédition), les touches reconfigurables, l’agencement (arrivées, formes adaptées, rangement), la composition de la musique, les règles de l’Archive, la base mobile (gardes, défenses, sol dégagé, submersion), les bâtiments sur les territoires, la typographie et que les optimisations rendent les mêmes résultats qu’avant.
-- Ajoutez `?debug=1` à l’adresse du jeu pour activer les outils de console : `AN.dbg.give()` (ressources), `AN.dbg.go(0)` (partir vers la première destination), `AN.dbg.goBiome('riviere_lave')`, `AN.dbg.god()`, `AN.dbg.tp('arena')`, `AN.dbg.boss()`, `AN.dbg.add('salamandre', { companion: true })`, `AN.dbg.time(60)` (fait passer une heure dans l’Archive), `AN.dbg.vault()`, `AN.dbg.goCiv('fiers')` (monde habité, attitude au choix), `AN.dbg.village()`, `AN.dbg.cosmic(8)` (profil avancé jusqu’au rang Galaxie), `AN.dbg.goScale('orbite')` (expédition d’un échelon, jusqu’à `'pli'`), `AN.dbg.place()` (lieux ancrés ; `AN.dbg.place(0)` pour partir vers le premier), `AN.dbg.goNation('monde')` (le monde d’une nation ; peuple et humeur en option), `AN.dbg.favor(80)`, `AN.dbg.mission('caravane')` (mission du gouverneur de la ville où l’on se trouve), `AN.dbg.cityRaid()` (raid sur cette ville), `AN.dbg.nationSky()` (une nation ancrée de chaque taille, pour le ciel de l’Archive), `AN.dbg.astre('nebuleuse')`, `AN.dbg.zoom(1e-5)` (dézoom de l’Archive), `AN.dbg.terr(20)` (vingt territoires de qualités et de paysages variés, posés comme au retour d’expédition), `AN.dbg.guard('salamandre')` (un garde pour l’hexagone), `AN.dbg.base()` (aller à l’hexagone), `AN.dbg.raid()` (assaut sur l’hexagone), `AN.dbg.submerge()`. Avec `?debug=1&auto=1`, la partie démarre directement dans l’Archive (emplacement 1, tutoriel passé, sans pause automatique) ; ajoutez `&tuto=1` pour garder la proposition du Seuil, ou lancez `AN.Tutorial.start(AN.Game.profile, { sandbox: true })`.
+- Ajoutez `?debug=1` à l’adresse du jeu pour activer les outils de console : `AN.dbg.give()` (ressources), `AN.dbg.go(0)` (partir vers la première destination), `AN.dbg.goBiome('riviere_lave')`, `AN.dbg.god()`, `AN.dbg.tp('arena')`, `AN.dbg.boss()`, `AN.dbg.add('salamandre', { companion: true })`, `AN.dbg.time(60)` (fait passer une heure dans l’Archive), `AN.dbg.vault()`, `AN.dbg.goCiv('fiers')` (monde habité, attitude au choix), `AN.dbg.village()`, `AN.dbg.cosmic(8)` (profil avancé jusqu’au rang Galaxie), `AN.dbg.goScale('orbite')` (expédition d’un échelon, jusqu’à `'pli'`), `AN.dbg.place()` (lieux ancrés ; `AN.dbg.place(0)` pour partir vers le premier), `AN.dbg.goNation('monde')` (le monde d’une nation ; peuple et humeur en option), `AN.dbg.favor(80)`, `AN.dbg.mission('caravane')` (mission du gouverneur de la ville où l’on se trouve), `AN.dbg.cityRaid()` (raid sur cette ville), `AN.dbg.nationSky()` (une nation ancrée de chaque taille, pour le ciel de l’Archive), `AN.dbg.astre('nebuleuse')`, `AN.dbg.zoom(1e-5)` (dézoom de l’Archive), `AN.dbg.terr(20)` (vingt territoires de qualités et de paysages variés, posés comme au retour d’expédition), `AN.dbg.guard('salamandre')` (un garde pour l’hexagone), `AN.dbg.base()` (aller à l’hexagone), `AN.dbg.raid()` (assaut sur l’hexagone), `AN.dbg.submerge()`, `AN.dbg.colosse('atlas')` (face à un colosse, dans la zone du cœur). Avec `?debug=1&auto=1`, la partie démarre directement dans l’Archive (emplacement 1, tutoriel passé, sans pause automatique) ; ajoutez `&tuto=1` pour garder la proposition du Seuil, ou lancez `AN.Tutorial.start(AN.Game.profile, { sandbox: true })`.
 
 ## Crédits
 

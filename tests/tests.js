@@ -910,11 +910,11 @@
     const keep = JSON.stringify(Pr.data.keys);
     Pr.data.keys = {};
     eq(I.logicalOf('KeyF').join(), 'KeyF');
-    I.rebind('KeyF', 'KeyC');
-    eq(I.logicalOf('KeyC').join(), 'KeyF', 'C capture');
+    I.rebind('KeyF', 'KeyB');
+    eq(I.logicalOf('KeyB').join(), 'KeyF', 'B capture');
     eq(I.logicalOf('KeyF').length, 0, 'F ne capture plus');
-    I.rebind('KeyE', 'KeyC');
-    eq(I.bound('KeyE'), 'KeyC'); eq(I.bound('KeyF'), 'KeyE', 'échange : la capture prend l’ancienne touche d’interaction');
+    I.rebind('KeyE', 'KeyB');
+    eq(I.bound('KeyE'), 'KeyB'); eq(I.bound('KeyF'), 'KeyE', 'échange : la capture prend l’ancienne touche d’interaction');
     eq(I.logicalOf('KeyZ').join(), 'KeyZ', 'touche libre inchangée');
     Pr.data.keys = JSON.parse(keep);
   });
@@ -1484,6 +1484,374 @@
     // couche du ciel : leur taille, bornée par ce que le rang laisse voir
     const L = AN.Cosmos.nationLayer;
     eq(L('region', 9), 0); eq(L('monde', 5), 1); eq(L('monde', 3), 0); eq(L('orbite', 6), 2); eq(L('systeme', 6), 2); eq(L('systeme', 8), 3);
+  });
+
+  /* ---------- 1.14 : le récit, l'Artefact, les arrivées ---------- */
+  // le rang de l'Archive, imposé le temps d'un test
+  const atRank = (rk, fn) => { const orig = AN.Profile.rank; AN.Profile.rank = () => ({ index: rk, def: D.RANKS[rk] }); try { return fn(); } finally { AN.Profile.rank = orig; } };
+  test('Récit : quatre actes, des fragments dans l’ordre, des silences (1.14)', () => {
+    const St = AN.Story;
+    eq(D.ACTS.length, 4);
+    D.ACTS.forEach((a, i) => { eq(a.n, i + 1); if (i) { assert(a.from > D.ACTS[i - 1].from, 'actes croissants'); assert(a.open && a.open.length, 'ouverture de l’acte ' + a.n); } });
+    eq(new Set(D.LORE.map((l) => l.id)).size, D.LORE.length, 'identifiants uniques');
+    D.LORE.forEach((l) => assert(l.act >= 1 && l.act <= 4, l.id + ' sans acte'));
+    [1, 2, 3, 4].forEach((n) => assert(D.LORE.filter((l) => l.act === n).length >= 6, 'acte ' + n + ' : au moins six fragments'));
+    Object.keys(D.STORY_SITES).forEach((k) => eq(D.LORE.filter((l) => l.site === k).length, 1, 'un fragment par lieu : ' + k));
+    const last = D.LORE.filter((l) => l.act === 4).pop();
+    assert(last.last, 'le dernier fragment ferme la marche, sans rien fermer');
+    eq(atRank(0, () => St.act({})), 1); eq(atRank(3, () => St.act({})), 2); eq(atRank(7, () => St.act({})), 3); eq(atRank(11, () => St.act({})), 4);
+    const p = AN.Save.newProfile(70);
+    atRank(0, () => {
+      eq(St.nextFragment(p).id, 'l1', 'le premier fragment du premier acte');
+      let n = 0, L;
+      while ((L = St.nextFragment(p)) && n < 50) { eq(L.act, 1, 'rien d’un acte à venir'); assert(!L.site, 'pas un fragment de lieu'); St.learn(p, L); n++; }
+      eq(L, null, 'tout est lu : un silence');
+      assert(typeof St.silence(123) === 'string' && St.silence(123).length > 10);
+    });
+    atRank(3, () => eq(St.nextFragment(p).act, 2, 'au deuxième acte, la suite'));
+    return D.LORE.length + ' fragments';
+  });
+  test('Récit : lieux qui racontent, chroniques, souverains (1.14)', () => {
+    const St = AN.Story;
+    const p = AN.Save.newProfile(71);
+    const worlds = [];
+    for (let s = 1; s <= 300; s++) worlds.push(AN.WorldGen.destination(AN.hash('lieu' + s), { threat: 3, reliability: 1 }));
+    atRank(3, () => {
+      const sites = worlds.map((w) => St.siteFor(w, p));
+      eq(JSON.stringify(St.siteFor(worlds[5], p)), JSON.stringify(sites[5]), 'même monde, même lieu');
+      const got = sites.filter(Boolean);
+      assert(got.length > 30 && got.length < 120, got.length + ' lieux sur 300');
+      got.forEach((s, i) => { eq(s.kind, 'cairn', 'le lieu du deuxième acte'); });
+      assert(got.every((s, i) => s.zi >= 0), 'dans une zone');
+    });
+    atRank(11, () => {
+      let w = null;
+      for (let s = 1; s < 40 && !w; s++) w = AN.WorldGen.destination(AN.hash('pli' + s), { scale: 'pli', threat: 7, reliability: 1 });
+      eq(St.siteFor(w, p).kind, 'page', 'dans le Pli, la page attend');
+    });
+    p.journal = [
+      { code: 'AAA-1', outcome: 'extrait', abandoned: 0 }, { code: 'BBB-2', outcome: 'retour', place: true }, { code: 'CCC-3', outcome: 'echec', abandoned: 4 }, { code: 'DDD-4', outcome: 'ancre' },
+    ];
+    eq(JSON.stringify(St.leftWorlds(p)), JSON.stringify(['CCC-3', 'AAA-1']), 'les mondes quittés, ceux où des gens sont restés d’abord');
+    assert(St.siteText(p, 'cairn').includes('CCC-3, AAA-1'), 'le cairn porte leurs noms');
+    const c = St.chronicle(p, 'pales');
+    assert(c && c.title, 'une chronique');
+    eq(St.chronicle(p, 'pales'), null, 'une seule fois');
+    atRank(3, () => eq(St.courtLine(p, 'X-1', 4), null, 'pas avant le troisième acte'));
+    atRank(7, () => { assert(St.courtLine(p, 'X-1', 4), 'le souverain parle de celui d’avant'); eq(St.courtLine(p, 'X-1', 4), null, 'une fois par nation'); });
+    Object.keys(D.PEOPLE).forEach((pid) => assert(D.CHRONICLES[pid], 'chronique ' + pid));
+  });
+  test('L’Artefact : six formes, et la couleur de vos choix (1.14)', () => {
+    const St = AN.Story;
+    eq(D.ARTEFACT_FORMS.length, 6);
+    const forms = [[0, 'losange'], [2, 'anneaux'], [3, 'fissures'], [6, 'cadre'], [8, 'etoile'], [11, 'oeil']];
+    forms.forEach(([rk, id]) => eq(atRank(rk, () => St.form({}).id), id, 'rang ' + rk));
+    const p = AN.Save.newProfile(72);
+    eq(JSON.stringify(p.story), JSON.stringify({ act: 0, form: null, courts: {}, chronicles: [] }));
+    atRank(0, () => { eq(St.checkForm(p), null, 'une partie neuve commence sans transformation'); eq(St.checkAct(p), null); });
+    atRank(3, () => {
+      const f = St.checkForm(p);
+      eq(f.from + '>' + f.to, 'losange>fissures');
+      eq(St.checkForm(p), null, 'une seule fois');
+      eq(St.checkAct(p).n, 2, 'le deuxième acte s’ouvre');
+      eq(St.checkAct(p), null);
+    });
+    const old = AN.Save.migrate({ version: 6, seed: 9, collection: [], territories: [] });
+    atRank(8, () => { eq(St.checkForm(old).to, 'etoile', 'une ancienne partie voit sa forme une fois'); eq(St.checkAct(old).n, 3, 'et seulement l’acte où elle en est'); });
+    // la couleur suit la réputation
+    const q = AN.Save.newProfile(73);
+    const base = AN.CYAN || '#2346c8';
+    eq(St.color(q), base, 'personne ne sait rien de vous');
+    AN.Civ.moral(q).sauves = 60;
+    const c1 = St.color(q);
+    assert(c1 !== base, 'ceux qui sauvent');
+    const r = AN.Save.newProfile(74);
+    AN.Civ.moral(r).massacres = 30;
+    assert(St.color(r) !== c1 && St.cracks(r) > St.cracks(q), 'ceux qu’on craint : une autre couleur, plus de fissures');
+  });
+  test('Arrivées : un peuple à pied, ce qui prend place dans le ciel (1.14)', () => {
+    const Av = AN.Arrivals;
+    const p = AN.Save.newProfile(75);
+    p.settlements.push({ uid: 'old', people: 'pales', n: 5 });
+    Av.init(p);
+    assert(p.settlements[0].walked, 'les peuples déjà installés n’arrivent pas une seconde fois');
+    p.settlements.push({ uid: 'new', people: 'nautes', n: 7 });
+    const q = Av.queueFor(p, { astres: [{ uid: 'a1', layer: 'systeme', biome: 'geante_gazeuse' }], nation: { place: 'n:ABC-1', name: 'Test' } });
+    eq(JSON.stringify(q.map((x) => x.type)), JSON.stringify(['settlers', 'sky']));
+    eq(JSON.stringify(q[0].uids), JSON.stringify(['new']));
+    eq(JSON.stringify(q[1].ids), JSON.stringify(['a1', 'n:ABC-1']));
+    eq(Av.queueFor(p, { astres: [] }).length, 0, 'une seule arrivée par peuple');
+  });
+
+  test('Toutes les attaques ont des dégâts chiffrés (1.14 : « NaN » rendait immortel)', () => {
+    const USES = { radial: 1, spiral: 1, aimed: 1, charge: 1, slam: 1, rain: 1, burrow: 1, laser: 1, shockwave: 1 };
+    let n = 0;
+    D.CREATURES.forEach((c) => {
+      (c.phases || []).forEach((ph, i) => ph.patterns.forEach((pt) => {
+        if (USES[pt.type]) { n++; assert(typeof pt.dmg === 'number' && pt.dmg > 0, c.id + ', phase ' + (i + 1) + ', ' + pt.type + ' : dégâts manquants'); }
+        if (pt.type === 'pools') assert(typeof pt.dps === 'number' && pt.dps > 0, c.id + ' : flaques sans dégâts');
+      }));
+      if (c.attack) { n++; assert(typeof c.attack.dmg === 'number' && c.attack.dmg >= 0, c.id + ' : attaque sans dégâts'); }
+    });
+    D.BIOMES.forEach((b) => { if (b.hazard) assert(typeof b.hazard.dps === 'number', b.id + ' : terrain dangereux sans dégâts'); });
+    return n + ' attaques vérifiées';
+  });
+
+  /* ---------- 1.15 : lisibilité ---------- */
+  test('Danger relatif : calé sur la force, quatre degrés (1.15)', () => {
+    const Dg = AN.Danger;
+    const p = AN.Save.newProfile(11);
+    // une force double = dix niveaux
+    eq(Dg.level(400) - Dg.level(200), 10);
+    assert(Dg.GRADES.every((g, i) => !i || g.from > Dg.GRADES[i - 1].from), 'degrés croissants');
+    // en moyenne sur des mondes tirés : menace 1-2 « équilibré » ou moins, menace 7 « difficile » ou plus
+    const avg = (t) => { let s = 0; for (let k = 0; k < 12; k++) s += Dg.of(AN.WorldGen.destination(AN.hash('dg' + t + ':' + k), { threat: t, reliability: 1 }), p).rank; return s / 12; };
+    const r1 = avg(1), r2 = avg(2), r7 = avg(7);
+    assert(r1 <= 1.2 && r2 <= 1.5, 'débuts abordables : ' + r1 + ' / ' + r2);
+    assert(r7 >= 2, 'menace 7 redoutable : ' + r7);
+    // plus de menace, plus de niveaux
+    let last = 0;
+    for (let t = 1; t <= 7; t++) { let s = 0; for (let k = 0; k < 8; k++) s += Dg.worldLevel(AN.WorldGen.destination(AN.hash('dl' + t + ':' + k), { threat: t, reliability: 1 })); s /= 8; assert(s > last, 'niveau croissant avec la menace (' + t + ')'); last = s; }
+    // un meilleur équipement fait baisser le danger
+    const w = AN.WorldGen.destination(AN.hash('dg-eq'), { threat: 5, reliability: 1 });
+    const best = Object.assign({}, p.loadout, { ranged: Object.keys(D.GEAR).filter((id) => D.GEAR[id].slot === 'ranged').sort((a, b) => D.GEAR[b].dmg * (D.GEAR[b].rate || 1) - D.GEAR[a].dmg * (D.GEAR[a].rate || 1))[0], armor: Object.keys(D.GEAR).filter((id) => D.GEAR[id].slot === 'armor').sort((a, b) => (D.GEAR[b].armor || 0) - (D.GEAR[a].armor || 0))[0] });
+    assert(Dg.of(w, p, best).gap < Dg.of(w, p).gap, 'équipement pris en compte');
+    eq(Dg.of(AN.Tutorial.world(3), p).id, 'facile', 'le Seuil');
+    // la force du monde n'est jamais enregistrée avec la partie
+    assert(!JSON.stringify(w).includes('_force'), 'force non enregistrée');
+    return 'menace 1 : ' + r1.toFixed(2) + ', 2 : ' + r2.toFixed(2) + ', 7 : ' + r7.toFixed(2) + ' (0 facile … 3 mortel)';
+  });
+  test('Fiche d’un monde : exacte, jamais inventée (1.15)', () => {
+    const Fi = AN.Fiche;
+    const p = AN.Save.newProfile(12);
+    let n = 0;
+    for (let k = 0; k < 40; k++) {
+      const w = AN.WorldGen.destination(AN.hash('fi' + k), { threat: 1 + (k % 7), reliability: 0.5 });
+      // ressources : exactement celles des paysages du monde (zones, mélanges, cœur)
+      const real = new Set();
+      w.zones.concat([w.heart]).forEach((z) => [z.biome, z.mix].filter(Boolean).forEach((b) => Object.keys(D.BIOME[b].resources).forEach((r) => real.add(r))));
+      const f = Fi.of(w, p);
+      eq(JSON.stringify(f.resources.map((r) => r.id).sort()), JSON.stringify([...real].sort()), w.code + ' : ressources');
+      assert(f.resources.every((r) => r.level >= 1 && r.level <= 3), 'abondance 1 à 3');
+      // scanner de départ (50 %) : ni gardiens ni anomalie ; avec 100 %, tout, et exact
+      eq(f.guardians, null, 'gardiens inconnus');
+      eq(f.anomaly, null, 'anomalie inconnue');
+      p.artefact.scanner = 3;
+      const g = Fi.of(w, p);
+      p.artefact.scanner = 0;
+      eq(JSON.stringify(g.guardians), JSON.stringify(w.zones.map((z) => z.guardian).filter(Boolean)), 'gardiens exacts');
+      eq(g.rule, w.rule); eq(g.anomaly, w.anomaly);
+      eq(JSON.stringify(g.vaults.keys), JSON.stringify([...new Set(w.zones.concat([w.heart]).map((z) => z.vault).filter(Boolean))]), 'caveaux exacts');
+      const pool = new Set();
+      w.zones.forEach((z) => [z.biome, z.mix].filter(Boolean).forEach((b) => AN.WorldGen.pool(b).forEach((c) => pool.add(c.id))));
+      assert(g.fauna.every((x) => pool.has(x.id)) && g.fauna.length === pool.size, 'faune exacte');
+      assert(Fi.missing(g) === null && Fi.missing(f) > 50, 'ce qui manque au scanner');
+      n++;
+    }
+    return n + ' fiches vérifiées';
+  });
+  test('Aide, conseils et visite : complets et cohérents (1.15)', () => {
+    const pages = ['destinations', 'preparation', 'hexagone', 'atelier', 'upgrades-page', 'constructions', 'overview', 'collection', 'peuples', 'bestiaire', 'journal', 'guide'];
+    pages.forEach((cls) => assert(Array.isArray(D.HELP[cls]) && D.HELP[cls].length, 'aide de la page ' + cls));
+    const ids = D.TIPS.map((t) => t.id);
+    eq(new Set(ids).size, ids.length, 'identifiants uniques');
+    ['archive', 'console', 'danger', 'companions', 'mount', 'call', 'vault', 'village', 'nation', 'bag', 'extract', 'emergency', 'structure', 'event', 'echelon', 'colossus', 'climb', 'evolve', 'arrange', 'rank'].forEach((id) => assert(ids.includes(id), 'conseil ' + id));
+    D.TIPS.forEach((t) => assert(t.title && t.text && t.where, t.id + ' complet'));
+    const tabs = ['destinations', 'preparation', 'hexagone', 'atelier', 'artefact', 'constructions', 'archive', 'collection', 'peuples', 'guide', 'bestiaire', 'journal'];
+    D.TOUR.forEach((st) => assert(tabs.includes(st.tab) && st.text, 'étape de visite ' + st.tab));
+    // une partie avancée ne revoit pas les conseils de l'ancien temps ; une nouvelle, si
+    const old = AN.Save.migrate({ version: 6, seed: 4, expeditions: 9, flags: {}, collection: [], territories: [] });
+    assert(old.flags.tips.vault && !old.flags.tips.danger && !old.flags.tips.tour, 'partie avancée : seuls le danger et la visite restent');
+    const fresh = AN.Save.migrate({ version: 6, seed: 4, expeditions: 1, flags: {}, collection: [], territories: [] });
+    assert(!fresh.flags.tips || !fresh.flags.tips.vault, 'partie récente : tous les conseils');
+  });
+  test('Le Seuil prête un compagnon et sa capacité (1.15)', () => {
+    const St = AN.Tutorial.STEPS;
+    const i = St.findIndex((s) => s.id === 'companion');
+    assert(i > St.findIndex((s) => s.id === 'melee') && i < St.findIndex((s) => s.id === 'capture'), 'après le combat, avant la capture');
+    assert(D.CREATURE.brindeuil && D.ABILITIES.soin, 'le Brindeuil et le soin existent');
+  });
+
+  /* ---------- 1.16 : les colosses ---------- */
+  test('Colosses : chaque maître en est un, complet (1.16)', () => {
+    const Co = AN.Colossus;
+    const masters = D.CREATURES.filter((c) => c.tier >= 3 && c.phases);
+    let n = 0;
+    masters.forEach((c) => {
+      const cd = D.COLOSSI[c.id];
+      assert(cd, c.id + ' : un colosse');
+      assert(Co.PLANS[cd.plan], c.id + ' : plan ' + cd.plan);
+      assert(cd.seals.length >= 3 && cd.seals.length <= 5, c.id + ' : 3 à 5 sceaux');
+      assert(cd.seals.some((s) => s.kind === 'haut') && cd.seals.some((s) => s.kind === 'bas'), c.id + ' : des sceaux du haut et du bas');
+      cd.seals.forEach((s) => assert(s.kind === 'haut' || s.kind === 'bas', c.id + ' : sorte de sceau'));
+      cd.attacks.concat([cd.signature]).forEach((a) => assert(Co.ACTS[a] || ['eboulis', 'seisme', 'geyser', 'sillage'].includes(a), c.id + ' : attaque ' + a));
+      assert(cd.hints.length >= 2 && cd.secret && cd.secret.length > 30, c.id + ' : indices et faiblesse');
+      n++;
+    });
+    return n + ' colosses';
+  });
+  test('Colosses : corps, sceaux atteignables, vigueur répartie (1.16)', () => {
+    const Co = AN.Colossus;
+    let n = 0;
+    Object.keys(D.COLOSSI).forEach((id, k) => {
+      const def = D.CREATURE[id];
+      const zone = { index: 9, arena: { x: 1200, y: 1200 }, w: 80, h: 80 };
+      const X = { world: { seed: 77 + k, threat: 3 }, zone, player: { x: 0, y: 0 } };
+      const make = () => { const e = { def, tier: def.tier, x: 1200, y: 1200, r: def.r, maxHp: Math.round(def.hp * 1.64), hp: 0, dmgMul: 1.4, pal: {}, anim: 0, flash: 0 }; AN.Boss.init(e, { arena: zone.arena, zoneIndex: 9, guardian: true }); return e; };
+      const e = make();
+      const col = Co.setup(X, e, zone);
+      assert(col && col.L >= 800, id + ' : immense (' + (col && col.L) + ' px)');
+      // chaque sceau est posé sur le corps, à une position réelle
+      col.seals.forEach((s) => { const q = Co.sealPos(col, s); assert(q && Number.isFinite(q.x) && Number.isFinite(q.y), id + ' : sceau ' + s.at); });
+      // la vigueur des sceaux : une part de celle du maître
+      const tot = col.seals.reduce((a, s) => a + s.max, 0);
+      assert(Math.abs(tot - e.maxHp * D.COLOSSUS_SEAL_SHARE) < col.seals.length * 2 + 60, id + ' : vigueur des sceaux');
+      // on grimpe d'une capsule à l'autre par leurs nœuds communs : tout le corps se tient
+      const caps = col.caps.filter((c) => c.grip);
+      const seen = new Set([caps[0].i]), stack = [caps[0]];
+      while (stack.length) { const c = stack.pop(); caps.forEach((o) => { if (!seen.has(o.i) && (o.a === c.a || o.a === c.b || o.b === c.a || o.b === c.b)) { seen.add(o.i); stack.push(o); } }); }
+      assert(seen.size === caps.length, id + ' : corps d’un seul tenant (' + seen.size + '/' + caps.length + ')');
+      // une prise depuis le sol existe (en temps normal, ou quand il se découvre : plongeon, arrêt)
+      const low = col.caps.some((c) => c.grip && Math.min(col.n[c.a].z, col.n[c.b].z) <= Co.GRAB_Z);
+      assert(low || col.plan === 'volant' || col.plan === 'roue', id + ' : une prise au sol');
+      // les mêmes données donnent le même colosse
+      const c2 = Co.setup(X, make(), zone);
+      eq(c2.a.toFixed(5), col.a.toFixed(5), id + ' : orientation reproductible');
+      n++;
+    });
+    return n + ' corps vérifiés';
+  });
+
+  test('Colosses-mondes : un dos où l’on marche, un écosystème (1.16.2)', () => {
+    const Co = AN.Colossus;
+    let n = 0;
+    Object.keys(D.COLOSSI).forEach((id, k) => {
+      const def = D.CREATURE[id];
+      const zone = { index: 9, arena: { x: 1500, y: 1500 }, w: 90, h: 90, biome: 'foret_fongique' };
+      const X = { world: { seed: 5 + k, threat: 3, zones: [{ biome: 'foret_fongique' }] }, zone, player: { x: 0, y: 0 } };
+      const e = { def, tier: def.tier, x: 1500, y: 1500, r: def.r, maxHp: def.hp, hp: 0, dmgMul: 1, pal: {}, anim: 0, flash: 0 };
+      AN.Boss.init(e, { arena: zone.arena, zoneIndex: 9, guardian: true });
+      const col = Co.setup(X, e, zone);
+      eq(Math.round(col.L), Math.round(D.COLOSSUS_LENGTH[def.tier] * (D.COLOSSI[id].size || 1)), id + ' : taille');
+      assert(col.A <= 1100, id + ' : coups à taille bornée');
+      assert(col.deck.decor.length >= 2, id + ' : un paysage sur son dos');
+      assert(col.deck.nodes.length >= 2, id + ' : des gisements');
+      col.deck.nodes.forEach((g) => assert(D.RESOURCES[g.res] && col.caps[g.cap].flat, id + ' : gisement sur son dos'));
+      // un point de son dos se retrouve là où il est
+      const flat = col.caps.find((c) => c.flat);
+      const q = Co.capPoint(col, flat, 0.5, 0.3), L1 = Co.locate(col, flat, q.x, q.y);
+      assert(L1.inside && Math.abs(L1.t - 0.5) < 0.02 && Math.abs(L1.off - 0.3) < 0.05, id + ' : localisation sur le dos');
+      n++;
+    });
+    return n + ' dos';
+  });
+  test('Saut et escalade : ni murs ni barrières franchis (1.16.1)', () => {
+    const Z = AN.ZoneGen;
+    // un saut franchit le vide et l'abîme, pas les murs, les barrières des caveaux ni les bâtiments
+    [Z.WALL, Z.KEYWALL, Z.BUILDING].forEach((g) => eq(Z.LEAP_SOLID[g], 1, 'le saut bute sur ' + g));
+    [Z.FLOOR, Z.VOID, Z.ABYSS, Z.HAZARD, Z.BRIDGE_OFF].forEach((g) => eq(Z.LEAP_SOLID[g], 0, 'le saut franchit ' + g));
+    // descendre d'un colosse : jamais de l'autre côté d'une barrière (l'intérieur d'un caveau est une autre partie de la zone)
+    let n = 0;
+    for (let s = 1; s < 300 && n < 3; s++) {
+      const w = AN.WorldGen.destination(AN.hash('caveau' + s), { threat: 3, reliability: 1 });
+      const z = Z.generate(w, 0);
+      if (!z.vaults || !z.vaults.length) continue;
+      const v = z.vaults[0];
+      const inside = AN.Colossus.compOf(z, v.cx, v.cy), outside = AN.Colossus.compOf(z, z.entry.x, z.entry.y);
+      assert(inside != null && outside != null && inside !== outside, 'caveau séparé du reste de la zone');
+      n++;
+    }
+    assert(n > 0, 'des caveaux à vérifier');
+    // le saut a sa touche ; l'esquive reste sur Espace
+    assert(AN.Input.ACTIONS.some((a) => a.code === 'KeyC') && AN.Input.ACTIONS.some((a) => a.code === 'Space'), 'saut et esquive distincts');
+    return n + ' caveaux';
+  });
+
+  /* ---------- 1.16.3 : colosses-cartes, montures ---------- */
+  test('Colosses-cartes : la zone, c’est lui (1.16.3)', () => {
+    const Co = AN.Colossus, Z = AN.ZoneGen;
+    const ids = Object.keys(D.COLOSSI);
+    // les plus gros, et seulement eux
+    ids.forEach((id) => eq(Co.isMap(D.CREATURE[id]), D.CREATURE[id].tier >= D.COLOSSUS_MAP_TIER, id + ' : colosse-carte selon son rang'));
+    const maps = ids.filter((id) => Co.isMap(D.CREATURE[id]));
+    assert(maps.length >= 3, 'plusieurs colosses-cartes');
+    maps.forEach((id, k) => {
+      const def = D.CREATURE[id];
+      const w = AN.WorldGen.destination(AN.hash('carte' + id), { scale: def.scale, threat: 7, reliability: 1, noNation: true });
+      w.heart.guardian = id;
+      const zone = Z.generate(w, w.zones.length);
+      zone.state = { fog: new Uint8Array(zone.w * zone.h) };
+      assert(Co.prepareMapZone({ world: w }, zone) && zone.colMap, id + ' : zone préparée');
+      assert(!zone.gates.length && !zone.plates.length && !zone.nodes.length && !zone.groups.length && !zone.village && !zone.structure, id + ' : rien au sol, ni passage ni plaque');
+      let solid = 0;
+      for (let y = 2; y < zone.h - 2; y++) for (let x = 2; x < zone.w - 2; x++) if (zone.grid[y * zone.w + x] !== Z.FLOOR) solid++;
+      eq(solid, 0, id + ' : pas de relief');
+      assert(zone.state.fog.every((v) => v === 1), id + ' : rien à découvrir');
+      // le colosse au centre, la plateforme sur son dos, dégagée
+      const X = { world: { seed: 11 + k, threat: 7, zones: w.zones }, zone, player: { x: 0, y: 0 } };
+      const e = { def, tier: def.tier, x: zone.arena.x, y: zone.arena.y, r: def.r, maxHp: def.hp, hp: 0, dmgMul: 1, pal: {}, anim: 0, flash: 0 };
+      AN.Boss.init(e, { arena: zone.arena, zoneIndex: zone.index, guardian: true });
+      const col = Co.setup(X, e, zone);
+      assert(col.map, id + ' : colosse-carte');
+      assert(Math.abs(col.x - (zone.w * Z.T) / 2) <= 160 && Math.abs(col.y - (zone.h * Z.T) / 2) <= 160, id + ' : au centre');
+      const pad = col.deck.pad, pc = pad && col.caps[pad.cap];
+      assert(pc && pc.flat && pc.grip, id + ' : plateforme sur une surface plate');
+      col.deck.decor.forEach((d) => assert(!(d.cap === pad.cap && Math.abs(d.t - 0.5) < 0.22 && Math.abs(d.off) < 0.45), id + ' : plateforme dégagée'));
+      // chaque sceau, même du bas, s'atteint à pied depuis la plateforme
+      const seen = new Set([pad.cap]), stack = [pc];
+      while (stack.length) { const c = stack.pop(); col.caps.forEach((o) => { if (o.grip && !seen.has(o.i) && (o.a === c.a || o.a === c.b || o.b === c.a || o.b === c.b)) { seen.add(o.i); stack.push(o); } }); }
+      col.seals.forEach((s) => assert(seen.has(col.anchors[s.at].cap), id + ' : sceau ' + s.at + ' atteignable à pied'));
+    });
+    // une zone ordinaire n'est pas touchée
+    const w2 = AN.WorldGen.destination(AN.hash('pas-carte'), { threat: 3, reliability: 1 });
+    const z2 = Z.generate(w2, 0);
+    assert(!Co.prepareMapZone({ world: w2 }, z2) && !z2.colMap, 'zone ordinaire inchangée');
+    return maps.length + ' colosses-cartes';
+  });
+  test('Colosse-carte : on n’en descend pas (1.16.3)', () => {
+    const Co = AN.Colossus;
+    const id = Object.keys(D.COLOSSI).find((k) => Co.isMap(D.CREATURE[k]));
+    const def = D.CREATURE[id];
+    const zone = { index: 9, arena: { x: 2400, y: 2400 }, w: 100, h: 100, biome: 'foret_fongique' };
+    const X = { world: { seed: 3, threat: 7, zones: [] }, zone, player: { x: 0, y: 0, maxHp: 100, hp: 100 }, time: 10 };
+    const e = { def, tier: def.tier, x: 2400, y: 2400, r: def.r, maxHp: def.hp, hp: 0, dmgMul: 1, pal: {}, anim: 0, flash: 0, alive: true };
+    AN.Boss.init(e, { arena: zone.arena, zoneIndex: 9, guardian: true });
+    const col = Co.setup(X, e, zone);
+    const other = col.caps.find((c) => c.grip && c.i !== col.deck.pad.cap);
+    const p = X.player;
+    p.climb = { e, cap: other.i, t: 0.5, off: 0, charge: 0, loose: 0 };
+    const H0 = AN.HUD, P0 = AN.PlayerCtl;
+    let hurt = 0;
+    AN.HUD = Object.assign({}, H0, { toast: () => {} }); AN.PlayerCtl = Object.assign({}, P0, { damage: (XX, d) => { hurt += d; return d; } });
+    try {
+      Co.drop(X, p, 'jump'); assert(p.climb && p.climb.cap === other.i, 'lâcher prise : refusé, le vide');
+      Co.drop(X, p, 'down'); assert(!!p.climb, 'il s’effondre : on reste sur lui');
+      Co.drop(X, p, 'fall'); assert(p.climb && col.caps[p.climb.cap].flat, 'une chute : on glisse jusqu’à son dos (une surface plate)');
+      assert(hurt > 0 && p.grip >= 0.45, 'une chute coûte, la prise revient');
+    } finally { AN.HUD = H0; AN.PlayerCtl = P0; }
+    return id;
+  });
+  test('Valeur d’une créature : un nombre à tous les rangs (1.16.3)', () => {
+    let n = 0;
+    D.CREATURES.forEach((c) => { const v = AN.Entities.value(c.id, 'commun'); assert(Number.isFinite(v) && v > 0, c.id + ' : valeur ' + v); n++; });
+    assert(AN.Entities.value('relieur', 'commun') > AN.Entities.value('myriade', 'commun'), 'plus haut, plus précieux');
+    return n + ' créatures';
+  });
+  test('Montures : elles partagent les coups, sans rempart sans fin (1.16.3)', () => {
+    const Mt = AN.Mount, C0 = AN.Combat;
+    const got = [];
+    AN.Combat = Object.assign({}, C0, { hit: (X, t, d) => { got.push(d); return d; } });
+    try {
+      const p = { maxHp: 100 };
+      const big = { maxHp: 5000, hp: 5000, alive: true }, small = { maxHp: 120, hp: 120, alive: true };
+      eq(Math.round(Mt.absorb({ mount: big, player: p }, 100, null, {})), 55, 'le cavalier garde sa part des coups');
+      eq(Math.round(got[0]), Math.round(100 * Mt.share * 25), 'une monture immense paie d’autant plus cher');
+      assert(Math.abs(big.maxHp / Mt.cost(big, p) - 2 * p.maxHp) < 1, 'au plus deux fois la vigueur du cavalier');
+      eq(Mt.cost(small, p), 1, 'une monture ordinaire : coût normal');
+      eq(Mt.absorb({ mount: big, player: p }, 10, null, { dot: true }), 10, 'le terrain vous atteint toujours');
+      eq(Mt.absorb({ mount: null, player: p }, 10, null, {}), 10, 'à pied : rien ne change');
+    } finally { AN.Combat = C0; }
+    return 'partage ' + Mt.share;
   });
 
   /* ---------- affichage ---------- */

@@ -116,7 +116,7 @@
 
     // vagues de créatures et débris
     c.waveT -= dt;
-    if (c.waveT <= 0 && k < 0.9) {
+    if (c.waveT <= 0 && k < 0.9 && !zone.colMap) { // sur un colosse-carte, rien ne vient du sol (1.16.3)
       c.waveT = 5 + Math.random() * 3;
       const pool = AN.WorldGen.pool(zone.biome).filter((d) => d.attack);
       if (pool.length) {

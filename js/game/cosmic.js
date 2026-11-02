@@ -57,28 +57,30 @@
   };
 
   /**
-   * Galaxie : Espace bref = esquive ; Espace maintenu = saut au-dessus du vide.
+   * Le saut (C, maintenu puis relâché) : au-dessus du vide d'une galaxie ou d'un amas, et près
+   * d'un colosse pour atteindre plus haut (1.16.1 : il a sa touche ; Espace reste l'esquive).
    * Renvoie true si l'action d'esquive a été prise en charge ici.
    */
   Co.leapControl = function (X, p, dt, ax) {
-    if (!AN.Beyond.leaps(X)) return false; // galaxie et amas (1.10)
+    if (!AN.Beyond.leaps(X) && !AN.Colossus.canLeap(X)) return false; // galaxie et amas (1.10) ; près d'un colosse (1.16)
     const c = X.cosmo;
     if (p.leap) return true;
-    if (I.down('Space') && p.dashCd <= 0) {
+    if (I.down('KeyC') && (p.jumpCd || 0) <= 0) {
       c.charge = Math.min(1, c.charge + dt / 0.9);
       return true;
     }
     if (c.charge > 0) {
       const k = c.charge;
       c.charge = 0;
-      if (k < 0.22) return false; // appui bref : esquive normale (traitée par le joueur)
+      // un appui bref fait un petit saut
       const dx = ax.x || Math.cos(p.aim), dy = ax.y || Math.sin(p.aim);
       const l = Math.hypot(dx, dy) || 1;
       const dist = 140 + k * 280;
       const dur = 0.3 + k * 0.25;
-      p.leap = { t: 0, dur, x0: p.x, y0: p.y, vx: (dx / l) * dist / dur, vy: (dy / l) * dist / dur };
+      // le saut a une hauteur (1.16) : on s'élève, on peut s'agripper en l'air à un colosse
+      p.leap = { t: 0, dur, x0: p.x, y0: p.y, vx: (dx / l) * dist / dur, vy: (dy / l) * dist / dur, peak: 0.25 + k * 0.85 };
       p.iframes = Math.max(p.iframes, dur + 0.1);
-      p.dashCd = X.S.dashCd * 1.4;
+      p.jumpCd = 0.5; // son propre délai : on peut esquiver juste après (1.16.1)
       AN.Audio.play('dash', { pitch: 0.7 });
       return true;
     }
@@ -89,13 +91,15 @@
     const L = p.leap;
     if (!L) return false;
     L.t += dt;
+    p.z = Math.sin(Math.PI * U.clamp(L.t / L.dur, 0, 1)) * (L.peak || 0);
     p.dvx = p.vx = L.vx; p.dvy = p.vy = L.vy;
     if (Math.random() < 0.9) X.cosmo.leapTrail.push({ x: p.x, y: p.y, t: 0 });
     if (L.t >= L.dur) {
       p.leap = null;
+      p.z = 0;
       p.vx *= 0.3; p.vy *= 0.3; p.dvx = p.dvy = 0;
       const tile = Z.tileAt(X.zone, p.x, p.y);
-      if (Z.isSolid(tile) || tile === Z.VOID) {
+      if ((Z.isSolid(tile) || tile === Z.VOID) && AN.Beyond.leaps(X)) { // au-dessus du vide (galaxie, amas) ; ailleurs, on retombe simplement
         FX.burst(p.x, p.y, '#8a8aff', 20, 200, { size: 3 });
         p.x = L.x0; p.y = L.y0;
         AN.PlayerCtl.damage(X, 14, null, { ignoreIframes: true });

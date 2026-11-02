@@ -14,6 +14,8 @@
   /** Tuiles qui bloquent le passage (le vide galactique se franchit d'un bond, voir game/cosmic.js). */
   Z.SOLID = new Uint8Array([0, 1, 0, 0, 0, 1, 1, 1, 0, 1]);
   Z.isSolid = (g) => Z.SOLID[g] === 1;
+  /** Ce qui arrête un saut (1.16.1) : murs, barrières des caveaux, bâtiments. Le vide et l'abîme se franchissent. */
+  Z.LEAP_SOLID = new Uint8Array([0, 1, 0, 0, 0, 1, 1, 0, 0, 0]);
 
   function quantile(values, q) {
     const s = Float32Array.from(values).sort();

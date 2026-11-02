@@ -191,9 +191,9 @@
       // l'arrivée : le joueur se pose avec l'hexagone, au pied de l'Artefact
       const p = X.player;
       p.x = b.x; p.y = b.y + 70;
-      X.allies.forEach((a, i) => { const ang = Math.PI / 2 + (i - (X.allies.length - 1) / 2) * 0.5; a.x = b.x + Math.cos(ang) * 110; a.y = b.y + Math.sin(ang) * 110; a.home = { x: a.x, y: a.y }; });
+      X.allies.forEach((a, i) => { const ang = Math.PI / 2 + (i - (X.allies.length - 1) / 2) * 0.5; a.x = b.x + Math.cos(ang) * 110; a.y = b.y + Math.sin(ang) * 110; a.home = { x: a.x, y: a.y }; a.onHex = true; });
       X.cam.x = b.x; X.cam.y = b.y;
-      p.hidden = true;
+      p.hidden = true; // le joueur, ses compagnons et les gardes descendent avec l'hexagone (dessinés à bord, 1.14.1)
     }
   };
   B.postOf = function (X, g) {
@@ -212,14 +212,14 @@
   };
   /** Cibles qu'ajoute l'hexagone pour les créatures sauvages (gardes, hexagone). */
   B.enemies = function (X, out) {
-    if (!B.inZone(X)) return out;
+    if (!B.inZone(X) || X.base.state === 'land') return out; // encore dans le ciel
     for (const g of X.base.guards) if (g.alive && !g.downed && !g.aboard) out.push(g);
     if (B.active(X)) out.push(B.target(X));
     return out;
   };
   /** Choix de cible d'une créature sauvage : gardes et hexagone comptent comme le joueur. */
   B.pick = function (X, e, best, bd) {
-    if (!B.inZone(X)) return best;
+    if (!B.inZone(X) || X.base.state === 'land') return best;
     for (const g of X.base.guards) {
       if (!g.alive || g.downed || g.aboard) continue;
       const d = U.dist(e.x, e.y, g.x, g.y);
@@ -302,6 +302,16 @@
     if (withPlayer) {
       X.ending = true;
       X.player.liftK = 0;
+      // les compagnons rentrent avec vous : ceux qui sont loin rejoignent l'hexagone d'un trait de lumière (1.14.1)
+      X.allies.forEach((a, i) => {
+        if (!a.alive) return;
+        if (!B.onHex(X, a.x, a.y, 0.9)) {
+          const ang = (i / Math.max(1, X.allies.length)) * TAU, nx = b.x + Math.cos(ang) * b.R * 0.5, ny = b.y + Math.sin(ang) * b.R * 0.5;
+          FX.stream(a.x, a.y, nx, ny, AN.CYAN, { life: 0.4, size: 3 });
+          a.x = nx; a.y = ny;
+        }
+        a.onHex = true; a.vx = a.vy = a.dvx = a.dvy = 0;
+      });
       b.then = then || (() => AN.Expedition.finish(X, 'urgence'));
     }
     AN.Audio.play('portal');
@@ -402,12 +412,13 @@
     const here = X.zi === b.zi && b.ready;
     // pose dans le monde
     if (b.state === 'land') {
-      if (!here) { b.state = 'ok'; X.player.hidden = false; return; }
+      if (!here) { b.state = 'ok'; X.player.hidden = false; X.allies.forEach((a) => { a.onHex = false; }); return; }
       b.landT += dt;
       const dur = AN.Prefs && AN.Prefs.reduceFx() ? 0.5 : D.BASE.landDur;
       if (b.landT >= dur) {
         b.state = 'ok';
         X.player.hidden = false;
+        X.allies.forEach((a) => { a.onHex = false; }); // posés : ils descendent de l'hexagone
         X.cam.shake(9);
         AN.Audio.play('boom');
         AN.Audio.play('appear');
@@ -505,7 +516,7 @@
   };
   B.modulePos = (b, m) => ({ x: b.x + Math.cos(m.a) * b.R * 0.66, y: b.y + Math.sin(m.a) * b.R * 0.66 });
   /** Entités de l'hexagone à faire bouger et séparer (gardes présents). */
-  B.entities = (X) => (B.inZone(X) ? X.base.guards.filter((g) => g.alive && !g.aboard) : []);
+  B.entities = (X) => (B.inZone(X) && X.base.state !== 'land' ? X.base.guards.filter((g) => g.alive && !g.aboard) : []);
 
   /* ======================= Dessin ======================= */
   function hexPath(ctx, x, y, R) {
@@ -521,27 +532,8 @@
 
   /** L'Artefact lui-même (losange et anneaux), centré en (x, y). */
   B.drawArtefact = function (ctx, x, y, t, k = 1, size = 1) {
-    ctx.save();
-    ctx.translate(x, y + Math.sin(t * 1.3) * 4 * size - 20 * size);
-    ctx.scale(size, size);
-    ctx.globalAlpha *= k;
-    ctx.fillStyle = 'rgba(28,34,48,0.12)';
-    ctx.beginPath(); ctx.ellipse(0, 44, 30, 9, 0, 0, TAU); ctx.fill();
-    const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 70);
-    g.addColorStop(0, U.rgba(AN.CYAN, 0.25)); g.addColorStop(1, U.rgba(AN.CYAN, 0));
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 70, 0, TAU); ctx.fill();
-    for (let i = 0; i < 4; i++) {
-      ctx.save();
-      ctx.rotate(t * (0.3 + i * 0.25) * (i % 2 ? -1 : 1) + i * 0.4);
-      const s = 10 + i * 7;
-      ctx.strokeStyle = i === 0 ? AN.CYAN : U.rgba(AN.INK, 0.9 - i * 0.18);
-      ctx.lineWidth = i === 0 ? 3 : 1.5;
-      ctx.strokeRect(-s, -s, s * 2, s * 2);
-      ctx.restore();
-    }
-    ctx.fillStyle = AN.CYAN;
-    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 0); ctx.lineTo(0, 7); ctx.lineTo(-5, 0); ctx.closePath(); ctx.fill();
-    ctx.restore();
+    // sa forme et sa couleur suivent l'histoire de la partie (1.14)
+    AN.ArtefactArt.draw(ctx, x, y, t, Object.assign(AN.Story.look(AN.Game.profile), { k, size }));
   };
 
   /**
@@ -599,10 +591,15 @@
       AN.StructArt.drawDefense(ctx, m.id, mp.x, mp.y, 22, t, { level: m.level, aim: m.aim });
     }
     B.drawArtefact(ctx, b.x, b.y, t, 1, 1);
-    // pendant le départ, ce qui est à bord monte avec l'hexagone
+    // au départ comme à l'arrivée, ce qui est à bord monte ou descend avec l'hexagone (1.14.1 : le joueur, les compagnons
+    // et les gardes attendaient au sol pendant que l'hexagone descendait encore)
     if (up > 0) {
-      for (const g of b.guards) if (g.aboard) AN.Art.draw(ctx, g, t);
-      if (b.withPlayer && X.player.alive) AN.Art.drawPlayer(ctx, X.player, t, { weapon: false });
+      const landing = b.state === 'land';
+      const aboard = [];
+      for (const g of b.guards) if (g.alive && (landing || g.aboard)) aboard.push(g);
+      for (const a of X.allies) if (a.alive && a.onHex) aboard.push(a);
+      aboard.sort((u, v) => u.y - v.y).forEach((e) => { if (e.downed) ctx.globalAlpha *= 0.5; AN.Art.draw(ctx, e, t); if (e.downed) ctx.globalAlpha /= 0.5; });
+      if ((landing || b.withPlayer) && X.player.alive) AN.Art.drawPlayer(ctx, X.player, t, { weapon: false });
     }
     ctx.restore();
   };
@@ -746,9 +743,21 @@
   B.guardHome = (i, n) => { const a = -Math.PI / 2 + ((i + 0.5) / Math.max(1, n)) * TAU; return { x: Math.cos(a) * 170, y: Math.sin(a) * 170 }; };
 
   /** Lancer l'animation du départ, puis fn (l'expédition). */
+  /** Les compagnons montent à bord (départ) ou en descendent (retour) : rangés autour du joueur, sur l'hexagone (1.14.1). */
+  function boardCompanions(A, x, y, stream) {
+    const comp = new Set(A.profile.companions || []);
+    const list = A.creatures.filter((e) => comp.has(e.uid) && !e.ridden);
+    list.forEach((e, i) => {
+      const a = Math.PI / 2 + (i - (list.length - 1) / 2) * 0.55, nx = x + Math.cos(a) * 80, ny = y + Math.sin(a) * 60;
+      if (stream && U.dist(e.x, e.y, nx, ny) > 60) FX.stream(e.x, e.y, nx, ny, AN.CYAN, { life: 0.45, size: 3 });
+      e.x = nx; e.y = ny; e.vx = e.vy = e.dvx = e.dvy = 0; e.wanderTo = null;
+      e.onHex = true;
+    });
+  }
   B.depart = function (fn) {
     const A = AN.Archive.state();
     if (!A || (AN.Prefs && AN.Prefs.reduceFx())) { fn(); return; }
+    boardCompanions(A, A.player.x, A.player.y, true); // ils partent avec vous
     A.depart = { t: 0, dur: 2.1, fn, done: false };
     A.focus = { x: 0, y: 0, zoom: U.clamp(Math.min(A.cam.W, A.cam.H) / 1500, 0.22, 0.6) };
     AN.Audio.play('portal');
@@ -757,6 +766,7 @@
     if (AN.Prefs && AN.Prefs.reduceFx()) return;
     A.baseLand = { t: 0, dur: 1.7 };
     A.cam.x = 0; A.cam.y = 0; A.cam.zoom = U.clamp(Math.min(A.cam.W, A.cam.H) / 1500, 0.22, 0.6);
+    boardCompanions(A, A.player.x, A.player.y, false); // ils reviennent avec vous, puis regagnent leur territoire à pied
   };
   B.archiveUpdate = function (A, dt) {
     if (A.depart) {
@@ -775,7 +785,7 @@
         if (A.cam.shake) A.cam.shake(6);
         AN.Audio.play('appear');
       }
-      if (L.t >= L.dur) A.baseLand = null;
+      if (L.t >= L.dur) { A.baseLand = null; A.creatures.forEach((e) => { e.onHex = false; }); }
     }
   };
   /** Le sol de l'hexagone central, sous les créatures (avec le départ et le retour). */

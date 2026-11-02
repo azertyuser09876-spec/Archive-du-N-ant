@@ -235,6 +235,7 @@
     if (ok) {
       s.cd = s.max;
       a.attackAnim = 1;
+      X.stats.abilities = (X.stats.abilities || 0) + 1;
       AN.Audio.play('ui_ok', { gap: 0.1 });
     }
   };

@@ -35,7 +35,7 @@
       id: 'galaxie', name: 'Galaxie', plural: 'Galaxies', rank: 8, zones: [3, 3], tiles: [70, 76], move: 'leap', event: 'devoreurs', zoom: 0.7, boss: 7,
       unit: 'Bras', heart: 'Noyau galactique', form: 'synchronisation', astre: true, words: ['Galaxie', 'Spirale', 'Amas', 'Voie'],
       desc: 'Des îles de lumière séparées par le vide. On le franchit d’un bond, ou on y tombe.',
-      threatDesc: 'Dévoreurs du vide', moveDesc: 'Sauts au-dessus du vide (maintenir Espace)',
+      threatDesc: 'Dévoreurs du vide', moveDesc: 'Sauts au-dessus du vide (maintenir C)',
     },
   };
   D.ECHELON_ORDER = ['region', 'monde', 'orbite', 'systeme', 'galaxie'];

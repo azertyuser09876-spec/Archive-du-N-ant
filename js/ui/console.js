@@ -26,6 +26,7 @@
     peuples: '<path d="M2.5 15.5 9 3l6.5 12.5Z"/><path d="M9 15.5V11"/>',
     bestiaire: '<path d="M1.5 9s3-5 7.5-5 7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5Z"/><circle cx="9" cy="9" r="2.2"/>',
     journal: '<path d="M3 3.5h4.5A1.5 1.5 0 0 1 9 5v10a1.5 1.5 0 0 0-1.5-1.5H3Z"/><path d="M15 3.5h-4.5A1.5 1.5 0 0 0 9 5v10a1.5 1.5 0 0 1 1.5-1.5H15Z"/>',
+    guide: '<circle cx="9" cy="9" r="7"/><path d="M7 7.2a2 2 0 1 1 2.8 1.8c-.6.3-.8.7-.8 1.4"/><circle cx="9" cy="12.8" r=".7" fill="currentColor"/>',
   };
   const icon = (id) => {
     const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -36,16 +37,19 @@
   };
   UI.tabIcon = icon;
 
+  /** Le sommaire du registre (1.15) : quatre chapitres. */
   const GROUPS = [
-    { name: 'Voyager', tabs: ['destinations', 'preparation', 'hexagone'] },
-    { name: 'Fabriquer', tabs: ['atelier', 'artefact', 'constructions'] },
-    { name: 'L’Archive', tabs: ['archive', 'collection', 'peuples'] },
-    { name: 'Savoir', tabs: ['bestiaire', 'journal'] },
+    { n: 'I', name: 'Partir', tabs: ['destinations', 'preparation', 'hexagone'] },
+    { n: 'II', name: 'Fabriquer', tabs: ['atelier', 'artefact', 'constructions'] },
+    { n: 'III', name: 'L’Archive', tabs: ['archive', 'collection', 'peuples'] },
+    { n: 'IV', name: 'Savoir', tabs: ['guide', 'bestiaire', 'journal'] },
   ];
   const TABS = {
     destinations: 'Destinations', preparation: 'Préparation', hexagone: 'Hexagone', atelier: 'Atelier', artefact: 'Améliorations', constructions: 'Constructions',
-    archive: 'Vue d’ensemble', collection: 'Collection', peuples: 'Peuples', bestiaire: 'Bestiaire', journal: 'Journal',
+    archive: 'Vue d’ensemble', collection: 'Collection', peuples: 'Peuples', guide: 'Guide', bestiaire: 'Bestiaire', journal: 'Journal',
   };
+  const chapterOf = (tab) => GROUPS.find((g) => g.tabs.includes(tab)) || GROUPS[0];
+  UI.CONSOLE_TABS = TABS;
 
   let state = { tab: 'destinations', world: null, scale: 'region', craft: 'tout', craftCan: false, coll: 'toutes', openSlot: null };
 
@@ -87,33 +91,55 @@
     if (fi >= 0) { const f = focusables()[Math.min(fi, focusables().length - 1)]; if (f) f.focus({ preventScroll: true }); }
   };
 
+  /**
+   * La console (1.15) : un registre ouvert. Page de gauche : l'Artefact (sa forme et sa
+   * couleur du moment), le rang de l'Archive, la réserve, le sommaire en quatre
+   * chapitres. Page de droite : le chapitre en cours, ses pages, l'aide (« ? »).
+   */
   UI.console = function (tab) {
     const prof = AN.Game.profile;
     if (tab) state.tab = tab;
     if (state.tab === 'preparation' && !state.world) state.tab = 'destinations';
-    const nav = h('nav', { class: 'tabs', 'aria-label': 'Sommaire de la console' });
+    const nav = h('nav', { class: 'reg-index', 'aria-label': 'Sommaire de la console' });
     const content = h('div', { class: 'tab-content', 'data-keep': 'console' });
     const head = h('header', { class: 'console-head' });
-    const el = h('div', { class: 'panel console' }, head, h('div', { class: 'console-body' }, nav, content));
+    const crumb = h('div', { class: 'reg-crumb' });
+    const tabsRow = h('div', { class: 'reg-tabs', role: 'tablist' });
+    const el = h('div', { class: 'panel console registre' },
+      h('aside', { class: 'reg-left' }, head, nav),
+      h('section', { class: 'reg-right' }, h('div', { class: 'reg-top' }, crumb, btn('Fermer', () => UI.close(), 'ghost small reg-close')), tabsRow, content));
     const show = (id) => {
       const same = id === state.tab && content.firstChild;
       state.tab = id;
+      state.lastTab = state.lastTab || {};
+      state.lastTab[chapterOf(id).n] = id; // on revient à la dernière page lue du chapitre
       if (!same) state.openSlot = null;
       const render = () => {
         const td = todo(prof);
+        const cur = chapterOf(id);
         AN.clear(nav);
         GROUPS.forEach((g) => {
           const tabs = g.tabs.filter((t) => t !== 'preparation' || state.world);
-          nav.appendChild(h('div', { class: 'tab-group' }, h('span', { class: 'tab-group-name' }, g.name),
-            tabs.map((t) => {
-              const n = (td[t] || []).length;
-              return h('button', { class: 'tab' + (t === id ? ' on' : ''), type: 'button', 'aria-current': t === id ? 'page' : null, title: n ? td[t].join('\n') : null,
-                onclick: () => { AN.Audio.play('tab'); show(t); } }, icon(t), h('span', { class: 'tab-name' }, TABS[t]), n ? h('span', { class: 'badge', 'aria-label': n + ' à voir' }, String(n)) : null);
-            })));
+          const n = tabs.reduce((s, t) => s + (td[t] || []).length, 0);
+          nav.appendChild(h('button', { type: 'button', class: 'chapter' + (g === cur ? ' on' : ''), 'aria-current': g === cur ? 'true' : null,
+            onclick: () => { AN.Audio.play('tab'); show(g === cur ? id : (state.lastTab && state.lastTab[g.n]) || g.tabs[0]); } },
+            h('span', { class: 'chap-n' }, g.n), h('span', { class: 'chap-name' }, g.name), h('span', { class: 'dots' }),
+            n ? h('span', { class: 'badge', 'aria-label': n + ' à voir', title: tabs.flatMap((t) => td[t] || []).join('\n') }, String(n)) : null));
         });
+        // les pages du chapitre, en onglets
+        AN.clear(tabsRow);
+        cur.tabs.filter((t) => t !== 'preparation' || state.world).forEach((t) => {
+          const n = (td[t] || []).length;
+          tabsRow.appendChild(h('button', { class: 'tab' + (t === id ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': t === id ? 'true' : 'false', title: n ? td[t].join('\n') : null,
+            onclick: () => { AN.Audio.play('tab'); show(t); } }, icon(t), h('span', { class: 'tab-name' }, TABS[t]), n ? h('span', { class: 'badge', 'aria-label': n + ' à voir' }, String(n)) : null));
+        });
+        AN.clear(crumb);
+        crumb.appendChild(h('span', { class: 'crumb-n' }, cur.n));
+        crumb.appendChild(h('span', null, cur.name + ' · ' + TABS[id]));
         AN.clear(content);
         content.appendChild(RENDER[id](prof, show, td));
         renderHead(head, prof, show);
+        if (UI.tourStep) UI.tourStep(el);
       };
       if (same) UI.keepPlace(el, render);
       else { render(); content.scrollTop = 0; }
@@ -122,6 +148,10 @@
     UI.open(el, { cls: 'console-overlay', onClose: () => { AN.Save.write(prof); const A = AN.Archive.state(); if (A) AN.HUD.refreshArchive(A); } });
     show(state.tab);
     UI.refreshConsole = () => show(state.tab);
+    UI.consoleShow = show;
+    UI.consoleTab = () => state.tab;
+    // à la première ouverture : la visite guidée (1.15)
+    if (AN.Tips && !(prof.flags.tips && prof.flags.tips.tour) && !AN.X) setTimeout(() => { if (el.isConnected) UI.startTour(); }, 400);
   };
 
   /* ---------- en-tête : sceau, rang, réserve ---------- */
@@ -139,7 +169,7 @@
     const entries = Object.entries(prof.stock).filter(([, n]) => n > 0).sort((a, b) => D.RESOURCES[b[0]].rarity - D.RESOURCES[a[0]].rarity || b[1] - a[1]);
     const open = !!state.reserveOpen;
     AN.clear(head);
-    head.appendChild(AN.Mosaic ? h('button', { type: 'button', class: 'seal', title: 'Vue d’ensemble de l’Archive', onclick: () => { AN.Audio.play('tab'); show('archive'); } }, AN.Mosaic.canvas(prof.territories, 58, 58, { pad: 0.04, lineAlpha: 0.6 })) : null);
+    head.appendChild(h('button', { type: 'button', class: 'seal artefact-seal', title: 'L’Artefact : ' + AN.Story.form(prof).name.toLowerCase() + ' (vue d’ensemble de l’Archive)', onclick: () => { AN.Audio.play('tab'); show('archive'); } }, artefactCanvas(prof)));
     head.appendChild(h('div', { class: 'ch-title' },
       h('h2', null, 'L’Artefact'),
       h('p', { class: 'ch-facts' }, h('b', null, 'Archive : ' + rk.def.name), ', ' + facts.join(', ') + '.'),
@@ -150,7 +180,6 @@
       entries.length > 6 ? h('small', { class: 'reserve-more' }, '+' + (entries.length - 6)) : null,
       entries.length ? h('small', { class: 'reserve-count' }, entries.length + ' ressource' + (entries.length > 1 ? 's' : '')) : null,
       !entries.length ? h('small', { class: 'muted' }, 'vide') : null));
-    head.appendChild(btn('Fermer', () => UI.close(), 'ghost'));
     if (open) {
       const byR = {};
       entries.forEach(([k, n]) => { const r = D.RESOURCES[k].rarity; (byR[r] = byR[r] || []).push([k, n]); });
@@ -160,6 +189,24 @@
         !entries.length ? h('p', { class: 'muted' }, 'La réserve est vide : récoltez en expédition, ramassez ce que produit l’Archive.') : null));
     }
   }
+  /** L'Artefact, vivant, en haut du registre : sa forme et sa couleur du moment (1.15). */
+  let artCv = null;
+  function artefactCanvas(prof) {
+    if (artCv && artCv.isConnected) return artCv;
+    const cv = h('canvas', { width: 160, height: 160, class: 'artefact-live' });
+    artCv = cv;
+    const t0 = performance.now();
+    const loop = (now) => {
+      if (!cv.isConnected && now - t0 > 500) return;
+      const ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, 160, 160);
+      AN.ArtefactArt.draw(ctx, 80, 92, (now - t0) / 1000, Object.assign(AN.Story.look(prof), { size: 1.25, shadow: true }));
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+    return cv;
+  }
+
   /** Progression vers le rang suivant : part accomplie, texte court. */
   function nextRank(rk) {
     const n = rk.next.need, c = rk.counts;
@@ -174,9 +221,17 @@
   UI.rankProgress = nextRank;
 
   /** En-tête de page : titre, phrase d'explication, actions. */
-  const page = (cls, title, desc, actions, ...body) => h('div', { class: 'page ' + cls },
-    h('div', { class: 'page-head' }, h('div', null, h('h3', { class: 'page-title' }, title), desc ? h('p', { class: 'page-desc' }, desc) : null), actions ? h('div', { class: 'page-actions' }, actions) : null),
-    body);
+  const page = (cls, title, desc, actions, ...body) => {
+    const help = D.HELP && D.HELP[cls];
+    state.help = state.help || {};
+    const note = help ? h('aside', { class: 'help-note', hidden: !state.help[cls] }, h('b', null, 'Comment ça marche'), h('ul', null, help.map((t) => h('li', null, t)))) : null;
+    const helpBtn = help ? h('button', { type: 'button', class: 'help-btn' + (state.help[cls] ? ' on' : ''), title: 'Comment ça marche', 'aria-label': 'Aide de la page', 'aria-expanded': state.help[cls] ? 'true' : 'false',
+      onclick: () => { state.help[cls] = !state.help[cls]; note.hidden = !state.help[cls]; helpBtn.classList.toggle('on', !!state.help[cls]); helpBtn.setAttribute('aria-expanded', state.help[cls] ? 'true' : 'false'); AN.Audio.play('ui'); } }, '?') : null;
+    return h('div', { class: 'page ' + cls },
+      h('div', { class: 'page-head' }, h('div', null, h('h3', { class: 'page-title' }, title, helpBtn), desc ? h('p', { class: 'page-desc' }, desc) : null), actions ? h('div', { class: 'page-actions' }, actions) : null),
+      note, body);
+  };
+  UI.consolePage = page;
 
   const RENDER = {};
 
@@ -203,9 +258,9 @@
       AN.Audio.play('scan');
       show('destinations');
     }, 'ghost small', { title: 'Capter d’autres mondes' }), UI.costList(scanCost, prof));
-    return page('destinations', 'Destinations', 'L’Artefact capte ces mondes. Chacun sera détruit à votre départ. Les fiches sont estimées : leur fiabilité dépend du scanner.', scan,
+    return page('destinations', 'Destinations', 'Les mondes que capte l’Artefact. Leur danger est donné pour vous ; chacun sera détruit à votre départ.', scan,
       chips,
-      E.id !== 'region' ? h('div', { class: 'note echelon-note' }, h('b', null, E.plural + '. '), E.desc + ' Déplacement : ' + E.moveDesc.toLowerCase() + '. Menace propre : ' + E.threatDesc.toLowerCase() + '. Capture du maître des lieux : ' + D.CAPTURE_FORMS[E.form].name.toLowerCase() + '.') : null,
+      E.id !== 'region' ? h('div', { class: 'note echelon-note' }, h('b', null, E.plural + '. '), E.desc + ' Déplacement : ' + E.moveDesc.toLowerCase() + '. Phénomène propre : ' + E.threatDesc.toLowerCase() + '. Capture du maître des lieux : ' + D.CAPTURE_FORMS[E.form].name.toLowerCase() + '.') : null,
       searchPanel(prof, show, list),
       h('div', { class: 'view-toggle', role: 'tablist' },
         ['carte', 'liste'].map((v) => h('button', { type: 'button', role: 'tab', class: 'seg' + ((state.view || 'carte') === v ? ' on' : ''), 'aria-selected': (state.view || 'carte') === v ? 'true' : 'false',
@@ -267,8 +322,10 @@
     fill(sel);
     return h('div', { class: 'map-layout' },
       h('div', { class: 'map-col' }, map,
-        h('p', { class: 'map-legend muted' }, 'Plus un monde est loin de l’Artefact, plus il est dangereux. Survolez pour un aperçu, cliquez pour le détail (flèches du clavier : parcourir).',
-          ' Pictogrammes : maison = peuple, pastilles = caveaux, pointillés rouges = sauvetage', target ? ', anneau bleu = contient votre recherche.' : '.')),
+        h('div', { class: 'map-legend' },
+          h('span', { class: 'legend-grades' }, AN.Danger.GRADES.map((g, i) => h('span', { class: 'legend-grade danger-' + g.id, title: g.note }, h('i', { style: { background: AN.WorldMap.COLORS[i] } }), g.name))),
+          h('span', { class: 'legend-picto muted' }, h('span', null, h('i', { class: 'lg-house' }), 'peuple'), h('span', null, h('i', { class: 'lg-dot' }), 'caveau'), h('span', null, h('i', { class: 'lg-rescue' }), 'sauvetage'), target ? h('span', null, h('i', { class: 'lg-hit' }), 'votre recherche') : null),
+          h('small', { class: 'muted' }, 'Survolez un monde pour un aperçu, touchez-le pour sa fiche ; flèches du clavier : parcourir.'))),
       side);
   }
 
@@ -297,7 +354,7 @@
     }, 'primary small', { disabled: !ids.length });
     const row = h('div', { class: 'search-row' }, h('b', null, 'Je cherche'), kindSel, itemSel, go,
       t ? btn('Effacer', () => { Se.set(prof, null); AN.Audio.play('ui'); show('destinations'); }, 'ghost small') : null);
-    if (!t) return h('section', { class: 'search-box' }, row, h('p', { class: 'muted small' }, 'Sans recherche, les fiches restent des estimations du scanner. Désignez une ressource ou une créature déjà observée : l’Artefact indiquera précisément quels mondes la contiennent, et vous guidera sur place.'));
+    if (!t) return h('section', { class: 'search-box' }, row, h('p', { class: 'muted small' }, 'Une ressource, ou une créature déjà observée : l’Artefact dit quels mondes en ont, et vous guide sur place.'));
     const hits = list.map((w) => ({ w, r: Se.scanWorld(w, t) })).filter((x) => x.r.total > 0);
     const label = Se.label(t);
     const ico = t.kind === 'res' ? AN.Icons.img('res', t.id, 20) : AN.Icons.img('creature', t.id, 24);
@@ -335,39 +392,69 @@
     UI.console('destinations');
   };
 
+  /** Le danger, en tampon : quatre cases, la couleur et le mot (1.15). */
+  UI.dangerStamp = function (d) {
+    return h('span', { class: 'danger-stamp danger-' + d.id, title: d.note }, h('i', { 'aria-hidden': 'true' }, [0, 1, 2, 3].map((k) => h('b', { class: k <= d.rank ? 'on' : '' }))), d.name);
+  };
+
+  /**
+   * La fiche d'un monde (1.15) : le danger pour vous, ce qu'on y trouve, les conditions.
+   * Tout y est exact ; ce que le scanner ne perçoit pas encore est marqué d'un « ? ».
+   */
   function worldCard(w, prof, onPick) {
-    const s = w.scan;
+    const f = AN.Fiche.of(w, prof, state.world === w ? prof.loadout : null);
     const swatch = h('canvas', { class: 'world-swatch', width: 220, height: 70 });
     drawSwatch(swatch, w);
-    const row = (k, v) => [h('dt', null, k), h('dd', null, v)];
     const lostHere = w.rescue ? prof.collection.filter((c) => w.rescue.uids.includes(c.uid)) : [];
     const target = AN.Search ? AN.Search.get(prof) : null;
     const found = target ? AN.Search.scanWorld(w, target) : null;
-    return h('article', { class: 'world-card' + (state.world === w ? ' picked' : '') + (w.rescue ? ' rescue' : '') + (found && found.total ? ' hit' : '') },
+    const unknown = (need) => h('span', { class: 'unknown', title: 'Le scanner ne le perçoit pas encore (fiabilité ' + need + ' % requise).' }, '?');
+    const pct = (k) => Math.round(AN.Fiche.NEED[k] * 100);
+    const row = (k, v) => [h('dt', null, k), h('dd', null, v)];
+    const R = (id) => D.RULES.find((x) => x.id === id) || { name: id, desc: '' };
+    const A = (id) => D.ANOMALIES.find((x) => x.id === id) || { name: id, desc: '' };
+    const res = h('div', { class: 'fiche-res' }, f.resources.map((r) => h('span', { class: 'res-chip lv' + r.level, title: D.RESOURCES[r.id].name + ' : ' + AN.Fiche.ABUNDANCE[r.level].toLowerCase() },
+      AN.Icons.img('res', r.id, 18), h('small', null, D.RESOURCES[r.id].name), h('i', { 'aria-hidden': 'true' }, [1, 2, 3].map((k) => h('b', { class: k <= r.level ? 'on' : '' }))))));
+    const plural = (n, s) => n + ' ' + s + (n > 1 ? 's' : '');
+    const knownF = f.fauna ? f.fauna.filter((x) => x.known) : [], newF = f.fauna ? f.fauna.length - knownF.length : 0;
+    const fauna = !f.fauna ? h('span', null, plural(f.faunaCount, 'espèce') + ' ', unknown(pct('fauna')))
+      : !knownF.length ? plural(f.faunaCount, 'espèce') + ', aucune encore observée'
+        : h('span', { class: 'fiche-fauna' }, knownF.slice(0, 10).map((x) => h('span', { title: D.CREATURE[x.id].name }, AN.Icons.img('creature', x.id, 26))),
+          knownF.length > 10 ? h('small', { class: 'muted' }, ' +' + (knownF.length - 10)) : null,
+          newF ? h('small', { class: 'muted' }, ' et ' + plural(newF, 'espèce') + ' jamais observée' + (newF > 1 ? 's' : '')) : null);
+    const people = !f.people ? 'Aucun' : f.people.nation ? h('b', null, AN.Nations.realm(f.people.people) + ' : une ville par zone') : f.people.unknown ? h('span', null, 'Un peuple ', unknown(pct('people'))) : D.PEOPLE[f.people.people].Name + ', environ ' + (Math.round(f.people.n / 5) * 5 || 5);
+    const vaults = !f.vaults.n ? 'Aucun' : f.vaults.keys ? h('span', { class: 'tags' }, f.vaults.keys.map((k) => h('span', { class: 'tag', title: D.KEYS[k].barrier + ' : nécessite un compagnon doté de « ' + D.KEYS[k].name + ' »' }, h('i', { style: { background: D.KEYS[k].color } }), D.KEYS[k].name)))
+      : h('span', null, f.vaults.n + ' scellé' + (f.vaults.n > 1 ? 's' : '') + ' ', unknown(pct('vaults')));
+    const guardians = f.guardians ? f.guardians.map((g) => D.CREATURE[g].name).join(', ') : unknown(pct('guardians'));
+    const miss = AN.Fiche.missing(f);
+    return h('article', { class: 'world-card fiche' + (state.world === w ? ' picked' : '') + (w.rescue ? ' rescue' : '') + (found && found.total ? ' hit' : '') },
       swatch,
       h('h3', null, w.place ? w.placeName : w.code, w.found ? h('span', { class: 'tag found' }, 'Balayage') : null, w.place ? h('span', { class: 'tag found' }, 'Ancré') : null, w.nation && !w.place ? h('span', { class: 'tag nation' }, 'Nation') : null),
-      target ? h('p', { class: found.total ? 'search-hit' : 'search-miss' }, h('b', null, 'Recherche. '), AN.Search.summary(w, target)) : null,
       h('p', { class: 'region' }, w.place ? w.placeWhy || w.code : w.region),
+      h('div', { class: 'fiche-danger' }, UI.dangerStamp(f.danger), h('small', { class: 'muted', title: 'Écart de 10 niveaux : une force double' }, 'monde niveau ' + f.danger.world + ' · vous ' + f.danger.you), h('p', null, f.danger.note)),
+      target ? h('p', { class: found.total ? 'search-hit' : 'search-miss' }, h('b', null, 'Recherche. '), AN.Search.summary(w, target)) : null,
       w.rescue ? h('p', { class: 'warn' }, 'Mission de sauvetage : ' + lostHere.map((c) => AN.Profile.displayName(c)).join(', ') + '. Ce monde s’effondrera dans ' + Math.max(0, w.rescue.until - prof.expeditions) + ' expédition(s).') : null,
+      h('h4', { class: 'fiche-h' }, 'Ce qu’on y trouve'),
+      res,
       h('dl', { class: 'facts' },
-        row('Type', s.type),
-        row('Menace', h('span', { class: 'threat-inline t' + w.threat }, s.threat + ' sur 7')),
-        row('Taille', s.size),
-        row('Zones', s.zones),
-        row('Climat', s.climate),
-        row('Vie dominante', s.life),
-        row('Stabilité', s.stability),
-        row('Anomalie', s.anomaly),
-        row('Règle', s.rule),
-        row('Gardien', s.guardian),
-        s.boss ? row(s.bossTier, s.boss) : null,
-        row('Civilisation', s.civ || 'Aucune'),
-        row('Ressources', s.resources.length ? h('span', { class: 'mini-res' }, s.resources.map((r) => AN.Icons.img('res', r, 16))) : 'Non détectées'),
-        row('Caveaux', !s.vaults || !s.vaults.length ? 'Aucun détecté' : s.vaults[0] === '?' ? 'Scellés, nature inconnue' : h('span', { class: 'tags' }, s.vaults.map((k) => h('span', { class: 'tag', title: D.KEYS[k].barrier + ' : nécessite un compagnon doté de « ' + D.KEYS[k].name + ' »' }, h('i', { style: { background: D.KEYS[k].color } }), D.KEYS[k].name)))),
-        s.structures && s.structures.length ? row('Structure', s.structures[0] === '?' ? 'Signal d’une construction' : s.structures.join(', ')) : null,
-        s.events && s.events.length ? row('Événement', s.events[0] === '?' ? 'Perturbation probable' : s.events.join(', ') + ' (probable)') : null),
+        row('Faune', fauna),
+        row('Gardiens', guardians),
+        f.master ? row((D.TIERS[D.CREATURE[f.master].tier] || { name: 'Maître' }).name, D.CREATURE[f.master].name + (D.COLOSSI && D.COLOSSI[f.master] ? ', un colosse' : '')) : null,
+        row('Peuple', people),
+        row('Caveaux', vaults),
+        f.structures.n ? row('Structures', f.structures.ids ? f.structures.ids.map((id) => D.STRUCTURES[id].name).join(', ') : h('span', null, f.structures.n + ' ', unknown(pct('structures')))) : null,
+        f.events.n ? row('Événements', f.events.ids ? f.events.ids.map((id) => D.WORLD_EVENTS[id].name).join(', ') : h('span', null, 'possibles ', unknown(pct('events')))) : null),
+      h('h4', { class: 'fiche-h' }, 'Conditions'),
+      h('dl', { class: 'facts' },
+        row('Paysages', h('span', { class: 'fiche-biomes' }, f.biomes.map((b) => h('span', { class: 'biome-chip', style: { borderColor: D.BIOME[b].ground[2] } }, h('i', { style: { background: D.BIOME[b].ground[1] } }), D.BIOME[b].name)))),
+        row('Taille', (f.size ? f.size + ', ' : '') + f.zones + ' ' + (f.scale !== 'region' && D.ECHELONS[f.scale] ? D.ECHELONS[f.scale].unit.toLowerCase() + (f.zones > 1 ? 's' : '') : 'zone' + (f.zones > 1 ? 's' : '')) + ' et un cœur'),
+        row('Règle', f.rule ? h('span', { title: R(f.rule).desc }, R(f.rule).name + (R(f.rule).desc ? ' : ' + R(f.rule).desc.charAt(0).toLowerCase() + R(f.rule).desc.slice(1) : '')) : unknown(pct('rule'))),
+        row('Anomalie', f.anomaly ? h('span', { title: A(f.anomaly).desc }, A(f.anomaly).name) : unknown(pct('anomaly'))),
+        row('Stabilité', f.anchored ? 'Ancré : il ne s’effondre pas' : f.stability + ' %')),
+      miss ? h('p', { class: 'fiche-miss muted' }, 'Scanner : fiabilité ' + Math.round(f.reliability * 100) + ' %. Les « ? » se lèvent à ' + miss + ' % (Fabriquer, Améliorations).') : null,
       btn(w.place ? 'S’y rendre' : 'Préparer l’expédition', onPick, 'primary block'));
   }
+  UI.worldCard = (w, prof, onPick) => worldCard(w, prof, onPick);
 
   function drawSwatch(cv, w) {
     const ctx = cv.getContext('2d');
@@ -488,7 +575,7 @@
     // clés réunies par la troupe, utiles aux caveaux annoncés
     const teamKeys = new Set();
     prof.companions.forEach((u) => { const c = P.findCreature(prof, u); if (c) D.trait(c.species).keys.forEach((k) => teamKeys.add(k)); });
-    const wanted = (w.scan.vaults || []).filter((k) => k !== '?');
+    const wanted = AN.Fiche.of(w, prof).vaults.keys || [];
     const keyNote = wanted.length ? h('p', { class: wanted.every((k) => teamKeys.has(k)) ? 'muted small' : 'warn small' },
       'Caveaux annoncés : ' + wanted.map((k) => D.KEYS[k].name + (teamKeys.has(k) ? ' (vous l’avez)' : ' (manquante)')).join(', ') + '.') : null;
     // appel stratégique : un géant resté dans l'Archive
@@ -532,6 +619,7 @@
         baseSummary(prof, show),
         h('div', { class: 'prep-bar' },
           h('div', { class: 'prep-risk' }, anchorNote,
+            (() => { const dg = AN.Danger.of(w, prof, prof.loadout); return h('p', { class: 'prep-danger' }, 'Avec cette préparation : ', UI.dangerStamp(dg), h('small', { class: 'muted' }, ' monde niveau ' + dg.world + ', vous ' + dg.you)); })(),
             h('p', null, risk > 0 ? h('span', null, 'Valeur engagée : ', h('b', null, U.fmt(risk)), '. Perdue si vous tombez.') : 'Vous n’emportez que de l’équipement lié : seul le butin peut être perdu.')),
           h('div', { class: 'actions' }, btn('Changer de destination', () => { state.world = null; show('destinations'); }, 'ghost'), go))));
   };
@@ -700,7 +788,15 @@
     };
     const pick = (id, fn, except) => {
       if (!prof.territories.length) { err('Il faut d’abord un territoire dans l’Archive pour y bâtir.'); return; }
-      UI.pickTerritory(prof, id, (uid) => { if (!err(fn(uid))) { St.rise(St.lastBuilt); after(); } }, except);
+      UI.pickTerritory(prof, id, (uid) => {
+        if (err(fn(uid))) return;
+        St.rise(St.lastBuilt);
+        // on regarde le bâtiment se construire (1.14), puis on retrouve l'Archive
+        const A = AN.Archive.state();
+        const pos = A && St.lastBuilt && St.positions(prof).find((o) => o.s.uid === St.lastBuilt.uid);
+        if (pos) { AN.Archive.rebuildCreatures(); AN.HUD.refreshArchive(A); UI.closeAll(); AN.Archive.watch(pos.x, pos.y - 20, 0.9, 3.2); }
+        else after();
+      }, except);
     };
     // bâtiments
     const builds = D.BUILD_STRUCTURES.map((id) => {
@@ -860,7 +956,7 @@
     });
     const st = B.stats(prof, 4);
     return page('hexagone', 'L’hexagone', 'Au départ, l’hexagone de l’Artefact se détache de l’Archive et se pose dans le monde visité. On y lance le transfert ; il repart avec le butin. S’il tombe sous les coups, l’Artefact rentre seul avec la soute et ses défenses, et vous devez sortir par une plaque blanche ou par l’extraction d’urgence.', null,
-      h('p', { class: 'note' }, 'Vigueur de l’hexagone : ' + st.maxHp + ' dans un monde de menace 4' + (st.armor ? ', ' + Math.round(st.armor * 100) + ' % des coups absorbés' : '') + (st.shield ? ', bouclier de ' + st.shield : '') + '. Il se répare lentement quand on le laisse en paix. Les modules ne se perdent jamais.'),
+      h('p', { class: 'note' }, 'Vigueur de l’hexagone : ' + st.maxHp + ' dans un monde ordinaire' + (st.armor ? ', ' + Math.round(st.armor * 100) + ' % des coups absorbés' : '') + (st.shield ? ', bouclier de ' + st.shield : '') + '. Il se répare lentement quand on le laisse en paix. Les modules ne se perdent jamais.'),
       h('section', null, h('h4', null, 'Gardes ', h('span', { class: 'link-pips' }, Array.from({ length: pts }, (_, i) => h('i', { class: i < usedPts ? 'on' : '' }))), h('small', { class: 'muted' }, usedPts + ' / ' + pts + ' points')),
         h('p', { class: 'muted small' }, 'Ils restent sur l’hexagone et le défendent, pendant l’exploration et le transfert. Un garde coûte autant de points que de liens. À terre, il revient blessé ; s’il est encore au sol quand l’hexagone repart, il est perdu (en sursis après une chute, sinon il ne reste de lui qu’une essence).'),
         guardTiles.length ? h('div', { class: 'comp-grid' }, guardTiles) : h('p', { class: 'muted small' }, 'Aucune créature capturée pour l’instant.')),
@@ -1007,10 +1103,34 @@
             h('small', null, c.biomes.map((x) => D.BIOME[x].name).join(', ')),
             h('p', null, c.desc),
             h('small', { class: 'muted' }, (b.captured ? 'Capturée ×' + b.captured : 'Jamais capturée') + (b.killed ? ', vaincue ×' + b.killed : '')),
+            // un colosse (1.16) : sa faiblesse, dès le premier sceau brisé
+            D.COLOSSI && D.COLOSSI[c.id] ? h('p', { class: 'beast-secret' + (b.secret ? '' : ' muted') }, h('b', null, 'Colosse. '), b.secret ? D.COLOSSI[c.id].secret : 'Sa faiblesse reste à découvrir : brisez l’un de ses sceaux.') : null,
             c.tier <= 2 && c.biomes.length ? btn('Chercher', () => UI.seek('creature', c.id), 'ghost tiny seek', { title: 'Indiquer quels mondes abritent ' + c.name }) : null);
         })))),
       hidden + D.HIGHER_TIERS.length ? h('section', null, h('h4', null, 'Échelons supérieurs'),
         h('div', { class: 'beast-grid' }, [...new Array(hidden).fill('???'), ...D.HIGHER_TIERS.map(() => '???')].map((n) => h('div', { class: 'beast locked' }, h('div', { class: 'void-sil' }), h('b', null, n), h('small', null, 'Non détecté'))))) : null);
+  };
+
+  /* ---------- Guide (1.15) ---------- */
+  RENDER.guide = function (prof, show) {
+    const seen = (prof.flags.tips || {});
+    const known = D.TIPS.filter((t) => seen[t.id]), left = D.TIPS.filter((t) => !seen[t.id]);
+    const card = (t, on) => h('article', { class: 'tip-card' + (on ? '' : ' locked') }, h('small', { class: 'tip-where' }, t.where), h('h4', null, t.title), on ? h('p', null, t.text) : h('p', { class: 'muted' }, 'À découvrir en jouant.'));
+    return page('guide', 'Guide', 'Les conseils de l’Artefact, rangés ici à mesure que vous les rencontrez.', h('div', { class: 'actions' },
+      btn('Refaire la visite', () => { UI.startTour(true); }, 'small'),
+      AN.Tutorial ? btn('Rejouer le Seuil', () => { UI.closeAll(); AN.Tutorial.start(prof, { sandbox: true }); }, 'ghost small', { title: 'Le tutoriel, sans rien perdre ni gagner' }) : null),
+      h('section', null, h('h4', null, 'Les commandes'),
+        h('dl', { class: 'facts keys-list' }, [
+          ['Se déplacer', AN.Input.moveKeys()], ['Tirer, frapper', 'clic gauche, clic droit'], ['Esquiver', AN.Input.label('Space')], ['Capturer', AN.Input.label('KeyF') + ' (maintenu, sur une créature affaiblie)'],
+          ['Interagir', AN.Input.label('KeyE')], ['Capacité d’un compagnon', AN.Input.label('KeyQ') + ' (molette : changer)'], ['Appel', AN.Input.label('KeyG')], ['Monture', AN.Input.label('KeyR')],
+          ['Sac', AN.Input.label('Tab')], ['Extraction d’urgence', AN.Input.label('KeyX') + ' (maintenu)'], ['Agencer l’Archive', AN.Input.label('KeyV')],
+          ['Sauter', AN.Input.label('KeyC') + ' (maintenir, puis relâcher) : au-dessus du vide d’une galaxie, près d’un colosse pour atteindre plus haut'],
+          ['Près d’un colosse', AN.Input.label('KeyE') + ' : s’agripper (au sol, ou en plein saut)'],
+          ['Sur un colosse', 'clic : frapper un sceau (clic droit maintenu : plus fort) ; ' + AN.Input.label('KeyC') + ' : sauter vers une autre prise ; ' + AN.Input.label('Space') + ' : lâcher prise ; ' + AN.Input.label('KeyE') + ' maintenu : tenir quand il se secoue'],
+          ['Sur un colosse-carte', 'on n’en descend pas ; ' + AN.Input.label('KeyE') + ' sur la plateforme : extraire, ou retourner d’où l’on vient ; ' + AN.Input.label('KeyE') + ' près d’un compagnon à terre : le relever'],
+        ].map(([k, v]) => [h('dt', null, k), h('dd', null, v)]))),
+      h('section', null, h('h4', null, 'Conseils (' + known.length + ' sur ' + D.TIPS.length + ')'),
+        h('div', { class: 'tip-grid' }, known.map((t) => card(t, true)).concat(left.map((t) => card(t, false))))));
   };
 
   /* ---------- Journal ---------- */
@@ -1018,15 +1138,28 @@
     const st = prof.stats;
     const lore = D.LORE.filter((l) => prof.lore.includes(l.id));
     const log = prof.archiveLog || [];
+    // le récit, acte par acte (1.14) : ce qu'on a lu, et des blancs pour ce qui manque ; les actes à venir restent cachés
+    const act = AN.Story.act(prof);
+    const acts = D.ACTS.filter((a) => a.n <= act || D.LORE.some((l) => l.act === a.n && prof.lore.includes(l.id))).map((a) => {
+      const pr = AN.Story.progress(prof, a.n);
+      const roman = ['I', 'II', 'III', 'IV'][a.n - 1];
+      const gaps = pr.total - pr.read.length;
+      return h('div', { class: 'journal-act' }, h('h5', null, 'Acte ' + roman + ' · ' + a.title + ' (' + pr.read.length + ' sur ' + pr.total + ')'),
+        pr.read.length ? h('div', { class: 'lore-list' }, pr.read.map((l) => h('blockquote', null, h('b', null, l.title), l.text))) : null,
+        gaps ? h('p', { class: 'lore-gap' }, '…'.repeat(Math.min(3, gaps))) : null);
+    });
+    const chron = AN.Story.state(prof).chronicles.map((pid) => D.CHRONICLES[pid]).filter(Boolean);
+    const outcomeName = (o) => (o === 'extrait' ? 'Extrait' : o === 'urgence' ? 'Urgence' : o === 'retour' ? 'Retour' : o === 'ancre' ? 'Ancré' : 'Échec');
     return page('journal', 'Journal', null, null,
       log.length ? h('section', null, h('h4', null, 'La vie de l’Archive'), log.slice(0, 20).map((l) => h('div', { class: 'logline' }, h('small', null, new Date(l.t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })), l.text))) : null,
       h('section', null, h('h4', null, 'Fragments retrouvés (' + lore.length + ' sur ' + D.LORE.length + ')'),
-        lore.length ? h('div', { class: 'lore-list' }, lore.map((l) => h('blockquote', null, h('b', null, l.title), l.text))) : h('p', { class: 'muted' }, 'Fouillez les ruines et les stèles des autres mondes.')),
-      h('section', null, h('h4', null, 'Mondes détruits (' + st.worlds + ')'),
+        lore.length ? acts : h('p', { class: 'muted' }, 'Fouillez les ruines et les stèles des autres mondes.')),
+      chron.length ? h('section', null, h('h4', null, 'Chroniques des peuples (' + chron.length + ')'), h('div', { class: 'lore-list' }, chron.map((x) => h('blockquote', null, h('b', null, x.title), x.text)))) : null,
+      h('section', null, h('h4', null, 'Expéditions (' + st.worlds + ')'),
         prof.journal.length ? h('ul', { class: 'rows log' }, prof.journal.map((j) => h('li', null,
           h('span', { class: 'swatch', style: { background: D.BIOME[j.biome] ? D.BIOME[j.biome].ground[1] : '#888' } }),
-          h('span', { class: 'grow' }, j.code + ', ' + j.region, h('small', null, new Date(j.date).toLocaleDateString('fr-FR') + ', menace ' + j.threat + '. ' + (j.creatures.length ? j.creatures.join(', ') : 'Aucune capture') + ', ' + j.territories + ' territoire' + (j.territories > 1 ? 's' : '') + ', ' + j.resources + ' ressources.')),
-          h('span', { class: 'stamp-small ' + j.outcome }, j.outcome === 'extrait' ? 'Extrait' : j.outcome === 'urgence' ? 'Urgence' : 'Échec')))) : h('p', { class: 'muted' }, 'Aucun monde visité.')),
+          h('span', { class: 'grow' }, j.code + ', ' + j.region, h('small', null, new Date(j.date).toLocaleDateString('fr-FR') + (j.danger && AN.Danger.GRADES.find((g) => g.id === j.danger) ? ', ' + AN.Danger.GRADES.find((g) => g.id === j.danger).name.toLowerCase() : '') + '. ' + (j.creatures.length ? j.creatures.join(', ') : 'Aucune capture') + ', ' + j.territories + ' territoire' + (j.territories > 1 ? 's' : '') + ', ' + j.resources + ' ressources.')),
+          h('span', { class: 'stamp-small ' + j.outcome }, outcomeName(j.outcome))))) : h('p', { class: 'muted' }, 'Aucun monde visité.')),
       h('section', null, h('h4', null, 'Statistiques'),
         h('dl', { class: 'facts' },
           h('dt', null, 'Créatures capturées'), h('dd', null, st.captures),

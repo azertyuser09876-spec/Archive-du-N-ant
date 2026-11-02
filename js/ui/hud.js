@@ -44,11 +44,11 @@
     if (!el) return;
     if (!p) { if (!el.hidden) el.hidden = true; HUD.lastPrompt = null; return; }
     if (el.hidden) el.hidden = false;
-    const key = p.text + '|' + (p.locked ? 1 : 0);
+    const key = p.text + '|' + (p.locked ? 1 : 0) + '|' + (p.key || '');
     if (HUD.lastPrompt !== key) {
       HUD.lastPrompt = key;
       AN.clear(el);
-      el.appendChild(h('kbd', null, AN.Input.label('KeyE')));
+      if (p.key !== '') el.appendChild(h('kbd', null, p.key || AN.Input.label('KeyE'))); // une autre touche que E (escalade d'un colosse, 1.16) ; aucune pour une simple indication (1.16.3)
       el.appendChild(h('span', null, p.text));
       el.appendChild(h('i', { class: 'prompt-fill' }));
       el.classList.toggle('locked', !!p.locked);
@@ -69,7 +69,7 @@
   HUD.helpText = function (X) {
     const L = AN.Input.label;
     if (AN.Input.lastDevice === 'tactile' || AN.Input.lastDevice === 'manette') return '';
-    return AN.Input.moveKeys() + ' bouger · clic gauche tirer · clic droit frapper · ' + L('Space') + ' esquiver' + (X.echelon && X.echelon.move === 'leap' ? ' (maintenir : sauter)' : '') + ' · ' + L('KeyF') + ' capturer · ' + L('KeyE') + ' interagir · ' + L('KeyQ') + ' capacité (molette : changer) · ' + L('KeyG') + ' appel · ' + L('KeyR') + ' monture · ' + L('Tab') + ' sac · ' + L('KeyX') + ' (maintenir) urgence';
+    return AN.Input.moveKeys() + ' bouger · clic gauche tirer · clic droit frapper · ' + L('Space') + ' esquiver' + (AN.Beyond.leaps(X) || X.creatures.some((c) => c.col) ? ' · ' + L('KeyC') + ' (maintenir) sauter' : '') + ' · ' + L('KeyF') + ' capturer · ' + L('KeyE') + ' interagir · ' + L('KeyQ') + ' capacité (molette : changer) · ' + L('KeyG') + ' appel · ' + L('KeyR') + ' monture · ' + L('Tab') + ' sac · ' + L('KeyX') + ' (maintenir) urgence';
   };
 
   /* ======================= Expédition ======================= */
@@ -81,7 +81,7 @@
     E.where = h('div', { class: 'card hud-where' },
       h('div', { class: 'where-code' }, w.code),
       E.zoneName = h('div', { class: 'where-zone' }, ''),
-      h('div', { class: 'threat', title: 'Menace' }, 'Menace ', ...Array.from({ length: 7 }, (_, i) => h('b', { class: i < w.threat ? 'on' : '' }))),
+      X.danger ? h('div', { class: 'where-danger' }, AN.UI.dangerStamp(X.danger)) : null, // le danger pour vous (1.15)
       E.eventLine = h('div', { class: 'where-event', hidden: true }),
       E.missionLine = h('div', { class: 'where-event mission', hidden: true }), // raid ou mission d'une nation (1.13)
     );
@@ -210,7 +210,7 @@
     const zone = X.zone;
     const S = cv.width / Math.max(zone.w, zone.h);
     ctx.clearRect(0, 0, cv.width, cv.height);
-    if (X.thumbDirty) { X.thumb = AN.Terrain.thumb(zone, 3); X.thumbDirty = false; }
+    if (X.thumbDirty) { if (!zone.colMap) X.thumb = AN.Terrain.thumb(zone, 3); X.thumbDirty = false; }
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(X.thumb, 0, 0, zone.w * S, zone.h * S);
     ctx.drawImage(X.fogCanvas, 0, 0, zone.w * S, zone.h * S);
@@ -226,8 +226,9 @@
       ctx.fillStyle = P.body.trim; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
       zone.village.buildings.forEach((b) => { if (!b.taken) ctx.fillRect(b.x * k - 2.5, b.y * k - 2.5, 5, 5); });
     }
+    AN.ColossusArt.drawMinimap(ctx, X, k); // un colosse-carte : sa silhouette, la plateforme (1.16.3)
     const b = zone.state.boss;
-    if (b && b.alive && (seen(zone.arena.x, zone.arena.y) || X.powers.reveal)) { ctx.strokeStyle = AN.STAMP; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(zone.arena.x * k, zone.arena.y * k, 7, 0, Math.PI * 2); ctx.stroke(); }
+    if (b && b.alive && !zone.colMap && (seen(zone.arena.x, zone.arena.y) || X.powers.reveal)) { ctx.strokeStyle = AN.STAMP; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(zone.arena.x * k, zone.arena.y * k, 7, 0, Math.PI * 2); ctx.stroke(); }
     for (const e of X.creatures) {
       if (!e.alive || e.hidden || !e.boss || !e.boss.active) continue;
       ctx.fillStyle = AN.STAMP; ctx.beginPath(); ctx.arc(e.x * k, e.y * k, 4, 0, Math.PI * 2); ctx.fill();
@@ -297,7 +298,9 @@
       setText(E.bossName, b.def.name + (b.variant !== 'commun' ? ' ' + D.VARIANT[b.variant].name : ''));
       setTf(E.bossFill, 'scaleX(' + U.clamp(b.boss.exhausted ? b.capture : b.hp / b.maxHp, 0, 1) + ')');
       E.boss.classList.toggle('exhausted', b.boss.exhausted);
-      setText(E.bossPhase, b.boss.exhausted ? 'Épuisé : capture ' + Math.round(b.capture * 100) + ' %, se relève dans ' + Math.ceil(b.boss.exhaustT) + ' s' : 'Phase ' + (b.boss.phase + 1) + ' sur ' + b.def.phases.length);
+      setText(E.bossPhase, b.boss.exhausted ? 'Épuisé : capture ' + Math.round(b.capture * 100) + ' %, se relève dans ' + Math.ceil(b.boss.exhaustT) + ' s'
+        : b.col ? 'Colosse · sceaux brisés : ' + b.col.seals.filter((s) => s.broken).length + ' sur ' + b.col.seals.length + (b.col.seals.some((s) => s.open) ? ' · un sceau est découvert !' : '')
+          : 'Phase ' + (b.boss.phase + 1) + ' sur ' + b.def.phases.length);
     } else E.boss.hidden = true;
     if (X.collapse) {
       const c = X.collapse;

@@ -296,6 +296,21 @@
         }
         return null;
       },
+      /** Face à un colosse (1.16) : son monde, dans la zone du cœur, à bonne distance de lui. */
+      colosse(id = 'sylvarque', threat = 3) {
+        const def = AN.Data.CREATURE[id];
+        if (!def || !AN.Colossus.def(id)) return null;
+        const scale = def.scale || 'region';
+        const w = AN.WorldGen.destination(AN.hash('colosse' + id), { scale, threat: scale === 'region' ? threat : 7, reliability: 1, rep: AN.Civ.reputation(G.profile), noNation: true });
+        w.heart.guardian = id;
+        w.civ = null;
+        AN.UI.closeAll();
+        const X = AN.Expedition.start(G.profile, w);
+        Exp_enter(X, w.zones.length);
+        const e = X.creatures.find((c) => c.col);
+        if (e && !e.col.map) { const a = Math.atan2(X.zone.entry.y - e.y, X.zone.entry.x - e.x); X.player.x = e.x + Math.cos(a) * e.col.L * 0.95; X.player.y = e.y + Math.sin(a) * e.col.L * 0.95; AN.Physics.collide(X.zone, X.player); }
+        return w.code + ' ' + id;
+      },
       /** Expédition d'un échelon supérieur : 'monde', 'orbite', 'systeme', 'galaxie', 'amas', 'toile', 'pli'. */
       goScale(scale, k = 0) {
         const w = AN.WorldGen.destination(AN.hash('echelon' + scale + k), { scale, threat: 7, reliability: 1, rep: AN.Civ.reputation(G.profile) });

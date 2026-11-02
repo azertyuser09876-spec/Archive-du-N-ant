@@ -295,6 +295,36 @@
   }
   const astreName = (a) => (AN.Names ? AN.Names.astre(a) : a.name);
 
+  /**
+   * Ce qui vient d'être ancré (un astre, une nation) arrive en spirale, de loin, jusqu'à sa
+   * place, avec une traînée ; puis une onde (1.14). A.skyAnim : { ids, t0, dur } (arrivals.js).
+   * Renvoie la position et la taille du moment ; r = 0 : pas encore là.
+   */
+  function arrive(ctx, A, id, O, x, y, r) {
+    const S = A.skyAnim;
+    if (!S || !S.ids.has(id)) return { x, y, r };
+    const k = (A.time - S.t0) / S.dur;
+    if (!(k > 0)) return { x, y, r: 0 };
+    if (k >= 1) {
+      const w = A.time - S.t0 - S.dur;
+      if (w < 1.2) { ctx.save(); ctx.strokeStyle = U.rgba(AN.CYAN, 1 - w / 1.2); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 6 + w * 50, 0, TAU); ctx.stroke(); ctx.restore(); }
+      return { x, y, r };
+    }
+    const ang = Math.atan2(y - O.y, x - O.x), d = Math.hypot(x - O.x, y - O.y);
+    const at = (u) => { const a2 = ang + u * 2.6, d2 = d * (1 + u * 2.2) + u * 280; return { x: O.x + Math.cos(a2) * d2, y: O.y + Math.sin(a2) * d2 }; };
+    const u = Math.pow(1 - k, 2);
+    ctx.save();
+    for (let i = 1; i <= 12; i++) {
+      const q = at(Math.min(1, u + i * 0.02));
+      ctx.fillStyle = U.rgba(AN.CYAN, 0.55 * (1 - i / 13));
+      ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1, Math.min(9, r * 0.45) * (1 - i / 13)), 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+    const q = at(u);
+    return { x: q.x, y: q.y, r: r * (0.35 + 0.65 * k) };
+  }
+  Cs.arrive = arrive;
+
   /** Couches d'écran : orbites, système, galaxie, amas, Toile, structure inconnue ; nations ancrées ; astre survolé. */
   Cs.drawLayers = function (ctx, A, t) {
     A.placeHits = [];
@@ -334,8 +364,8 @@
         ctx.strokeStyle = U.rgba(AN.INK, 0.15); ctx.lineWidth = 1; ctx.setLineDash([3, 6]);
         ctx.beginPath(); ctx.arc(O.x, O.y, R, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
         const a = o.phase + t * o.speed;
-        const x = O.x + Math.cos(a) * R, y = O.y + Math.sin(a) * R;
-        const r = Math.max(2.5, Cs.RP * 0.22 * o.size * z);
+        const { x, y, r } = arrive(ctx, A, o.a.uid, O, O.x + Math.cos(a) * R, O.y + Math.sin(a) * R, Math.max(2.5, Cs.RP * 0.22 * o.size * z));
+        if (!r) return;
         drawAstre(ctx, x, y, r, o.a, t, O);
         hit(A, x, y, r, o.a, ko);
         if (z < 0.01 && z > 1e-3) label(ctx, x, y + r + 14, astreName(o.a), ko);
@@ -358,8 +388,8 @@
         L.astres.systeme.forEach((o) => {
           const R = Cs.SYS * (o.i + 1) * z;
           const a = o.phase + t * o.speed * 0.5;
-          const x = O.x + Math.cos(a) * R, y = O.y + Math.sin(a) * R;
-          const r = Math.max(2.5, Cs.SYS * 0.12 * o.size * z);
+          const { x, y, r } = arrive(ctx, A, o.a.uid, O, O.x + Math.cos(a) * R, O.y + Math.sin(a) * R, Math.max(2.5, Cs.SYS * 0.12 * o.size * z));
+          if (!r) return;
           drawAstre(ctx, x, y, r, o.a, t, O);
           hit(A, x, y, r, o.a, ks);
           if (z < 1.2e-3 && z > 4e-5) label(ctx, x, y + r + 14, astreName(o.a), ks);
@@ -392,8 +422,8 @@
         L.astres.galaxie.forEach((o) => {
           const R = Cs.GAL * (0.22 + o.i * 0.13) * z;
           const a = o.phase + rot;
-          const x = O.x + Math.cos(a) * R, y = O.y + Math.sin(a) * R * 0.92;
-          const r = Math.max(3, Cs.GAL * 0.03 * o.size * z);
+          const { x, y, r } = arrive(ctx, A, o.a.uid, O, O.x + Math.cos(a) * R, O.y + Math.sin(a) * R * 0.92, Math.max(3, Cs.GAL * 0.03 * o.size * z));
+          if (!r) return;
           drawAstre(ctx, x, y, r, o.a, t, O);
           hit(A, x, y, r, o.a, kg);
           if (z < 4e-5 && z > 2e-6) label(ctx, x, y + r + 14, astreName(o.a), kg);
@@ -433,8 +463,8 @@
         L.astres.amas.forEach((o) => {
           const R = Cs.AMAS * (0.25 + o.i * 0.09) * z;
           const a = o.phase + t * 0.01;
-          const x = O.x + Math.cos(a) * R, y = O.y + Math.sin(a) * R * 0.85;
-          const r = Math.max(5, Cs.AMAS * 0.06 * o.size * z);
+          const { x, y, r } = arrive(ctx, A, o.a.uid, O, O.x + Math.cos(a) * R, O.y + Math.sin(a) * R * 0.85, Math.max(5, Cs.AMAS * 0.06 * o.size * z));
+          if (!r) return;
           const kind = (D.ASTRES[o.a.biome] || o.a).kind;
           if (kind === 'meduse') {
             ctx.strokeStyle = U.rgba('#8ae0ff', 0.5 * ka); ctx.lineWidth = 1;
@@ -479,8 +509,8 @@
         });
         L.astres.toile.forEach((o) => {
           const n = W.nodes[1 + (o.i * 7) % (W.nodes.length - 1)];
-          const x = O.x + n.x * z, y = O.y + n.y * z;
-          const r = 6;
+          const { x, y, r } = arrive(ctx, A, o.a.uid, O, O.x + n.x * z, O.y + n.y * z, 6);
+          if (!r) return;
           const kind = (D.ASTRES[o.a.biome] || o.a).kind;
           const col = kind === 'vide' ? '#1a1a2a' : kind === 'filament' ? '#bfe2ff' : kind === 'mur' ? '#d8d0f0' : '#ffe8a0';
           disc(ctx, x, y, r, col, AN.INK, 1.2);
@@ -643,7 +673,8 @@
         k = fade(z, 0.004, 0.0012) * (1 - fade(z, 1.5e-5, 5e-6));
         if (k > 0) { ctx.globalAlpha = k; ctx.strokeStyle = U.rgba(D.PEOPLE[s.n.people].body.trim, 0.35); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(O.x, O.y, R, 0, TAU); ctx.stroke(); ctx.globalAlpha = 1; }
       }
-      if (k <= 0.02 || x < -60 || y < -60 || x > cam.W + 60 || y > cam.H + 60) continue;
+      ({ x, y, r } = arrive(ctx, A, 'n:' + s.n.code, O, x, y, r)); // une nation qui vient d'être ancrée arrive (1.14)
+      if (!r || k <= 0.02 || x < -60 || y < -60 || x > cam.W + 60 || y > cam.H + 60) continue;
       if (s.layer === 0 && r > 8) { // tenue à l'Archive : un fil bleu vers le centre
         const a = Math.atan2(O.y - y, O.x - x);
         ctx.save(); ctx.globalAlpha = k * 0.6; ctx.strokeStyle = AN.CYAN; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]);

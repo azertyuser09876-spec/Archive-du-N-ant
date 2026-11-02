@@ -20,7 +20,7 @@
     if (team === 'wild') {
       const out = [];
       if (X.player.alive) out.push(X.player);
-      for (const a of X.allies) if (a.alive && !a.downed) out.push(a);
+      for (const a of X.allies) if (a.alive && !a.downed && !a.onHex) out.push(a);
       return out;
     }
     return X.creatures.filter((c) => c.alive && c.team === 'wild' && !c.hidden);
@@ -50,17 +50,21 @@
     if (target.kind === 'base') return AN.Base.damage(X, dmg, src);
     if (target.kind === 'player') return AN.PlayerCtl.damage(X, dmg, src, opts);
     if (target.downed) return 0;
+    // un colosse (1.16) : seuls ses sceaux découverts cèdent, et seulement si le coup porte près d'eux
+    if (target.col && !opts.seal) return AN.Colossus.hit(X, target, dmg, src, opts);
     if (target.boss && (target.boss.invuln > 0 || target.boss.underground)) return 0;
     let d = dmg * (1 - (target.armor || 0));
     if (target.boss && target.boss.exhausted) {
       // épuisé : il ne peut plus tomber, seulement être capturé ou achevé
       d = 0;
     }
-    if (d <= 0) return 0;
+    if (!(d > 0)) return 0; // NaN compris : une créature ne devient pas immortelle (1.14)
     target.hp -= d;
     target.flash = 0.09;
     if (src && opts.knock) {
-      const a = Math.atan2(target.y - src.y, target.x - src.x);
+      let a = Math.atan2(target.y - src.y, target.x - src.x);
+      // une galaxie errante du Berger d'amas : le coup la renvoie vers lui (1.14)
+      if (target.herdTo && target.herdTo.alive) a = Math.atan2(target.herdTo.y - target.y, target.herdTo.x - target.x);
       const resist = target.isBoss ? 0.12 : target.tier === 1 ? 0.6 : 1;
       target.kbx += Math.cos(a) * opts.knock * resist;
       target.kby += Math.sin(a) * opts.knock * resist;
@@ -183,6 +187,13 @@
       if (!dead) {
         for (const t of C.enemiesOf(X, p.team)) {
           if (p.hits.has(t)) continue;
+          if (t.col) { // un colosse (1.16) : un sceau découvert, ou le corps, sur lequel le tir ricoche
+            const r = AN.Colossus.shot(X, t, p);
+            if (!r) continue;
+            p.hits.add(t);
+            if (r === 'body' || p.explode || p.pierce-- <= 0) { dead = true; break; }
+            continue;
+          }
           const rr = p.r + t.r;
           if ((t.x - p.x) ** 2 + (t.y - p.y) ** 2 <= rr * rr) {
             p.hits.add(t);
@@ -231,6 +242,7 @@
       if (pl.t >= pl.life) { X.pools.splice(i, 1); continue; }
       for (const e of C.enemiesOf(X, pl.team)) {
         if (U.dist2(pl.x, pl.y, e.x, e.y) <= pl.r * pl.r) {
+          if (pl.slow && e.kind === 'player' && !e.climb) { e.slowT = Math.max(e.slowT, 0.3); e.slowAmt = Math.max(e.slowAmt || 0, pl.slow); } // fils du Tisserand (1.16)
           e.dotAcc = (e.dotAcc || 0) + pl.dps * dt;
           if (e.dotAcc >= 1) { const d = Math.floor(e.dotAcc); e.dotAcc -= d; C.hit(X, e, d, null, { numbers: false }); }
         }

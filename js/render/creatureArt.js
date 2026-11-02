@@ -534,7 +534,7 @@
     const r = p.r;
     ctx.save();
     ctx.translate(p.x, p.y);
-    if (!opts.mounted) {
+    if (!opts.mounted && !p.airborne) { // en l'air ou sur un colosse, l'ombre est dessinée au sol (1.16)
       ctx.fillStyle = 'rgba(10,12,20,0.2)';
       ctx.beginPath(); ctx.ellipse(0, r * 0.55, r * 0.95, r * 0.45, 0, 0, TAU); ctx.fill();
     }

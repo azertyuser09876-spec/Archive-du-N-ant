@@ -104,9 +104,12 @@
     AN.Abilities.setup(X);
     AN.Base.setup(X); // l'hexagone de l'Artefact, ses gardes et ses défenses (1.9)
     AN.Nations.setup(X, !!snap); // un monde tenu par un peuple (1.12) ; les mercenaires engagés depuis l'Archive
+    AN.Story.setup(X); // un lieu qui raconte, peut-être (1.14)
     if (world.place) AN.Places.prepare(X); // lieu ancré (1.10) : les gardiens pas encore revenus
 
     if (snap) AN.Resume.prepare(X, snap);
+    // le danger, pour vous, avec l'équipement emporté (1.15) : la menace n'est plus affichée
+    X.danger = AN.Danger.of(world, profile, profile.loadout);
     Exp.enterZone(X, snap ? snap.zi : 0, null);
     AN.Game.setScene(Exp.scene);
     AN.HUD.showExpedition(X);
@@ -117,8 +120,9 @@
     FX.burst(X.player.x, X.player.y, '#ffffff', 40, 240, { size: 3 });
     const sc = world.scan;
     if (world.tutorial) return X;
-    later(X, () => AN.HUD.toast('Arrivée : ' + world.code + ', ' + world.region + (X.echelon.id !== 'region' ? ' (' + X.echelon.name.toLowerCase() + ')' : '') + '. Menace ' + world.threat + '.', 5), 300);
-    if (X.echelon.id !== 'region') later(X, () => AN.HUD.toast(X.echelon.name + ' : ' + X.echelon.moveDesc + '. Menace propre : ' + X.echelon.threatDesc.toLowerCase() + '.', 7), 2600);
+    AN.Tips.start(X); // les premières fois : compagnons, monture, nation, autre échelle… (1.15)
+    later(X, () => AN.HUD.toast('Arrivée : ' + world.code + ', ' + world.region + (X.echelon.id !== 'region' ? ' (' + X.echelon.name.toLowerCase() + ')' : '') + '. Danger : ' + X.danger.name.toLowerCase() + '.', 5), 300);
+    if (X.echelon.id !== 'region') later(X, () => AN.HUD.toast(X.echelon.name + ' : ' + X.echelon.moveDesc + '. Phénomène propre : ' + X.echelon.threatDesc.toLowerCase() + '.', 7), 2600);
     if (!profile.flags.firstExpedition) {
       profile.flags.firstExpedition = 1;
       later(X, () => AN.HUD.toast('Tirez (' + AN.Input.label('Mouse0') + '), frappez (' + AN.Input.label('Mouse2') + '), esquivez (' + AN.Input.label('Space') + '). Affaiblissez une créature, puis maintenez ' + AN.Input.label('KeyF') + ' pour la capturer.', 9), 2600);
@@ -154,9 +158,11 @@
       const rng = AN.RNG.from(w.seed, 'boss' + zone.index);
       const e = AN.Entities.creature(def, zone.arena.x, zone.arena.y, { threat: w.threat, variant: rng.chance(0.08) ? 'chromatique' : 'commun', hueSeed: rng.int(0, 999), rule: w.rule, foreign: def.biomes.includes(zone.biome) ? null : zone.biome });
       AN.Boss.init(e, { arena: zone.arena, zoneIndex: zone.index, guardian: true });
+      if (def.tier >= 3 && AN.Colossus.def(def.id)) AN.Colossus.setup(X, e, zone); // les maîtres deviennent des colosses (1.16)
       X.creatures.push(e);
       zone.state.boss = e;
     }
+    if (zone.colMap) return; // un colosse-carte (1.16.3) : il n'y a que lui, et ce qui vit sur son dos
     AN.Rescue.spawnCaptives(X, zone);
     AN.Civ.spawnVillage(X, zone);
     AN.Nations.spawnCity(X, zone);
@@ -166,6 +172,7 @@
   Exp.zoneSpec = (X, zi) => (zi >= X.world.zones.length ? X.world.heart : X.world.zones[zi]);
 
   Exp.enterZone = function (X, zi, fromZi) {
+    AN.Colossus.leaveZone(X); // on lâche le colosse sur lequel on se tenait (1.16.3)
     // Mémorise l'état de la zone quittée.
     if (X.zone) {
       X.zone.state.saved = X.creatures.filter((c) => c.alive && c.team === 'wild');
@@ -183,9 +190,11 @@
       if (X.restore && X.restore[zi]) AN.Resume.applyZone(X, zone, X.restore[zi]);
       AN.Places.applyZone(X, zone); // lieu ancré : ce qui n'a pas encore repoussé
       AN.Base.onZoneGenerated(X, zone); // le sol est dégagé sous l'hexagone, avant le dessin de la zone
+      AN.Colossus.prepareMapZone(X, zone); // un colosse-carte (1.16.3) : pas de sol, le vide autour de lui
     }
     X.zone = zone;
     X.zi = zi;
+    X.bossIntro = null; X.flights = []; // les moments de la zone quittée s'arrêtent là (1.14)
     X.creatures = [];
     AN.Combat.reset(X);
     X.pickups = zone.state.pickups || [];
@@ -201,7 +210,7 @@
     const seed = AN.hash(X.world.seed + ':canvas:' + zi);
     zone.backdrop = AN.Skies.hasBackdrop(X); // orbite, système : le fond se voit à travers le sol (1.10)
     X.canvas = AN.Terrain.renderZone(zone, seed);
-    X.thumb = AN.Terrain.thumb(zone, 3);
+    X.thumb = zone.colMap ? AN.ColossusArt.voidThumb(zone) : AN.Terrain.thumb(zone, 3);
     X.fogCanvas = AN.Terrain.canvas(zone.w * 3, zone.h * 3);
     const fctx = X.fogCanvas.getContext('2d');
     fctx.fillStyle = '#10131c';
@@ -211,7 +220,7 @@
 
     const p = X.player;
     let start = zone.entry;
-    if (fromZi != null) {
+    if (fromZi != null && zone.gates.length) {
       const g = zone.gates.find((gg) => gg.to === fromZi) || zone.gates[0];
       const a = Math.atan2(zone.h * Z.T / 2 - g.y, zone.w * Z.T / 2 - g.x);
       start = { x: g.x + Math.cos(a) * 70, y: g.y + Math.sin(a) * 70 };
@@ -242,6 +251,8 @@
     if (X.search) setTimeout(() => { if (AN.X === X && X.zi === zi) AN.Search.onEnterZone(X); }, fromZi == null ? 7800 : 1400);
     AN.Events.onEnterZone(X);
     AN.Nations.onEnterZone(X); // la caravane perdue, un raid laissé derrière soi (1.13)
+    AN.Story.onEnterZone(X); // le lieu qui raconte prend place (1.14)
+    AN.Colossus.enterMap(X, fromZi); // sur le dos d'un colosse-carte, avec la plateforme de l'Artefact (1.16.3)
     if (fromZi != null) X.snapT = Math.min(X.snapT == null ? 2 : X.snapT, 2);
   };
 
@@ -282,6 +293,7 @@
   function interactables(X) {
     const p = X.player;
     const zone = X.zone;
+    if (p.climb) return null; // sur un colosse : l'escalade a ses propres gestes (1.16)
     // priorité absolue : relever un compagnon, achever un gardien épuisé
     for (const a of X.allies) if (a.downed && U.dist(a.x, a.y, p.x, p.y) < 54) return { kind: 'revive', target: a, text: 'Relever ' + (a.nickname || a.def.name), hold: 1.4 };
     const g = AN.Base.downedNear(X);
@@ -318,7 +330,9 @@
     }
     if (L && rallying && L.team === 'civil') consider(U.dist(L.x, L.y, p.x, p.y), L.r + 24, () => ({ kind: 'talk', target: L, text: 'Parler à ' + X.civ.leader, hold: 0.25 }));
     AN.Cosmic.interactables(X, consider);
+    AN.Colossus.interactables(X, consider); // s'agripper à un colosse (1.16)
     AN.Nations.interactables(X, consider);
+    AN.Story.interactables(X, consider);
     if (!X.collapse) for (const pl of zone.plates) consider(U.dist(pl.x, pl.y, p.x, p.y), Z.T * 2.4, () => ({ kind: 'extract', target: pl, text: 'Activer l’Artefact : extraction', hold: 0.5 }));
     for (const v of zone.vaults || []) {
       if (v.opened) continue;
@@ -352,6 +366,8 @@
       case 'talk': AN.Civ.talk(X); break;
       case 'parley': AN.UI.civParley(X); break;
       case 'anchor': AN.Cosmic.plant(X, it.target, it.boss); break;
+      case 'grab': AN.Colossus.grab(X, it.target, it.at); break;
+      case 'colpad': AN.Colossus.padMenu(X); break;
       case 'vault': {
         if (it.locked) { AN.Audio.play('ui_err'); AN.HUD.toast(it.text + '. Ses clés sont indiquées dans sa fiche.', 4); return; }
         AN.Keys.open(X, it.target, it.holder);
@@ -391,16 +407,10 @@
           AN.Combat.drop(X, r.x, r.y, drops, 1);
           AN.HUD.toast('Une réserve oubliée. Quelqu’un comptait revenir.');
         } else {
-          const lore = D.LORE[r.lore];
-          const known = X.profile.lore.includes(lore.id);
-          let L = lore;
-          if (known) {
-            const unknown = D.LORE.filter((l) => !X.profile.lore.includes(l.id));
-            if (unknown.length) L = unknown[Math.floor(Math.random() * unknown.length)];
-          }
-          if (!X.profile.lore.includes(L.id)) X.profile.lore.push(L.id);
-          AN.Save.write(X.profile);
-          AN.UI.lore(L);
+          // le récit (1.14) : le fragment suivant de l'acte en cours ; quand tout est lu, un silence
+          const L = AN.Story.nextFragment(X.profile);
+          if (L) { AN.Story.learn(X.profile, L); AN.Save.write(X.profile); AN.UI.lore(L); }
+          else AN.UI.silence(AN.Story.silence(AN.hash(X.world.seed + ':' + X.zi + ':' + r.id)));
         }
         AN.Audio.play('ui_ok');
         break;
@@ -419,12 +429,15 @@
         else AN.UI.transferDialog(X, AN.Base.plate(X));
         break;
       default:
-        if (!AN.Nations.interact(X, it) && !AN.Beyond.interact(X, it) && !AN.Tools.interact(X, it)) AN.Structures.interact(X, it);
+        if (!AN.Nations.interact(X, it) && !AN.Story.interact(X, it) && !AN.Beyond.interact(X, it) && !AN.Tools.interact(X, it)) AN.Structures.interact(X, it);
     }
   }
 
+  Exp.interact = (X, it) => doInteract(X, it); // depuis le dos d'un colosse-carte (1.16.3)
+
   function updateInteract(X, dt) {
     if (X.ending) { AN.HUD.prompt(null); return; }
+    if (X.player.climb) { AN.HUD.prompt(AN.Colossus.prompt(X)); return; }
     const it = X.player.alive ? interactables(X) : null;
     const key = it ? it.kind + ':' + (it.target.id || it.target.x + ',' + it.target.y) : null;
     if (key !== X.holdKey) { X.holdKey = key; X.holdT = 0; }
@@ -441,9 +454,11 @@
   Exp.onDeath = function (X) {
     if (X.ending) return;
     X.ending = true;
-    AN.HUD.toast('Vous êtes tombé. L’Artefact vous arrache à ce monde.', 4);
     AN.Audio.play('shatter');
-    setTimeout(() => Exp.finish(X, 'echec'), 1600);
+    // une chute qui marque (1.14) : le temps ralentit, le monde se décolore et se fend
+    const dur = AN.Moments.fall(X);
+    later(X, () => AN.HUD.toast('L’Artefact vous arrache à ce monde.', 3), 900);
+    setTimeout(() => Exp.finish(X, 'echec'), dur * 1000);
   };
 
   Exp.emergency = function (X) {
@@ -470,7 +485,7 @@
     if (X.beam && X.beam.sound) X.beam.sound.stop();
     if (X.collapse && X.collapse.sound) X.collapse.sound.stop();
     if (X.droneSound) X.droneSound.stop();
-    const result = { outcome, world: w, creatures: [], territories: [], resources: {}, lostGear: [], injured: [], hatched: [], lost: [], levels: [], rescueMsgs: [] };
+    const result = { outcome, world: w, danger: X.danger ? { id: X.danger.id, name: X.danger.name } : null, creatures: [], territories: [], resources: {}, lostGear: [], injured: [], hatched: [], lost: [], levels: [], rescueMsgs: [] };
     // Ce qui rejoint l'Archive : la soute après une extraction, et toujours ce que l'hexagone
     // submergé a déjà ramené (1.9)
     const secured = X.base ? X.base.secured : [];
@@ -594,9 +609,10 @@
     result.rescueMsgs = (result.rescueMsgs || []).concat(AN.Rescue.afterExpedition(prof, X, outcome));
     if (result.hatched.length) result.hatched.forEach((c) => AN.Bonds.log(prof, 'Un œuf a éclos : ' + P.displayName(c) + '.', 'birth'));
     prof.journal.unshift({
-      code: w.code, region: w.region, biome: w.primary, threat: w.threat, outcome, date: Date.now(), scale: w.scale || 'region',
+      code: w.code, region: w.region, biome: w.primary, threat: w.threat, danger: X.danger ? X.danger.id : null, outcome, date: Date.now(), scale: w.scale || 'region',
       creatures: result.creatures.map((c) => P.displayName(c)), territories: result.territories.length,
       resources: U.sumValues(result.resources),
+      abandoned: result.civ && result.civ.abandoned ? result.civ.abandoned : 0, place: !!w.place, // pour le cairn (1.14)
     });
     prof.journal = prof.journal.slice(0, 60);
     if (w.place) { AN.Places.save(X, prof); result.place = { id: w.place, name: w.placeName || w.region }; }
@@ -682,6 +698,7 @@
   Exp.update = function (dt) {
     const X = AN.X;
     if (!X) return;
+    dt = AN.Moments.update(X, dt); // entrée d'un gardien, captures, chute (1.14) : la chute ralentit le temps
     X.time += dt;
     const p = X.player;
     X.flowT -= dt;
@@ -691,17 +708,19 @@
     }
     if (!X.ending && !p.hidden) AN.PlayerCtl.update(X, dt);
     else { p.dvx = p.dvy = 0; }
+    AN.Colossus.mapUpdate(X, dt); // colosse-carte (1.16.3) : la plateforme suit son dos ; on n'en descend pas
     AN.Capture.update(X, dt);
     AN.Abilities.update(X, dt);
     if (X.visionT > 0) X.visionT -= dt;
     for (const c of X.creatures) AN.AI.update(X, c, dt);
-    for (const a of X.allies) AN.AI.update(X, a, dt);
+    for (const a of X.allies) if (!a.onHex) AN.AI.update(X, a, dt); // à bord de l'hexagone qui se pose ou repart : ils attendent
     for (const c of X.civils) if (c.kind !== 'ark') AN.AI.update(X, c, dt);
     AN.Base.update(X, dt);
     AN.Civ.update(X, dt);
     AN.Nations.update(X, dt);
+    AN.Tips.update(X, dt);
     AN.Cosmic.update(X, dt);
-    AN.Physics.separate(X.creatures.concat(X.allies.filter((a) => !a.ridden), X.captives, X.civils.filter((c) => c.kind !== 'ark'), AN.Base.entities(X)));
+    AN.Physics.separate(X.creatures.filter((c) => !c.col && !c.rider).concat(X.allies.filter((a) => !a.ridden && !a.onHex && !a.rider), X.captives, X.civils.filter((c) => c.kind !== 'ark'), AN.Base.entities(X)));
     if (X.creatures.some((c) => !c.alive)) X.creatures = X.creatures.filter((c) => c.alive);
     if (X.allies.some((a) => a.temp && !a.alive)) X.allies = X.allies.filter((a) => !a.temp || a.alive);
     AN.Combat.update(X, dt);
@@ -725,16 +744,24 @@
     } else X.emergencyT = Math.max(0, X.emergencyT - dt * 2);
 
     // Caméra : suit le joueur avec une légère avance vers la visée
-    const m = AN.Game.mouseWorld();
-    const lead = 0.18;
-    const tx = p.x + (m.x - p.x) * lead, ty = p.y + (m.y - p.y) * lead;
-    const k = 1 - Math.exp(-6 * dt);
-    X.cam.x += (tx - X.cam.x) * k;
-    X.cam.y += (ty - X.cam.y) * k;
-    // face à un être immense, la caméra recule
-    const big = X.activeBoss && X.activeBoss.alive && X.activeBoss.r > 90 ? U.clamp(105 / X.activeBoss.r, 0.62, 1) : 1;
-    const z = Exp.baseZoom() * big * (X.collapse ? U.lerp(1, 0.82, U.clamp(X.collapse.t / X.collapse.dur, 0, 1)) : 1);
-    X.cam.zoom += (z - X.cam.zoom) * k;
+    const show = AN.Colossus.showCam(X); // l'arrivée sur un colosse-carte (1.16.3) : très loin, d'un coup, puis retour
+    if (show) { X.cam.x = show.x; X.cam.y = show.y; X.cam.zoom = show.zoom; }
+    else {
+      const m = AN.Game.mouseWorld();
+      const lead = 0.18;
+      let tx = p.x + (m.x - p.x) * lead, ty = p.y + (m.y - p.y) * lead;
+      const fo = AN.Moments.focus(X); // un gardien entre en scène : la caméra se tourne vers lui (1.14)
+      if (fo) { tx = U.lerp(tx, fo.x, fo.k); ty = U.lerp(ty, fo.y, fo.k); }
+      const cc = AN.Colossus.camera(X); // un colosse : la caméra recule pour le montrer, se rapproche quand on grimpe (1.16)
+      if (cc && !fo) { tx = U.lerp(tx, cc.x, cc.k); ty = U.lerp(ty, cc.y, cc.k); }
+      const k = 1 - Math.exp(-6 * dt);
+      X.cam.x += (tx - X.cam.x) * k;
+      X.cam.y += (ty - X.cam.y) * k;
+      // face à un être immense, la caméra recule
+      const big = cc ? cc.zoom : X.activeBoss && X.activeBoss.alive && X.activeBoss.r > 90 ? U.clamp(105 / X.activeBoss.r, 0.62, 1) : 1;
+      const z = Exp.baseZoom() * big * (X.collapse ? U.lerp(1, 0.82, U.clamp(X.collapse.t / X.collapse.dur, 0, 1)) : 1) * (fo ? fo.zoom : 1) * (X.fall ? 1 + 0.18 * U.clamp(X.fall.t / X.fall.dur, 0, 1) : 1);
+      X.cam.zoom += (z - X.cam.zoom) * k;
+    }
 
     if (I.hit('Escape')) AN.UI.pause();
     else if (I.hit('Tab')) AN.UI.bagPanel(X);
@@ -1112,8 +1139,10 @@
     const cam = X.cam;
     const t = X.time;
     const backdrop = X.zone.backdrop && !X.collapse;
-    if (backdrop) AN.Skies.drawBackdrop(ctx, X, t);
-    if (!drawZoneLayer(ctx, X, cam)) {
+    const map = X.zone.colMap; // un colosse-carte (1.16.3) : le vide, puis lui ; tout le reste se passe sur son dos
+    if (map) { AN.ColossusArt.drawVoid(ctx, X, t); cam.apply(ctx); AN.ColossusArt.drawGround(ctx, X, t); AN.ColossusArt.drawHigh(ctx, X, t); AN.ColossusArt.drawPad(ctx, X, t); }
+    else if (backdrop) AN.Skies.drawBackdrop(ctx, X, t);
+    if (!map && !drawZoneLayer(ctx, X, cam)) { // un colosse-carte n'a pas de sol
       ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
       if (!backdrop) { ctx.fillStyle = X.collapse ? AN.PAPER : X.biome.wall.base; ctx.fillRect(0, 0, cam.W, cam.H); }
       cam.apply(ctx);
@@ -1131,7 +1160,7 @@
     const T = Z.T;
     const tx0 = Math.max(0, Math.floor(v.x0 / T)), tx1 = Math.min(zone.w - 1, Math.floor(v.x1 / T));
     const ty0 = Math.max(0, Math.floor(v.y0 / T)), ty1 = Math.min(zone.h - 1, Math.floor(v.y1 / T));
-    for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
+    if (!map) for (let y = ty0; y <= ty1; y++) for (let x = tx0; x <= tx1; x++) {
       if (zone.grid[y * zone.w + x] !== Z.HAZARD) continue;
       const b = zone.mix && zone.bmap[y * zone.w + x] ? D.BIOME[zone.mix] : X.biome;
       if (!b.hazard) continue;
@@ -1151,14 +1180,16 @@
     AN.Keys.draw(ctx, X, t);
     AN.Civ.draw(ctx, X, t);
     AN.Nations.drawWorld(ctx, X, t); // missions (1.13)
+    AN.Story.drawWorld(ctx, X, t); // lieux qui racontent (1.14)
     drawNodes(ctx, X, t);
     if (X.tuto) AN.Tutorial.drawWorld(ctx, X, t);
     AN.Combat.drawUnder(ctx, X, t);
     AN.Combat.drawPickups(ctx, X, t);
 
-    const ents = [];
-    for (const c of X.creatures) if (c.alive && cam.visible(c.x, c.y, c.r * 3 + 40)) ents.push(c);
-    for (const a of X.allies) if (cam.visible(a.x, a.y, a.r * 3 + 40)) ents.push(a);
+    if (!map) AN.ColossusArt.drawGround(ctx, X, t); // ombres et parties basses des colosses (1.16)
+    const ents = [], over = [];
+    for (const c of X.creatures) if (c.alive && !c.col && !c.rider && cam.visible(c.x, c.y, c.r * 3 + 40)) (c.overCol ? over : ents).push(c); // colosses et leurs passagers : dessinés avec eux
+    for (const a of X.allies) if (!a.onHex && !a.rider && cam.visible(a.x, a.y, a.r * 3 + 40)) ents.push(a); // à bord : dessinés avec l'hexagone ; sur un colosse, avec lui
     for (const c of X.captives) if (cam.visible(c.x, c.y, c.r * 3 + 40)) ents.push(c);
     for (const c of X.civils) if (c.kind !== 'ark' && c.alive && cam.visible(c.x, c.y, c.r * 3 + 40)) ents.push(c);
     for (const g of AN.Base.entities(X)) if (cam.visible(g.x, g.y, g.r * 3 + 40)) ents.push(g);
@@ -1169,7 +1200,15 @@
       ctx.globalAlpha = 1;
       drawCreatureOverlay(ctx, X, e, t);
     }
-    AN.PlayerCtl.draw(ctx, X, t);
+    // le joueur à sa hauteur (1.16) : au sol, sous le corps des colosses ; en l'air ou sur eux, au-dessus
+    const high = map || X.player.climb || X.player.z > 0.3;
+    if (!high) AN.Colossus.drawPlayer(ctx, X, t);
+    if (!map) AN.ColossusArt.drawHigh(ctx, X, t); // le corps des colosses passe au-dessus de qui est dessous (1.16)
+    for (const c of X.creatures) if (c.alive && c.col && c.boss && c.boss.exhausted) drawCreatureOverlay(ctx, X, c, t);
+    for (const o of over) { AN.Art.draw(ctx, o, t); drawCreatureOverlay(ctx, X, o, t); } // ce qui flotte au-dessus de lui (le troupeau du Berger)
+    if (high && !X.player.hidden) AN.Colossus.drawPlayer(ctx, X, t);
+    AN.ColossusArt.drawGrip(ctx, X, t);
+    AN.Moments.drawWorld(ctx, X, t); // créatures aspirées vers l'Artefact (1.14)
     AN.Combat.drawOver(ctx, X, t);
     AN.Capture.draw(ctx, X, t);
     AN.Cosmic.drawOver(ctx, X, t);
@@ -1189,6 +1228,7 @@
     AN.Base.drawScreen(ctx, X, t);
     if (X.tuto) AN.Tutorial.drawScreen(ctx, X, t);
     AN.Cosmic.drawScreen(ctx, X, t);
+    AN.Moments.drawScreen(ctx, X, t); // nom du gardien, chute, monde qui s'élève (1.14)
     if (X.emergencyT > 0) {
       ctx.fillStyle = U.rgba('#ffffff', U.clamp(X.emergencyT / 2.5, 0, 1) * 0.5);
       ctx.fillRect(0, 0, cam.W, cam.H);

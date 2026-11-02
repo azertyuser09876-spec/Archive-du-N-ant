@@ -502,7 +502,7 @@
     syncZone(X);
     if (nat.raid && nat.raid.zi !== X.zi) endRaid(X, false);
     Object.values(nat.missions || {}).forEach((m) => {
-      if (m.kind === 'caravane' && m.state === 'active' && m.crate && m.crate.zi === X.zi && !m.crate.got) {
+      if (m.kind === 'caravane' && m.state === 'active' && m.crate && m.crate.zi === X.zi && !m.crate.got && !X.zone.colMap) {
         placeCrate(X, m);
         setTimeout(() => { if (AN.X === X && X.zi === m.crate.zi) toast('La cargaison de la caravane est dans cette zone. La flèche dorée vous guide.', 5); }, 1500);
       }
@@ -758,8 +758,10 @@
     else { m.contraints += 12; memo.forced += 12; }
     AN.Bonds.log(p, Na.realm(nat.people) + ' (' + w.code + ') : ' + (mode === 'allie' ? 'leur monde rejoint l’Archive, en allié.' : 'soumis, leur monde rejoint l’Archive.'), 'civ');
     X.anchoredNation = entry;
+    X.anchorChronicle = AN.Story ? AN.Story.chronicle(p, nat.people) : null; // ce que ce peuple se rappelle de celui d'avant (1.14)
     X.ending = true;
     FX.ring(X.player.x, X.player.y, AN.CYAN, 10, 600, 1.2, 6);
+    if (AN.Moments) AN.Moments.ascend(X); // leurs lumières montent, tout blanchit (1.14)
     AN.Audio.play('portal');
     toast(mode === 'allie' ? 'Leur monde tient désormais dans l’Archive. Il ne s’éteindra pas.' : 'Leur monde est à l’Archive. Ils n’ont pas eu le choix.', 5);
     setTimeout(() => { if (AN.X === X) AN.Expedition.finish(X, 'ancre'); }, 1400);
@@ -777,7 +779,7 @@
       Object.values(nat.missions || {}).forEach((m) => { if (m.doneAt) entry.missionAt[m.zi] = m.doneAt; });
     }
     if (entry && outcome !== 'ancre') entry.favor = U.clamp(Math.round(nat.favor - fallen.filter((a) => a.merc.people === nat.people).length * 3), -100, 100);
-    if (outcome === 'ancre' && X.anchoredNation) result.nation = { name: Na.realm(nat.people), mode: X.anchoredNation.mode, place: 'n:' + X.world.code };
+    if (outcome === 'ancre' && X.anchoredNation) result.nation = { name: Na.realm(nat.people), mode: X.anchoredNation.mode, place: 'n:' + X.world.code, people: nat.people, chronicle: X.anchorChronicle || null };
   };
 
   /* ======================= Archive ======================= */

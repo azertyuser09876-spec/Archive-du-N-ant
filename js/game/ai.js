@@ -195,7 +195,7 @@
     let best = X.player.alive ? X.player : null;
     let bd = best ? U.dist(e.x, e.y, best.x, best.y) : 1e9;
     for (const a of X.allies) {
-      if (!a.alive || a.downed) continue;
+      if (!a.alive || a.downed || a.onHex) continue;
       const d = U.dist(e.x, e.y, a.x, a.y);
       if (d < bd * 0.7) { best = a; bd = d; }
     }
@@ -345,6 +345,8 @@
     if (e.ridden) { e.flash -= dt; e.attackAnim = Math.max(0, (e.attackAnim || 0) - dt * 3); return; }
     if (e.captive) { e.anim += dt * 0.5; return; }
     if (e.temp) { e.temp -= dt; if (e.temp <= 0) { e.alive = false; FX.burst(e.x, e.y, e.pal.body, 6, 80); return; } }
+    if (e.rider) { AN.Colossus.riderUpdate(X, e, dt); return; } // une créature qui vit sur le dos d'un colosse (1.16.2)
+    if (e.col) { e.stunT -= dt; e.slowT -= dt; e.aggroT -= dt; AN.Colossus.update(X, e, dt); return; } // un colosse se meut lui-même (1.16)
     e.atkCd -= dt; e.flash -= dt; e.stunT -= dt; e.slowT -= dt; e.aggroT -= dt;
     if (e.fearT > 0) e.fearT -= dt;
     if (e.frozenT > 0) e.frozenT -= dt;

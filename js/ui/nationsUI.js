@@ -88,6 +88,8 @@
     const key = nat.anchored || nat.attitude;
     const lines = D.NATION_LINES[key] || D.NATION_LINES.fiers;
     const line = lines[(nat.seed >>> 3) % lines.length];
+    // à partir du troisième acte, le souverain parle une fois de celui d'avant (1.14)
+    const origin = X.nation.originLine || (X.nation.originLine = AN.Story.courtLine(X.profile, X.world.code, nat.seed));
     const gift = Na().giftCost(X);
     const gk = Object.keys(gift)[0];
     const block = Na().anchorBlock(X);
@@ -109,7 +111,7 @@
           h('p', { class: 'muted' }, nat.title + ' · ' + Na().realm(nat.people) + ' · capitale ' + nat.capital),
           h('p', { class: 'dlg-att' }, nat.anchored === 'allie' ? 'Alliés de l’Archive' : nat.anchored === 'vassal' ? 'Soumis à l’Archive' : D.NATION.attitudes[nat.attitude] || ''),
           favorBar(nat.favor))),
-      h('div', { class: 'dlg-text' }, h('p', null, '« ' + line + ' »'), nat.guardians ? h('p', { class: 'muted' }, 'Vous avez abattu ' + nat.guardians + ' des bêtes qui menaçaient leurs villes.') : null),
+      h('div', { class: 'dlg-text' }, h('p', null, '« ' + line + ' »'), origin ? h('p', null, '« ' + origin + ' »') : null, nat.guardians ? h('p', { class: 'muted' }, 'Vous avez abattu ' + nat.guardians + ' des bêtes qui menaçaient leurs villes.') : null),
       h('div', { class: 'dlg-choices' }, choices.map((c) => h('div', { class: 'dlg-choice' }, btn(c.label, c.fn, 'choice' + (c.danger ? ' danger' : ''), c.disabled ? { disabled: true } : {}), c.note ? h('small', { class: 'muted' }, c.note) : null))));
     UI.closeAll();
     UI.open(el);

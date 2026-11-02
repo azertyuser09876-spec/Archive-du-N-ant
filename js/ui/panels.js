@@ -199,6 +199,18 @@
     setTimeout(() => el.remove(), 5000);
   };
 
+  /* ---------- la plateforme d'un colosse-carte (1.16.3) ---------- */
+  UI.padDialog = function (X, back) {
+    const el = h('div', { class: 'panel small' },
+      h('h2', null, 'La plateforme de l’Artefact'),
+      h('p', null, 'Tout autour, le vide. D’ici, l’Artefact peut ouvrir son portail, ou vous ramener d’où vous venez.'),
+      h('div', { class: 'actions' },
+        btn('Rester', () => UI.close(), 'ghost', { autofocus: true }),
+        btn('Retourner vers ' + back.name, () => { UI.close(); back.go(); }),
+        btn('Extraire', () => { UI.close(); if (X.world.place) UI.placeReturn(X, X.mapPlate); else UI.transferDialog(X, X.mapPlate); })));
+    UI.open(el);
+  };
+
   /* ---------- confirmation ---------- */
   UI.confirm = function (text, onYes, yesLabel = 'Confirmer') {
     const el = h('div', { class: 'panel small' },
@@ -537,7 +549,9 @@
     const value = resEntries.reduce((s, [k, n]) => s + D.resValue(k) * n, 0);
     const gains = [];
     if (r.nation) gains.push(h('div', { class: 'gain-block' }, h('h4', null, r.nation.mode === 'allie' ? 'Un monde allié' : 'Un monde soumis'),
-      h('p', null, r.nation.name + ' : leur monde n’a pas été détruit. Il devient un lieu ancré, avec ses villes, ses comptoirs et ses mercenaires, et il envoie un tribut toutes les ' + D.NATION.tribute.period + ' minutes (page Peuples).')));
+      h('p', null, r.nation.name + ' : leur monde n’a pas été détruit. Il devient un lieu ancré, avec ses villes, ses comptoirs et ses mercenaires, et il envoie un tribut toutes les ' + D.NATION.tribute.period + ' minutes (page Peuples).'),
+      // leur chronique (1.14) : ce qu'ils se rappellent de celui d'avant
+      r.nation.chronicle ? h('div', { class: 'lore-list' }, h('blockquote', null, h('b', null, r.nation.chronicle.title), r.nation.chronicle.text)) : null));
     if (r.territories.length) gains.push(h('div', { class: 'gain-block' }, h('h4', null, 'Territoires ', h('small', { class: 'muted' }, 'ils ont choisi leur place dans l’Archive')),
       h('ul', { class: 'gain-list' }, r.territories.map((t) => h('li', null, AN.Mosaic ? AN.Mosaic.shape(t, 44) : null,
         h('span', null, h('b', null, t.zoneName), h('small', null, D.BIOME[t.biome].name + ', ' + (D.QUALITY_NAMES[t.quality] || 'territoire').toLowerCase() + ', ' + AN.Shapes.cellsOf(t).length + ' case' + (AN.Shapes.cellsOf(t).length > 1 ? 's' : ''))))))));
@@ -560,7 +574,7 @@
     const el = h('div', { class: 'panel report ' + r.outcome },
       band,
       h('header', { class: 'report-head' },
-        h('div', null, h('h2', null, title), h('p', { class: 'muted' }, r.world.code + ', ' + r.world.region + ', menace ' + r.world.threat + ' sur 7')),
+        h('div', null, h('h2', null, title), h('p', { class: 'muted' }, r.world.code + ', ' + r.world.region + (r.danger ? ', ' + r.danger.name.toLowerCase() + ' pour vous' : ''))),
         h('div', { class: 'stamp' + (r.place || r.nation ? ' kept' : '') }, r.nation ? (r.nation.mode === 'allie' ? 'Allié' : 'Soumis') : r.place ? 'Ancré' : r.sursis ? 'En sursis' : 'Détruit')),
       r.base && r.base.submerged ? h('p', { class: 'note' }, r.base.withPlayer
         ? 'L’hexagone a cédé pendant que vous étiez à bord : l’Artefact vous a ramené avec la soute, sans les territoires.'
@@ -632,10 +646,10 @@
       h('div', null, h('b', null, o.name), h('p', { class: 'muted' }, o.desc), UI.costList(o.cost, prof), o.why.length ? h('div', { class: 'why' }, o.why.join(' · ')) : null),
       btn('Faire évoluer', () => {
         if (B.evolve(prof, entry, o)) {
-          AN.Audio.play('rank');
-          AN.HUD.toast(P.displayName(entry) + ' a évolué.', 4);
-          if (AN.Archive.state()) AN.Archive.celebrate(entry.uid);
-          reopen();
+          // l'évolution se voit (1.14) : on referme, la caméra s'approche, une colonne de lumière
+          const text = P.displayName(entry) + ' a évolué' + (entry.stage ? ' : ' + D.STAGES[entry.stage].name.toLowerCase() : '') + '.';
+          if (AN.Archive.state()) { UI.closeAll(); AN.Archive.evolve(entry.uid, text); }
+          else { AN.Audio.play('rank'); AN.HUD.toast(text, 4); reopen(); }
         }
       }, o.ok ? 'primary small' : 'small', { disabled: !o.ok })))) : null;
 

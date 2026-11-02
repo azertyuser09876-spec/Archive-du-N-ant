@@ -23,6 +23,7 @@
     let best = null, bs = 1e9;
     for (const e of X.creatures) {
       if (!e.alive || e.team !== 'wild' || e.hidden) continue;
+      if (p.climb && p.climb.e === e && e.boss && e.boss.exhausted) return e; // sur son dos (colosse-carte, 1.16.3) : c'est lui qu'on vise
       const d = U.dist(p.x, p.y, e.x, e.y) - e.r;
       if (d > range) continue;
       const a = Math.atan2(e.y - p.y, e.x - p.x);
@@ -60,17 +61,18 @@
     beam.msgT -= dt;
     if (beam.lockT > 0) { beam.lockT -= dt; beam.target = null; beam.sound.set(0); return; }
     let tg = beam.target;
-    if (tg && (!tg.alive || tg.hidden || U.dist(p.x, p.y, tg.x, tg.y) - tg.r > X.beamRange * 1.2 || Math.abs(U.angDiff(p.aim, Math.atan2(tg.y - p.y, tg.x - p.x))) > 0.9)) tg = null;
+    const onIt = tg && p.climb && p.climb.e === tg;
+    if (tg && (!tg.alive || tg.hidden || (!onIt && (U.dist(p.x, p.y, tg.x, tg.y) - tg.r > X.beamRange * 1.2 || Math.abs(U.angDiff(p.aim, Math.atan2(tg.y - p.y, tg.x - p.x))) > 0.9)))) tg = null;
     if (!tg) tg = findTarget(X, p);
     beam.target = tg;
     if (!tg) { beam.sound.set(0); return; }
-    if (!Z.los(X.zone, p.x, p.y, tg.x, tg.y)) { beam.sound.set(0); return; }
+    if (!tg.col && !tg.rider && !Z.los(X.zone, p.x, p.y, tg.x, tg.y)) { beam.sound.set(0); return; } // un colosse enjambe le relief : on le voit toujours
 
     const weight = tg.def.npc ? AN.Civ.captureWeight(X) : AN.Tools ? AN.Tools.weightFor(X, tg.def.tier) : D.TIERS[tg.def.tier].weight;
     if (!Cap.eligible(X, tg)) {
       if (beam.msgT <= 0) {
         beam.msgT = 1.6;
-        FX.text(tg.x, tg.y - tg.r - 12, tg.core ? 'détruisez ce noyau' : tg.def.npc && !X.civ ? 'on ne capture pas les gens d’une nation' : tg.herd ? 'repoussez-la dans son orbite' : tg.def.echo ? 'un écho ne se capture pas' : tg.boss ? (tg.boss.exhausted ? AN.Cosmic.formHint(X, tg) : 'pas encore épuisé') : 'trop vigoureuse : affaiblissez-la', AN.INK, { size: 11 });
+        FX.text(tg.x, tg.y - tg.r - 12, tg.core ? 'détruisez ce noyau' : tg.def.npc && !X.civ ? 'on ne capture pas les gens d’une nation' : tg.herd ? 'frappez-la : elle repart vers lui' : tg.def.echo ? 'un écho ne se capture pas' : tg.boss ? (tg.boss.exhausted ? AN.Cosmic.formHint(X, tg) : 'pas encore épuisé') : 'trop vigoureuse : affaiblissez-la', AN.INK, { size: 11 });
       }
       beam.sound.set(0.05);
       return;
@@ -108,8 +110,9 @@
     }
     e.alive = false;
     e.captured = true;
+    AN.Moments.capture(X, e); // elle est aspirée vers l'Artefact (1.14)
     X.cargo.push({ species: e.def.id, variant: e.variant, hueSeed: e.hueSeed, foreign: e.foreign, zone: X.zi, guardianOf: e.boss && !e.boss.errant ? e.boss.zoneIndex : null });
-    for (let i = 0; i < 24 + e.r; i++) FX.stream(e.x + (Math.random() - 0.5) * e.r * 2, e.y + (Math.random() - 0.5) * e.r * 2, p.x, p.y, i % 2 ? e.pal.body : AN.CYAN, { life: 0.5 + Math.random() * 0.4, size: 3 });
+    for (let i = 0; i < 8; i++) FX.stream(e.x + (Math.random() - 0.5) * e.r * 2, e.y + (Math.random() - 0.5) * e.r * 2, p.x, p.y, i % 2 ? e.pal.body : AN.CYAN, { life: 0.5 + Math.random() * 0.4, size: 3 });
     FX.ring(e.x, e.y, AN.CYAN, e.r * 2, 2, 0.5, 3);
     AN.Audio.play('capture_ok');
     X.stats.captures++;

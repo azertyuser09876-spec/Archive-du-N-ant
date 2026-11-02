@@ -121,7 +121,7 @@
       phases: [
         { at: 1, speed: 40, patterns: [{ type: 'slam', dmg: 18, radius: 130, windup: 1 }, { type: 'aimed', count: 4, spread: 0.35, speed: 330, dmg: 9, color: '#ffb347', bursts: 2 }] },
         { at: 0.6, speed: 50, patterns: [{ type: 'charge', dmg: 20, speed: 420, windup: 0.9 }, { type: 'pools', count: 4, radius: 50, dps: 14, color: '#ff641a' }, { type: 'summon', species: 'ossicrabe', count: 3 }] },
-        { at: 0.3, speed: 60, patterns: [{ type: 'shockwave', count: 3 }, { type: 'radial', n: 16, speed: 200, dmg: 10, color: '#ffb347' }, { type: 'rain', count: 8, radius: 60, dmg: 18, windup: 1.1, color: '#ff641a' }] },
+        { at: 0.3, speed: 60, patterns: [{ type: 'shockwave', count: 3, dmg: 14 }, { type: 'radial', n: 16, speed: 200, dmg: 10, color: '#ffb347' }, { type: 'rain', count: 8, radius: 60, dmg: 18, windup: 1.1, color: '#ff641a' }] },
       ],
       drops: { os: 10, braise: 6, obsidienne: 1, essence: 1 }, produces: { res: 'os', rate: 4 }, roles: ['combat', 'porteur'],
       power: { name: 'Carapace-forteresse', desc: '+20 PV maximum', stat: { hp: 20 } },

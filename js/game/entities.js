@@ -45,14 +45,16 @@
   E.value = (speciesId, variantId) => {
     const d = D.CREATURE[speciesId];
     const v = D.VARIANT[variantId] || D.VARIANT.commun;
-    return Math.round([20, 60, 260, 900, 2400, 3600, 5000, 7000][d.tier] * (v.value || 1) * (1 + d.rarity * 0.5));
+    // jusqu'au rang 10 (1.16.3 : au-delà du rang 7, la valeur n'était pas un nombre, et le butin en jeu affichait « NaN »)
+    const T = [20, 60, 260, 900, 2400, 3600, 5000, 7000, 9500, 12500, 16000];
+    return Math.round((T[d.tier] != null ? T[d.tier] : T[T.length - 1]) * (v.value || 1) * (1 + (d.rarity || 0) * 0.5));
   };
 
   /* ---------- physique ---------- */
   const P = (AN.Physics = {});
 
   /** Repousse un cercle hors des tuiles pleines. */
-  P.collide = function (zone, e) {
+  P.collide = function (zone, e, mask) {
     const T = zone.T;
     const r = e.r;
     const x0 = Math.floor((e.x - r) / T), x1 = Math.floor((e.x + r) / T);
@@ -60,7 +62,7 @@
     let hit = false;
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
-        if (!Z.solidT(zone, tx, ty)) continue;
+        if (mask ? !(tx < 0 || ty < 0 || tx >= zone.w || ty >= zone.h || mask[zone.grid[ty * zone.w + tx]] === 1) : !Z.solidT(zone, tx, ty)) continue;
         const cx = U.clamp(e.x, tx * T, tx * T + T), cy = U.clamp(e.y, ty * T, ty * T + T);
         const dx = e.x - cx, dy = e.y - cy;
         const d2 = dx * dx + dy * dy;
@@ -95,9 +97,17 @@
     e.kbx *= kd; e.kby *= kd;
     const nx = e.x + (e.vx + e.kbx) * dt, ny = e.y + (e.vy + e.kby) * dt;
     const moved = Math.hypot(nx - e.x, ny - e.y);
-    e.x = nx; e.y = ny;
-    if (!ignoreWalls) {
-      if (P.collide(zone, e)) { e.kbx *= 0.5; e.kby *= 0.5; }
+    if (ignoreWalls === true) { e.x = nx; e.y = ny; }
+    else {
+      // par petits pas (au plus un demi-rayon) : un mouvement rapide, un dash par exemple, ne traverse
+      // plus une paroi fine quand les images sont lentes (1.14 : on passait les barrières des caveaux)
+      const n = Math.min(16, Math.max(1, Math.ceil(moved / Math.max(3, Math.min(e.r, zone.T) * 0.5))));
+      const sx = (nx - e.x) / n, sy = (ny - e.y) / n;
+      let hit = false;
+      // en plein saut (1.16.1) : on franchit le vide, pas les murs ni les barrières des caveaux
+      const mask = ignoreWalls === 'leap' ? Z.LEAP_SOLID : null;
+      for (let i = 0; i < n; i++) { e.x += sx; e.y += sy; if (P.collide(zone, e, mask)) hit = true; }
+      if (hit) { e.kbx *= 0.5; e.kby *= 0.5; }
     }
     const pad = zone.T * 2 + e.r;
     e.x = U.clamp(e.x, pad, zone.w * zone.T - pad);

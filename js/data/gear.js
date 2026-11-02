@@ -98,7 +98,7 @@
       fmt: (v) => v.dur + ' s de transfert, ' + Math.round(v.keep * 100) + ' % gardés en urgence',
     },
     scanner: {
-      name: 'Scanner', desc: 'Nombre de destinations détectées et fiabilité des informations.',
+      name: 'Scanner', desc: 'Nombre de destinations captées, et ce que leurs fiches révèlent (faune, gardiens, règle, caveaux…).',
       levels: [
         { v: { count: 3, reliab: 0.5 } },
         { v: { count: 4, reliab: 0.7 }, cost: { verre: 10, etincelle: 8, perle: 1 } },

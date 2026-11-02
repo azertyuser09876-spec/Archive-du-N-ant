@@ -1,5 +1,6 @@
 /* Carte de l'Artefact : les destinations captées, disposées autour de l'Artefact.
-   La distance au centre traduit la menace. Survol : aperçu ; clic : sélection.
+   La distance au centre traduit le danger pour vous (1.15) : quatre anneaux, Facile
+   au centre, Mortel au bord. Survol : aperçu ; clic : sélection.
    Une recherche active fait briller les mondes qui contiennent la cible et
    éteint les autres. */
 (function () {
@@ -12,34 +13,59 @@
 
   const WM = (AN.WorldMap = {});
 
-  /** Menace maximale représentée : les anneaux s'adaptent aux mondes captés. */
-  const maxThreat = (worlds) => Math.max(3, ...worlds.map((w) => w.threat || 1));
-  /** Rayon normalisé (0..1) d'un anneau de menace. */
-  const ringN = (k, maxT) => 0.3 + 0.7 * ((k - 0.5) / maxT);
+  /** Les quatre anneaux du danger (1.15) : rayon normalisé (0..1) de leurs bords, et l'écart de niveaux qu'ils couvrent. */
+  const BANDS = [
+    { r0: 0.26, r1: 0.44, g0: -22, g1: -6 },
+    { r0: 0.44, r1: 0.64, g0: -6, g1: 3 },
+    { r0: 0.64, r1: 0.82, g0: 3, g1: 9 },
+    { r0: 0.82, r1: 1, g0: 9, g1: 24 },
+  ];
+  WM.COLORS = ['#22808a', '#3f7d2a', '#b8641a', '#b3261e'];
+  /** Rayon normalisé d'un monde, d'après son danger : l'anneau, puis l'écart à l'intérieur de l'anneau. */
+  WM.radius = function (d) {
+    const b = BANDS[d.rank];
+    return b.r0 + (b.r1 - b.r0) * (0.15 + 0.7 * U.clamp((d.gap - b.g0) / (b.g1 - b.g0), 0, 1));
+  };
+  const dangerOf = (w) => AN.Danger.of(w, AN.Game.profile);
   /** Demi-axes de l'ellipse utile (la carte est plus large que haute). */
   const axes = (W, H) => ({ RX: W / 2 - 46, RY: H / 2 - 34 });
 
-  /** Positions stables : l'angle vient de la graine, la distance de la menace. */
+  /** Positions stables : l'angle vient de la graine, la distance du danger. */
   function layout(worlds, W, H) {
     const cx = W / 2, cy = H / 2;
     const { RX, RY } = axes(W, H);
     const cosmic = worlds.length && worlds[0].scale && worlds[0].scale !== 'region';
-    const maxT = maxThreat(worlds);
     const out = [];
-    worlds.forEach((w, i) => {
+    // les étiquettes des anneaux, en haut : les mondes s'en écartent
+    const marks = BANDS.map((b) => ({ x: cx, y: cy - ((b.r0 + b.r1) / 2) * RY }));
+    // chevauchement (planète et nom au-dessus) : 0 si la place est libre
+    const clash = (p, size) => {
+      let s = 0;
+      for (const o of out) { const m = o.size + size + 24; s += Math.max(0, m - Math.abs(o.x - p.x)) * Math.max(0, m + 8 - Math.abs(o.y - p.y)); }
+      for (const m of marks) s += Math.max(0, 44 + size - Math.abs(m.x - p.x)) * Math.max(0, 24 + size - Math.abs(m.y - p.y));
+      return s;
+    };
+    worlds.forEach((w) => {
       const rng = AN.RNG.from(w.seed, 'carte');
       let a = rng.float(0, TAU);
-      const n = cosmic ? 0.45 + 0.45 * ((i + 0.5) / Math.max(1, worlds.length)) : ringN(w.threat, maxT) + rng.float(-0.04, 0.04);
+      const danger = dangerOf(w);
+      const band = BANDS[danger.rank];
+      const n0 = WM.radius(danger) + rng.float(-0.02, 0.02);
       const size = 16 + w.zones.length * 4 + (cosmic ? 4 : 0);
-      const at = (ang) => ({ x: cx + Math.cos(ang) * n * RX, y: cy + Math.sin(ang) * n * RY });
-      // écarte les mondes trop proches (le long de leur anneau)
-      for (let k = 0; k < 40; k++) {
-        const p = at(a);
-        if (!out.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < o.size + size + 30)) break;
-        a += 0.23;
+      const at = (ang, n) => ({ x: cx + Math.cos(ang) * n * RX, y: cy + Math.sin(ang) * n * RY });
+      // écarte les mondes trop proches : le long de leur anneau, puis un peu plus près ou plus loin, sans quitter l'anneau ;
+      // si la carte est pleine, la place la moins encombrée
+      let p = null, best = Infinity;
+      for (const dn of [0, -0.06, 0.06, -0.11, 0.11, -0.16, 0.16]) {
+        const n = U.clamp(n0 + dn, band.r0 + 0.02, Math.min(1.04, band.r1 - 0.02));
+        for (let k = 0; k < 28; k++) {
+          const q = at(a + k * 0.23, n), c = clash(q, size);
+          if (c < best) { best = c; p = q; }
+          if (!c) break;
+        }
+        if (!best) break;
       }
-      const p = at(a);
-      out.push({ w, x: p.x, y: p.y, size, a });
+      out.push({ w, x: p.x, y: p.y, size, a, danger, fiche: AN.Fiche.of(w, AN.Game.profile) });
     });
     return out;
   }
@@ -137,22 +163,25 @@
       ctx.fillRect(0, 0, W, H);
       const cx = W / 2, cy = H / 2;
       const { RX, RY } = axes(W, H);
-      const cosmic = opts.worlds.length && opts.worlds[0].scale && opts.worlds[0].scale !== 'region';
-      // anneaux de menace, numérotés en haut
-      ctx.font = '700 10px ' + AN.FONT_UI; ctx.textAlign = 'center';
-      const rings = cosmic ? [1 / 3, 2 / 3, 1] : [];
-      const maxT = maxThreat(opts.worlds);
-      if (!cosmic) for (let k = 1; k <= maxT; k++) rings.push(ringN(k, maxT));
-      rings.forEach((n, i) => {
-        ctx.strokeStyle = U.rgba(AN.INK, 0.09); ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.ellipse(cx, cy, n * RX, n * RY, 0, 0, TAU); ctx.stroke();
-        if (cosmic) return;
-        const lx = cx + Math.cos(-2.2) * n * RX, ly = cy + Math.sin(-2.2) * n * RY;
-        ctx.fillStyle = '#fbfbfa'; ctx.strokeStyle = U.rgba(AN.INK, 0.3);
-        ctx.beginPath(); ctx.arc(lx, ly, 7, 0, TAU); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = U.rgba(AN.INK, 0.6); ctx.fillText(String(i + 1), lx, ly + 3.5);
+      // les quatre anneaux du danger (1.15), teintés, nommés en haut à gauche
+      for (let i = BANDS.length - 1; i >= 0; i--) {
+        const b = BANDS[i];
+        ctx.fillStyle = U.rgba(WM.COLORS[i], 0.05 + i * 0.012);
+        ctx.beginPath(); ctx.ellipse(cx, cy, b.r1 * RX, b.r1 * RY, 0, 0, TAU); ctx.ellipse(cx, cy, b.r0 * RX, b.r0 * RY, 0, 0, TAU); ctx.fill('evenodd');
+        ctx.strokeStyle = U.rgba(WM.COLORS[i], 0.28); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(cx, cy, b.r1 * RX, b.r1 * RY, 0, 0, TAU); ctx.stroke();
+      }
+      ctx.font = '800 9.5px ' + AN.FONT_UI; ctx.textAlign = 'center';
+      AN.Danger.GRADES.forEach((g, i) => {
+        const n = (BANDS[i].r0 + BANDS[i].r1) / 2;
+        const lx = cx, ly = cy - n * RY;
+        const label = g.name.toUpperCase();
+        const lw = ctx.measureText(label).width + 8;
+        ctx.fillStyle = 'rgba(251,251,250,0.92)'; ctx.fillRect(lx - lw / 2, ly - 7, lw, 13);
+        ctx.fillStyle = WM.COLORS[i]; ctx.fillText(label, lx, ly + 3);
       });
-      if (!cosmic) { ctx.textAlign = 'left'; ctx.font = '600 10px ' + AN.FONT_UI; ctx.fillStyle = U.rgba(AN.INK, 0.5); ctx.fillText('Anneaux : menace', 10, 16); }
+      ctx.textAlign = 'left'; ctx.font = '600 10.5px ' + AN.FONT_UI; ctx.fillStyle = U.rgba(AN.INK, 0.6);
+      ctx.fillText('Plus un monde est loin de l’Artefact, plus il est dangereux pour vous.', 10, 16);
       // balayage du scanner (dans l'espace de l'ellipse)
       const sweep = t * 0.9;
       ctx.save(); ctx.translate(cx, cy); ctx.scale(RX / RY, 1);
@@ -164,14 +193,8 @@
       ctx.restore();
       ctx.strokeStyle = U.rgba(AN.CYAN, 0.35); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(sweep) * (RX + 16), cy + Math.sin(sweep) * (RY + 16)); ctx.stroke();
-      // l'Artefact
-      for (let i = 0; i < 3; i++) {
-        ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * (0.4 + i * 0.3) * (i % 2 ? -1 : 1));
-        const s = 7 + i * 5;
-        ctx.strokeStyle = i === 0 ? AN.CYAN : U.rgba(AN.INK, 0.7 - i * 0.2); ctx.lineWidth = i === 0 ? 2 : 1;
-        ctx.strokeRect(-s, -s, s * 2, s * 2);
-        ctx.restore();
-      }
+      // l'Artefact, dans sa forme du moment (1.14)
+      AN.ArtefactArt.draw(ctx, cx, cy, t, Object.assign(AN.Story.look(AN.Game.profile), { size: 0.5, still: true, shadow: false }));
       // route vers le monde choisi
       const sel = st.items.find((it) => it.w === st.selected);
       if (sel) {
@@ -188,6 +211,9 @@
         // passage du balayage : un éclat
         const da = Math.abs(U.angDiff(sweep, Math.atan2((it.y - cy) / RY, (it.x - cx) / RX)));
         if (da < 0.15 && !dim) { ctx.fillStyle = U.rgba(AN.CYAN, 0.25 * (1 - da / 0.15)); ctx.beginPath(); ctx.arc(x, y, r + 10, 0, TAU); ctx.fill(); }
+        // le liseré du danger
+        ctx.strokeStyle = U.rgba(WM.COLORS[it.danger.rank], dim ? 0.25 : 0.85); ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y, r + 3, 0, TAU); ctx.stroke();
         WM.drawPlanet(ctx, w, x, y, r, t, { alpha: dim ? 0.3 : 1 });
         if (w.rescue) { ctx.strokeStyle = AN.STAMP; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(x, y, r + 6, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
         if (res && res.total) {
@@ -200,28 +226,29 @@
           ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(badge, x + r * 0.7 + bw / 2, y - r + 6);
         }
         if (w.found) { ctx.fillStyle = AN.CYAN; ctx.beginPath(); ctx.moveTo(x - r - 10, y); ctx.lineTo(x - r - 4, y - 5); ctx.lineTo(x - r - 4, y + 5); ctx.closePath(); ctx.fill(); }
-        // pictogrammes : peuple, caveaux
+        // pictogrammes : peuple, caveaux (ce que la fiche en dit, 1.15)
         let ix = x - r * 0.8;
-        if (w.scan.civ && w.scan.civ !== 'Aucune') {
+        const f = it.fiche;
+        if (f.people) {
           ctx.fillStyle = '#ffffff'; ctx.strokeStyle = AN.INK; ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(ix, y + r + 4); ctx.lineTo(ix + 5, y + r - 1); ctx.lineTo(ix + 10, y + r + 4); ctx.lineTo(ix + 10, y + r + 10); ctx.lineTo(ix, y + r + 10); ctx.closePath(); ctx.fill(); ctx.stroke();
           ix += 14;
         }
-        (w.scan.vaults || []).forEach((k) => {
+        (f.vaults.keys || Array(f.vaults.n).fill('?')).forEach((k) => {
           ctx.fillStyle = k === '?' ? '#9aa0a8' : D.KEYS[k].color;
           ctx.beginPath(); ctx.arc(ix + 4, y + r + 7, 3.5, 0, TAU); ctx.fill();
           ix += 10;
         });
         if (st.selected === w) { ctx.strokeStyle = AN.INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 13, 0, TAU); ctx.stroke(); }
         ctx.font = '600 11px ' + AN.FONT_UI; ctx.textAlign = 'center';
-        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(251,251,250,0.9)';
+        ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(251,251,250,0.9)';
         ctx.strokeText(w.code, x, y - r - 10); ctx.fillStyle = dim ? U.rgba(AN.INK, 0.4) : AN.INK; ctx.fillText(w.code, x, y - r - 10);
       }
       // bulle du monde survolé
       const hv = st.items.find((it) => it.w === st.hover);
       if (hv) {
         const w = hv.w;
-        const lines = [w.code + ' · ' + w.region, (w.scale && w.scale !== 'region' ? D.ECHELONS[w.scale].name + ' · ' : '') + 'menace ' + w.scan.threat + ' · ' + w.zones.length + ' zones · ' + w.scan.type];
+        const lines = [w.place ? w.placeName : w.code + ' · ' + w.region, hv.danger.name + ' · ' + (w.scale && w.scale !== 'region' ? D.ECHELONS[w.scale].name + ' · ' : '') + w.zones.length + ' zones · ' + D.BIOME[w.primary].name];
         if (search) lines.push('Recherche : ' + AN.Search.summary(w, search));
         else if (w.rescue) lines.push('Mission de sauvetage');
         ctx.font = '600 12px ' + AN.FONT_UI;
@@ -232,7 +259,7 @@
         ctx.fillStyle = '#ffffff'; ctx.strokeStyle = AN.INK; ctx.lineWidth = 1.5;
         ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
         ctx.textAlign = 'left';
-        lines.forEach((l, i) => { ctx.fillStyle = i ? (i === 2 && search ? AN.CYAN : U.rgba(AN.INK, 0.75)) : AN.INK; ctx.font = (i ? '400 ' : '600 ') + '12px ' + AN.FONT_UI; ctx.fillText(l, bx + 10, by + 20 + i * 17); });
+        lines.forEach((l, i) => { ctx.fillStyle = i === 1 ? WM.COLORS[hv.danger.rank] : i ? (i === 2 && search ? AN.CYAN : U.rgba(AN.INK, 0.75)) : AN.INK; ctx.font = (i ? '400 ' : '600 ') + '12px ' + AN.FONT_UI; ctx.fillText(l, bx + 10, by + 20 + i * 17); });
       }
       requestAnimationFrame(draw);
     };

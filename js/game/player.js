@@ -18,6 +18,7 @@
       kind: 'player', team: 'ally', x, y, vx: 0, vy: 0, dvx: 0, dvy: 0, kbx: 0, kby: 0, r: 12, aim: 0, anim: 0,
       hp: 100, maxHp: 100, alive: true, iframes: 0, flash: 0, dashT: 0, dashCd: 0, fireCd: 0, meleeCd: 0,
       slowT: 0, slowAmt: 0, recoil: 0, meleeAnim: 0, supportT: 0, hazardAcc: 0,
+      grip: 1, climb: null, z: 0, // l'endurance de la prise, le colosse sur lequel on grimpe, la hauteur d'un saut (1.16)
     };
   };
 
@@ -64,9 +65,10 @@
 
   PC.damage = function (X, dmg, src, opts = {}) {
     const p = X.player;
+    if (!(dmg > 0)) return 0; // des dégâts qui ne sont pas un nombre ne doivent pas rendre immortel (1.14 : « NaN » sur la barre de vie)
     if (!p.alive || (p.iframes > 0 && !opts.ignoreIframes) || X.ending || p.hidden) return 0;
     if (AN.debug && X.god) return 0;
-    if (X.mount && AN.Mount.absorb(X, dmg, src, opts)) return 0;
+    if (X.mount) { dmg = AN.Mount.absorb(X, dmg, src, opts); if (!(dmg > 0)) return 0; } // la monture prend sa part (1.16.3)
     const sh = X.abil && X.abil.buffs;
     if (sh && sh.shield > 0 && sh.shieldHp > 0 && !opts.dot) {
       const taken = Math.min(sh.shieldHp, dmg);
@@ -115,12 +117,22 @@
   PC.update = function (X, dt) {
     const p = X.player;
     const S = X.S;
-    p.iframes -= dt; p.flash -= dt; p.dashCd -= dt; p.fireCd -= dt; p.meleeCd -= dt; p.slowT -= dt;
+    p.iframes -= dt; p.flash -= dt; p.dashCd -= dt; p.jumpCd = (p.jumpCd || 0) - dt; p.fireCd -= dt; p.meleeCd -= dt; p.slowT -= dt;
     p.recoil = Math.max(0, p.recoil - dt * 8);
     p.meleeAnim = Math.max(0, p.meleeAnim - dt * 5);
     if (!p.alive) { p.dvx = p.dvy = 0; return; }
+    // filet de sécurité (1.14) : des PV qui ne sont plus un nombre reprennent leur dernière valeur valable
+    if (!Number.isFinite(p.hp)) p.hp = Number.isFinite(p.hpOk) ? p.hpOk : p.maxHp;
+    else p.hpOk = p.hp;
     const m = AN.Game.mouseWorld();
     p.aim = Math.atan2(m.y - p.y, m.x - p.x);
+    // sur un colosse (1.16) : on grimpe, on tient, on frappe ses sceaux ; rien d'autre
+    if (p.climb && AN.Colossus.climbUpdate(X, p, dt)) {
+      for (let i = 0; i < D.CONSUMABLE_SLOTS; i++) if (I.hit('Digit' + (i + 1)) || I.hit('Numpad' + (i + 1))) PC.useConsumable(X, i);
+      if (S.regen > 0) p.hp = Math.min(p.maxHp, p.hp + S.regen * dt);
+      return;
+    }
+    if (p.grip < 1) p.grip = Math.min(1, (p.grip == null ? 1 : p.grip) + dt * 0.35);
     if (I.hit('KeyR')) AN.Mount.toggle(X);
     if (p.stunT > 0) { p.stunT -= dt; p.dvx = p.dvy = 0; AN.Physics.move(X.zone, p, dt, false); AN.Mount.update(X, dt); return; }
 
@@ -154,8 +166,8 @@
       const base = X.mount ? AN.Mount.speed(X.mount) : S.speed;
       const sp = base * (1 - slow) * (X.beam && X.beam.target ? 0.75 : 1) * AN.Beyond.speedMul(X, p);
       p.dvx = ax.x * sp; p.dvy = ax.y * sp;
-      const galaxy = AN.Beyond.leaps(X);
-      if (((galaxy && !leapHandled && I.up('Space')) || (!galaxy && I.hit('Space'))) && p.dashCd <= 0) {
+      // l'esquive est immédiate partout (1.16.1) : le saut a sa propre touche
+      if (I.hit('Space') && p.dashCd <= 0) {
         const dx = ax.x || Math.cos(p.aim), dy = ax.y || Math.sin(p.aim);
         const l = Math.hypot(dx, dy) || 1;
         const dist = X.world.rule === 'gravite' ? 1.3 : 1;
@@ -168,7 +180,7 @@
       }
     }
     if (!leaping) AN.Cosmic.playerForces(X, p, dt);
-    AN.Physics.move(X.zone, p, dt, !!p.leap);
+    AN.Physics.move(X.zone, p, dt, p.leap ? 'leap' : false);
     AN.Mount.update(X, dt);
 
     const beaming = I.down('KeyF');
@@ -198,6 +210,7 @@
       let healed = 0;
       for (const e of X.creatures) {
         if (!e.alive || e.team !== 'wild' || e.hidden) continue;
+        if (e.col) { AN.Colossus.melee(X, e, p, M, M.dmg * S.meleeMul * rage); continue; } // un colosse (1.16) : seuls ses sceaux découverts
         const d = U.dist(p.x, p.y, e.x, e.y);
         if (d > M.range + e.r + p.r) continue;
         const a = Math.atan2(e.y - p.y, e.x - p.x);
@@ -213,7 +226,7 @@
       if (I.hit('Digit' + (i + 1)) || I.hit('Numpad' + (i + 1))) PC.useConsumable(X, i);
     }
     // régénération et soins des compagnons de soutien
-    if (S.regen) p.hp = Math.min(p.maxHp, p.hp + S.regen * dt);
+    if (S.regen > 0) p.hp = Math.min(p.maxHp, p.hp + S.regen * dt);
     p.supportT -= dt;
     if (p.supportT <= 0) {
       p.supportT = 3;

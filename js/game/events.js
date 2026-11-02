@@ -182,7 +182,7 @@
   Ev.onEnterZone = function (X) {
     X.event = null;
     X.eventDark = 0; X.dropMul = 1;
-    if (X.world.tutorial) return;
+    if (X.world.tutorial || (X.zone && X.zone.colMap)) return; // sur un colosse-carte, il n'y a que lui (1.16.3)
     const spec = AN.Expedition.zoneSpec(X, X.zi);
     X.eventsDone = X.eventsDone || new Set();
     if (!spec || !spec.event || X.eventsDone.has(X.zi) || !D.WORLD_EVENTS[spec.event]) return;

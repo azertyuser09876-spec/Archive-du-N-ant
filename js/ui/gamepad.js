@@ -17,7 +17,7 @@
 
   // bouton → code logique (jeu)
   const MAP = { 0: 'KeyE', 1: 'Space', 2: 'KeyQ', 3: 'KeyR', 4: 'KeyG', 6: 'KeyF', 8: 'Tab', 10: 'KeyX', 11: 'KeyV', 12: 'Digit1', 15: 'Digit2', 13: 'Digit3', 14: 'Digit4' };
-  Pad.LABELS = { KeyE: 'A', Space: 'B', KeyQ: 'X', KeyR: 'Y', KeyG: 'LB', KeyF: 'LT', Tab: 'Vue', KeyX: 'L3', KeyV: 'R3', Digit1: '↑', Digit2: '→', Digit3: '↓', Digit4: '←', Escape: 'Menu', Mouse0: 'RT', Mouse2: 'RB' };
+  Pad.LABELS = { KeyE: 'A', Space: 'B', KeyQ: 'X', KeyR: 'Y', KeyG: 'LB', KeyF: 'LT', Tab: 'Vue', KeyX: 'L3', KeyV: 'R3', KeyC: 'R3', Digit1: '↑', Digit2: '→', Digit3: '↓', Digit4: '←', Escape: 'Menu', Mouse0: 'RT', Mouse2: 'RB' };
 
   window.addEventListener('gamepadconnected', (e) => {
     Pad.connected = true;
@@ -89,6 +89,7 @@
       let code = MAP[i];
       if (mapMode && i === 0) continue; // A sert de clic en agencement
       if (mapMode && i === 3) code = 'KeyR'; // Y : tourner
+      if (i === 11 && AN.X) code = 'KeyC'; // R3 : sauter, en expédition (1.16.1)
       if (down(i)) { I.press(code); Pad.held[code] = true; }
       else if (up(i)) { I.release(code); Pad.held[code] = false; }
     }
